@@ -11,7 +11,8 @@ const float = {
   float_32: new Float32Array(buffer), // 32/8 = 4 byte per element = 2 bytes -> 32/4 = 8
   bint_64: new BigUint64Array(buffer), // 64/8 = 8 byte per element = 1 bytes -> 64/8 = 8
 };
-console.log((float.int_16[0] = 20));
+float.int_16[0] = 258;
+float.int_16[1] = 123;
 console.log(float);
 const no_of_bytes = {
   int_8: Int8Array.BYTES_PER_ELEMENT,

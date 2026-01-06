@@ -1,6 +1,6 @@
 /**
- * Scope : A Scope is a variable where it can be accessable.
- * Lexical environment is the local memory and Lexical environment of it's parent memory
+ * Scope : A Scope is where a particular variable can be accessable.
+ * Lexical environment is the local scope and Lexical environment of it's parent scope
  */
 
 function a() {
@@ -13,3 +13,9 @@ function a() {
 
 var b = 10; //Global scope
 a(); // function invocation
+
+
+/**
+ * In above program b and a() is global scope
+ * c() is function scope, where it have access to current environment(a scope) and also global scope
+ */

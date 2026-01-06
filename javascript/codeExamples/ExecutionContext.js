@@ -1,6 +1,6 @@
 /**
 Execution context 
-- Everthing in JavaScript happends inside an Execution context
+- Everthing in JavaScript happens inside an Execution context
 - A place where JavaScript code is executed
 - It has 2 main components
     - Memory (variable environment) - Heap
@@ -33,7 +33,7 @@ console.log(square2, square4);
  * 2 value is assigned to variable n
  * when we invoke a function a brand new execution context is created(square2)
  *      - For square2 a new execution context is created which have their own memory and code component
- *          - PHASE 1 : Memory created phase
+ *          - PHASE 1 : Memory creation phase
  *          - num variable is created in memory and assinged with undefiend value
  *          - ans variable is created in memory and assigned with undefiend value
  *          - PHASE 2 : Code execution phase
@@ -41,16 +41,14 @@ console.log(square2, square4);
  *          - assign result to num * num to ans
  *          - return ans -> Control given back to main execution context and delete current execution context (pop() - current function execution content)
  *
- * At the end Global Execution context will be deleted (once task is done)
- *
- *
+ * At the end Global Execution context will be deleted/popped out of statck (once task is done)
  *
  * 1.Global Execution Content(complete program)- created
  * 2.Global Execution Content(complete program) <-----> function execution context(functionl block) (square2) (created)
- * 3.Control back to GEC , FEC will be deleted(poped out of stack)
+ * 3.Control back to GEC , FEC will be deleted(popped out of stack)
  * 4.Global Execution Content(complete program) <-----> function execution context(functionl block) (square4) (created)
- * 5.Control back to GEC , FEC will be deleted(poped out of stack)
- * 6.Global Execution Content(complete program) - deleted(poped out of stack)
+ * 5.Control back to GEC , FEC will be deleted(popped out of stack)
+ * 6.Global Execution Content(complete program) - deleted(popped out of stack)
  *
  *
  *

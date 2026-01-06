@@ -22,3 +22,5 @@ const xarrfn = () => {
 if (x == 10) {
 } // Blocked Scope
 xarrfn();
+
+console.log(this.a);

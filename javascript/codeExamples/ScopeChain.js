@@ -18,4 +18,6 @@ a(); // function invocation
 /**
  * In above program b and a() is global scope
  * c() is function scope, where it have access to current environment(a scope) and also global scope
+ * c - local scope(a())
+ * a - Global scope
  */

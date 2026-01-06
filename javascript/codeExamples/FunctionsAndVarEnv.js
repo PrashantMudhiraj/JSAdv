@@ -7,6 +7,7 @@ console.log(x); // Global Scope
 function a() {
   var x = 10;
   console.log(x); // function scope
+  // xarrfn(); // error
 }
 
 function b() {

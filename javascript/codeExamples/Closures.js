@@ -12,24 +12,29 @@ function x() {
 
 // x();
 
-function counter(incrementBy) {
+function counter(x) {
   let counter = 0;
-  return function (x) {
-    // console.log(x);
-    return (counter = counter + (incrementBy || 1));
+  return {
+    increment() {
+      // console.log(x);
+      return (counter = counter + (x || 1));
+    },
+    decrement() {
+      return (counter = counter - (x || 1));
+    },
   };
 }
 
 const counter1 = counter(1);
-console.log(counter1());
-console.log(counter1());
-console.log(counter1());
-console.log(counter1());
+console.log(counter1.increment());
+console.log(counter1.increment());
+console.log(counter1.decrement());
+console.log(counter1.increment());
 
 console.log("-----------");
 
 const counter2 = counter(2);
-console.log(counter2());
-console.log(counter2());
-console.log(counter2());
-console.log(counter2());
+console.log(counter2.increment());
+console.log(counter2.decrement());
+console.log(counter2.increment());
+console.log(counter2.increment());

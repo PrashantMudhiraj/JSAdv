@@ -4,7 +4,7 @@
  * let is hoisted, But it is in temporal dead zone, can not be accessible -Reference Error
  * const is hoisted, But it is in temporal dead zone, can not be accessible
  *
- *Temporal Dead Zone : The time between variable declartion and value assigment to that variable
+ *Temporal Dead Zone : The time between variable initialization and declartion(value assigment) to that variable
  */
 
 // getName(); // "Hello World"

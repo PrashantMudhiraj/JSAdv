@@ -8,8 +8,5 @@
   },
   "keywords": [],
   "author": "Ives van Hoorne",
-  "license": "MIT",
-  "dependencies": {
-    "g": "^2.0.1"
-  }
+  "license": "MIT"
 }

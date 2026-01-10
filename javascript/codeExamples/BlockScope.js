@@ -7,14 +7,14 @@
  */
 
 var a = "hello 1";
-let b = "not overrided";
+let b = "not overridden";
 {
-  let a = "hello 1"; //statement -> shadowed by line num 9
-  let b = "hello 2"; //statement
-  {
-    let a = "Hi";
-    console.log(a, b); // Hi hello2
-  }
+    let a = "hello 1"; //statement -> shadowed by line num 9
+    let b = "hello 2"; //statement
+    {
+        let a = "Hi";
+        console.log(a, b); // Hi hello2
+    }
 } //Block
 
 // if (x == 10) console.log("check"); // for single statement block is not required.
@@ -25,13 +25,13 @@ let b = "not overrided";
 // }
 
 {
-  var a = 10; // shadowed a = "hello 1"
-  let b = 20;
-  const c = 30;
+    var a = 10; // shadowed a = "hello 1"
+    let b = 20;
+    const c = 30;
 
-  console.log(a);
-  console.log(b);
-  console.log(c);
+    console.log(a);
+    console.log(b);
+    console.log(c);
 }
 
 console.log(a); //10
@@ -41,5 +41,5 @@ console.log(b); // not overrided
 // Illegal Shadowing
 var a1 = 20; //let a1 = 20
 {
-  let a1 = 20;
+    let a1 = 20;
 }

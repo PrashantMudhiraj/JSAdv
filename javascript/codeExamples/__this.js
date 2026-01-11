@@ -69,7 +69,7 @@ let customer2 = {
     lastName: "Chevula",
 };
 
-// printFullName.call(customer2, "Warangal");
+// printFullName.call(customer2, "Hyderabad");
 // printFullName.apply(customer1, ["hometown"]);
 
 let printMyName = printFullName.bind(customer2, "Hyderabad1");

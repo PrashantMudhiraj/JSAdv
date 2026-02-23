@@ -15,6 +15,13 @@
 - [Create Operations Deep Dive](#create-operations-deep-dive)
 - [Write Concern](#write-concern)
 - [Atomicity](#atomicity)
+- [Importing Data with mongoimport](#importing-data-with-mongoimport)
+- [Read Operations Deep Dive](#read-operations-deep-dive)
+- [Query Selectors](#query-selectors)
+- [Working with Cursors](#working-with-cursors)
+- [Sorting Results](#sorting-results)
+- [Pagination: Skip & Limit](#pagination-skip--limit)
+- [Projection Operators](#projection-operators)
 
 ---
 
@@ -172,7 +179,8 @@ Use these methods to insert new documents into a collection:
 Inserts a single document into a collection.
 
 ```js
-db.users.insertOne({ name: "John", age: 30 });
+
+.users.insertOne({ name: "John", age: 30 });
 ```
 
 #### `insertMany(data, options)`
@@ -180,7 +188,8 @@ db.users.insertOne({ name: "John", age: 30 });
 Inserts multiple documents at once.
 
 ```js
-db.users.insertMany([
+
+.users.insertMany([
   { name: "Alice", age: 25 },
   { name: "Bob", age: 28 },
 ]);
@@ -213,27 +222,34 @@ Returns the first document that matches the filter.
 
 ```js
 // Find flights with distance greater than 10000
-db.flightData.find({ distance: { $gt: 10000 } });
+
+.flightData.find({ distance: { $gt: 10000 } });
 
 // Find flights with distance less than 10000
-db.flightData.find({ distance: { $lt: 10000 } });
+
+.flightData.find({ distance: { $lt: 10000 } });
 
 // Find first flight with distance > 900
-db.flightData.findOne({ distance: { $gt: 900 } });
+
+.flightData.findOne({ distance: { $gt: 900 } });
 ```
 
 **Accessing Embedded Fields:**
 
 ```js
 // Get hobbies of a specific person
-db.passengers.findOne({ name: "Albert Twostone" }).hobbies;
+
+.passengers.findOne({ name: "Albert Twostone" }).hobbies;
 
 // Find passengers with a specific hobby
-db.passengers.findOne({ hobbies: "Sports" });
+
+.passengers.findOne({ hobbies: "Sports" });
 
 // Search in nested objects using dot notation
-db.flightData.find({ "status.description": "on-time" });
-db.flightData.find({ "status.details.responsible": "Prashant" });
+
+.flightData.find({ "status.description": "on-time" });
+
+.flightData.find({ "status.details.responsible": "Prashant" });
 ```
 
 **Common Query Operators:**
@@ -275,18 +291,21 @@ Older method that overrides complete data; use `updateOne` or `updateMany` inste
 
 ```js
 // Add a marker field to one document
-db.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
+
+.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
 
 // Add marker to all documents
-db.flightData.updateMany(
+
+.flightData.updateMany(
   {}, // empty filter = match all
-  { $set: { marker: "delete" } }
+  { $set: { marker: "delete" } },
 );
 
 // Update an array field
-db.passengers.updateOne(
+
+.passengers.updateOne(
   { name: "Albert Twostone" },
-  { $set: { hobbies: ["Sports", "Cooking"] } }
+  { $set: { hobbies: ["Sports", "Cooking"] } },
 );
 ```
 
@@ -309,7 +328,8 @@ Remove documents from a collection:
 Deletes the first document that matches the filter.
 
 ```js
-db.users.deleteOne({ name: "John" });
+
+.users.deleteOne({ name: "John" });
 ```
 
 #### `deleteMany(filter, options)`
@@ -318,10 +338,12 @@ Deletes all documents that match the filter.
 
 ```js
 // Delete all users over 65
-db.users.deleteMany({ age: { $gt: 65 } });
+
+.users.deleteMany({ age: { $gt: 65 } });
 
 // Delete all documents in collection
-db.users.deleteMany({});
+
+.users.deleteMany({});
 ```
 
 **⚠️ Warning:** Be careful with `deleteMany({})` - it deletes everything!
@@ -335,7 +357,8 @@ db.users.deleteMany({});
 **Syntax:**
 
 ```js
-db.collection.find(filter, projection);
+
+.collection.find(filter, projection);
 ```
 
 ### How Projection Works
@@ -344,7 +367,8 @@ Use `1` to include a field and `0` to exclude it:
 
 ```js
 // Only return name and age, exclude _id
-db.passengers.find({}, { name: 1, age: 1, _id: 0 })[
+
+.passengers.find({}, { name: 1, age: 1, _id: 0 })[
   // Result:
   ({ name: "John", age: 30 }, { name: "Alice", age: 25 })
 ];
@@ -361,13 +385,16 @@ db.passengers.find({}, { name: 1, age: 1, _id: 0 })[
 
 ```js
 // Include only specific fields
-db.users.find({}, { name: 1, email: 1 }); // _id is included by default
+
+.users.find({}, { name: 1, email: 1 }); // _id is included by default
 
 // Exclude specific fields
-db.users.find({}, { password: 0, secret: 0 }); // Everything except password and secret
+
+.users.find({}, { password: 0, secret: 0 }); // Everything except password and secret
 
 // Include fields and exclude _id
-db.products.find({}, { title: 1, price: 1, _id: 0 });
+
+.products.find({}, { title: 1, price: 1, _id: 0 });
 ```
 
 ---
@@ -425,13 +452,16 @@ MongoDB imposes some constraints on document structure:
 
 ```js
 // Dot notation for nested fields
-db.users.find({ "address.city": "New York" });
+
+.users.find({ "address.city": "New York" });
 
 // Query array elements
-db.users.find({ hobbies: "Reading" }); // Matches if array contains "Reading"
+
+.users.find({ hobbies: "Reading" }); // Matches if array contains "Reading"
 
 // Query nested objects in arrays
-db.users.find({ "tags.category": "premium" });
+
+.users.find({ "tags.category": "premium" });
 ```
 
 ---
@@ -443,7 +473,8 @@ MongoDB is schema-less, but you should still design your data structure carefull
 ### Example Document with Various Data Types
 
 ```js
-db.companies.insertOne({
+
+.companies.insertOne({
   name: "Fresh Apple Inc",
   isStartUp: true,
   employees: 33,
@@ -614,13 +645,15 @@ MongoDB offers two main approaches to model relationships between data:
 
 ```js
 // Persons Collection
-carData> db.persons.insertOne({name: "Max", age: 29, salary: 3000})
+carData>
+.persons.insertOne({name: "Max", age: 29, salary: 3000})
 {
   acknowledged: true,
   insertedId: ObjectId('6994872e0aed413665b6c1d8')
 }
 
-carData> db.persons.findOne()
+carData>
+.persons.findOne()
 {
   _id: ObjectId('6994872e0aed413665b6c1d8'),
   name: 'Max',
@@ -629,7 +662,8 @@ carData> db.persons.findOne()
 }
 
 // Cars Collection (references the person via ObjectId)
-carData> db.cars.insertOne({
+carData>
+.cars.insertOne({
   model: "BMW",
   price: 40000,
   owner: ObjectId('6994872e0aed413665b6c1d8')  // Reference to person
@@ -639,7 +673,8 @@ carData> db.cars.insertOne({
   insertedId: ObjectId('699487560aed413665b6c1d9')
 }
 
-carData> db.cars.findOne()
+carData>
+.cars.findOne()
 {
   _id: ObjectId('699487560aed413665b6c1d9'),
   model: 'BMW',
@@ -662,7 +697,8 @@ carData> db.cars.findOne()
 **Use Case:** One question thread has many answers; each answer belongs to only that thread.
 
 ```js
-support> db.questionThreads.insertOne({
+support>
+.questionThreads.insertOne({
   creator: "Max",
   question: "How does that all work?",
   answers: [
@@ -675,7 +711,8 @@ support> db.questionThreads.insertOne({
   insertedId: ObjectId('699489d30aed413665b6c1db')
 }
 
-support> db.questionThreads.find()
+support>
+.questionThreads.find()
 [
   {
     _id: ObjectId('699489d30aed413665b6c1db'),
@@ -710,7 +747,8 @@ support> db.questionThreads.find()
 
 ```js
 // Cities Collection
-cityData> db.cities.insertOne({
+cityData>
+.cities.insertOne({
   name: "New York City",
   coordinates: { lat: 21, lng: 55 }
 })
@@ -719,7 +757,8 @@ cityData> db.cities.insertOne({
   insertedId: ObjectId('69948ab20aed413665b6c1dc')
 }
 
-cityData> db.cities.find()
+cityData>
+.cities.find()
 [
   {
     _id: ObjectId('69948ab20aed413665b6c1dc'),
@@ -729,7 +768,8 @@ cityData> db.cities.find()
 ]
 
 // Citizens Collection (each citizen references their city)
-cityData> db.citizens.insertMany([
+cityData>
+.citizens.insertMany([
   {
     name: "Prashant",
     cityId: ObjectId('69948ab20aed413665b6c1dc')  // Reference
@@ -747,7 +787,8 @@ cityData> db.citizens.insertMany([
   }
 }
 
-cityData> db.citizens.find()
+cityData>
+.citizens.find()
 [
   {
     _id: ObjectId('69948b6a0aed413665b6c1dd'),
@@ -766,7 +807,8 @@ cityData> db.citizens.find()
 
 - Citizens and cities are in separate collections
 - Each citizen document stores a reference to their city's `_id`
-- To find all citizens of a city: `db.citizens.find({ cityId: cityId })`
+- To find all citizens of a city: `
+.citizens.find({ cityId: cityId })`
 - To get city details for a citizen: look up the city using the `cityId`
 
 **When to Use Referenced One-to-Many:**
@@ -783,20 +825,23 @@ cityData> db.citizens.find()
 
 ```js
 // Products Collection
-shop> db.products.insertOne({ title: "A Book", price: 12.99 })
+shop>
+.products.insertOne({ title: "A Book", price: 12.99 })
 {
   acknowledged: true,
   insertedId: ObjectId('69948c880aed413665b6c1df')
 }
 
 // Customers Collection (orders embedded in customer)
-shop> db.customers.insertOne({name: "Prashant", age: 29})
+shop>
+.customers.insertOne({name: "Prashant", age: 29})
 {
   acknowledged: true,
   insertedId: ObjectId('69948ca50aed413665b6c1e0')
 }
 
-shop> db.customers.updateOne(
+shop>
+.customers.updateOne(
   {},
   {
     $set: {
@@ -818,7 +863,8 @@ shop> db.customers.updateOne(
   upsertedCount: 0
 }
 
-shop> db.customers.find()
+shop>
+.customers.find()
 [
   {
     _id: ObjectId('69948ca50aed413665b6c1e0'),
@@ -930,7 +976,8 @@ The `$lookup` aggregation stage performs a **left outer join** between collectio
 **Syntax:**
 
 ```js
-db.collection.aggregate([
+
+.collection.aggregate([
   {
     $lookup: {
       from: "foreignCollection", // Collection to join
@@ -957,7 +1004,8 @@ db.collection.aggregate([
 
 ```js
 cityData >
-  db.citizens.aggregate([
+
+  .citizens.aggregate([
     {
       $lookup: {
         from: "cities", // Join with cities collection
@@ -1011,7 +1059,8 @@ cityData >
 **Flatten the Result with $unwind:**
 
 ```js
-db.citizens.aggregate([
+
+.citizens.aggregate([
   {
     $lookup: {
       from: "cities",
@@ -1041,7 +1090,8 @@ db.citizens.aggregate([
 **Project Specific Fields:**
 
 ```js
-db.citizens.aggregate([
+
+.citizens.aggregate([
   {
     $lookup: {
       from: "cities",
@@ -1125,7 +1175,8 @@ Controls **what happens** when validation fails:
 ### Creating a Collection with Validation
 
 ```js
-db.createCollection("posts", {
+
+.createCollection("posts", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
@@ -1183,7 +1234,8 @@ db.createCollection("posts", {
 **Attempting to insert invalid data:**
 
 ```js
-blog> db.posts.insertOne({
+blog>
+.posts.insertOne({
   title: "My First Post",
   text: "This is my post, I hope you like it!",
   tags: ["new", "tech"],
@@ -1255,10 +1307,12 @@ Additional information: {
 
 ### Modifying Validation on Existing Collections
 
-Use `db.runCommand()` with `collMod` to update validation rules:
+Use `
+.runCommand()` with `collMod` to update validation rules:
 
 ```js
-db.runCommand({
+
+.runCommand({
   collMod: "posts", // Collection to modify
   validator: {
     $jsonSchema: {
@@ -1310,7 +1364,8 @@ db.runCommand({
 
 ```js
 // Same invalid data, but with validationAction: 'warn'
-blog> db.posts.insertOne({
+blog>
+.posts.insertOne({
   title: "My First Post",
   text: "This is my post, I hope you like it!",
   tags: ["new", "tech"],
@@ -1330,7 +1385,8 @@ blog> db.posts.insertOne({
 }
 
 // Document is inserted despite validation failure
-blog> db.posts.find()
+blog>
+.posts.find()
 [
   {
     _id: ObjectId('69949e6fd781863a9f36ade3'),
@@ -1420,7 +1476,8 @@ required: ["userId", "email", "createdAt"];
 **4. Combine with Indexes**
 
 ```js
-db.users.createIndex({ email: 1 }, { unique: true });
+
+.users.createIndex({ email: 1 }, { unique: true });
 ```
 
 - Validation ensures type correctness
@@ -1483,7 +1540,8 @@ mongod --dbpath <path-to-data> --logpath <path-to-log-file>
 **Example:**
 
 ```bash
-mongod --dbpath /data/db --logpath /var/log/mongodb/mongod.log
+mongod --dbpath /data/
+ --logpath /var/log/mongodb/mongod.log
 ```
 
 **Explanation:**
@@ -1535,7 +1593,8 @@ systemLog:
   path: /var/log/mongodb/mongod.log
   logAppend: true
 storage:
-  dbPath: /data/db
+  dbPath: /data/
+
   journal:
     enabled: true
 net:
@@ -1567,7 +1626,8 @@ mongosh --nodb
 
 - Starts shell without connecting to any database
 - Useful for scripting or testing JavaScript code
-- Can manually connect later with `db = connect("localhost:27017/mydb")`
+- Can manually connect later with `
+= connect("localhost:27017/mydb")`
 
 ---
 
@@ -1642,13 +1702,15 @@ Inserts a single document into a collection.
 **Syntax:**
 
 ```js
-db.collectionName.insertOne({ field: "value" });
+
+.collectionName.insertOne({ field: "value" });
 ```
 
 **Example:**
 
 ```js
-db.users.insertOne({
+
+.users.insertOne({
   name: "Alice",
   email: "alice@example.com",
   age: 30
@@ -1676,13 +1738,15 @@ Inserts multiple documents in a single operation.
 **Syntax:**
 
 ```js
-db.collectionName.insertMany([{ field: "value1" }, { field: "value2" }]);
+
+.collectionName.insertMany([{ field: "value1" }, { field: "value2" }]);
 ```
 
 **Example:**
 
 ```js
-db.users.insertMany([
+
+.users.insertMany([
   { name: "Bob", age: 25 },
   { name: "Charlie", age: 35 },
   { name: "Diana", age: 28 }
@@ -1719,8 +1783,10 @@ db.users.insertMany([
 
 ```js
 // Don't use this anymore!
-db.collectionName.insert({ field: "value" })  // Single
-db.collectionName.insert([{...}, {...}])      // Multiple
+
+.collectionName.insert({ field: "value" })  // Single
+
+.collectionName.insert([{...}, {...}])      // Multiple
 ```
 
 **Why Avoid:**
@@ -1749,7 +1815,8 @@ mongoimport -d cars -c carsList --drop --jsonArray cars.json
 
 **Common Options:**
 
-- `-d` or `--db`: Database name
+- `-d` or `--
+`: Database name
 - `-c` or `--collection`: Collection name
 - `--drop`: Drop collection before importing
 - `--jsonArray`: File contains a JSON array
@@ -1782,7 +1849,8 @@ By default, `insertMany()` is **ordered** - it inserts documents sequentially an
 **Initial Setup:**
 
 ```js
-hobbies> db.hobbies.insertMany([
+hobbies>
+.hobbies.insertMany([
   {_id: "sports", name: "Sports"},
   {_id: "cooking", name: "Cooking"},
   {_id: "cars", name: "Cars"}
@@ -1798,7 +1866,8 @@ hobbies> db.hobbies.insertMany([
 **Ordered Insert with Error:**
 
 ```js
-hobbies> db.hobbies.insertMany([
+hobbies>
+.hobbies.insertMany([
   {_id: "yoga", name: "Yoga"},      // ✅ Inserted (index 0)
   {_id: "sports", name: "Sports"},  // ❌ ERROR - duplicate (index 1)
   {_id: "hiking", name: "Hiking"}   // ⏭️ SKIPPED - never attempted
@@ -1826,7 +1895,8 @@ Write Errors: [
 
 ```js
 hobbies >
-  db.hobbies.find()[
+
+  .hobbies.find()[
     ({ _id: "sports", name: "Sports" }, // Original
     { _id: "cooking", name: "Cooking" }, // Original
     { _id: "cars", name: "Cars" }, // Original
@@ -1851,7 +1921,8 @@ Set `ordered: false` to continue inserting even after errors.
 **Unordered Insert with Errors:**
 
 ```js
-hobbies> db.hobbies.insertMany([
+hobbies>
+.hobbies.insertMany([
   {_id: "sports", name: "Sports"},   // ❌ ERROR - duplicate (index 0)
   {_id: "hiking", name: "Hiking"},   // ✅ INSERTED (index 1)
   {_id: "yoga", name: "Yoga"}        // ❌ ERROR - duplicate (index 2)
@@ -1886,7 +1957,8 @@ Write Errors: [
 
 ```js
 hobbies >
-  db.hobbies.find()[
+
+  .hobbies.find()[
     ({ _id: "sports", name: "Sports" }, // Original
     { _id: "cooking", name: "Cooking" }, // Original
     { _id: "cars", name: "Cars" }, // Original
@@ -1937,7 +2009,8 @@ hobbies >
 
 ```js
 try {
-  const result = db.products.insertMany(productArray, { ordered: false });
+  const result =
+  .products.insertMany(productArray, { ordered: false });
   print(`Inserted ${result.insertedCount} documents`);
 } catch (error) {
   print(`Inserted ${error.result.insertedCount} documents`);
@@ -1985,7 +2058,8 @@ Data Files (Disk) ← Permanent storage
 **Syntax:**
 
 ```js
-db.collection.insertOne(
+
+.collection.insertOne(
   { document },
   { writeConcern: { w: <value>, j: <boolean>, wtimeout: <ms> } }
 )
@@ -2006,7 +2080,8 @@ db.collection.insertOne(
 **`w: 0` - No Acknowledgment (Fire and Forget)**
 
 ```js
-db.persons.insertOne(
+
+.persons.insertOne(
   {name: "Chrissy", age: 41},
   {writeConcern: { w: 0 }}
 )
@@ -2030,7 +2105,8 @@ db.persons.insertOne(
 **`w: 1` - Acknowledge from Primary (Default)**
 
 ```js
-db.persons.insertOne(
+
+.persons.insertOne(
   {name: "Alex", age: 41},
   {writeConcern: { w: 1 }}
 )
@@ -2054,9 +2130,10 @@ db.persons.insertOne(
 **`w: "majority"` - Majority of Replica Set**
 
 ```js
-db.persons.insertOne(
+
+.persons.insertOne(
   { name: "Sara", age: 35 },
-  { writeConcern: { w: "majority" } }
+  { writeConcern: { w: "majority" } },
 );
 ```
 
@@ -2074,7 +2151,8 @@ db.persons.insertOne(
 **`j: false` or `undefined` - Memory Only**
 
 ```js
-db.persons.insertOne(
+
+.persons.insertOne(
   {name: "Michael", age: 41},
   {writeConcern: { w: 1, j: false }}
 )
@@ -2097,7 +2175,8 @@ db.persons.insertOne(
 **`j: true` - Journal Confirmed**
 
 ```js
-db.persons.insertOne(
+
+.persons.insertOne(
   {name: "Michaela", age: 41},
   {writeConcern: { w: 1, j: true }}
 )
@@ -2123,7 +2202,8 @@ db.persons.insertOne(
 Sets a time limit for write concern acknowledgment.
 
 ```js
-db.persons.insertOne(
+
+.persons.insertOne(
   {name: "Aliya", age: 21},
   {writeConcern: { w: 1, j: true, wtimeout: 200 }}
 )
@@ -2146,9 +2226,10 @@ db.persons.insertOne(
 
 ```js
 // If replication is slow
-db.persons.insertOne(
+
+.persons.insertOne(
   { name: "Test" },
-  { writeConcern: { w: "majority", wtimeout: 100 } }
+  { writeConcern: { w: "majority", wtimeout: 100 } },
 );
 // Error: waiting for replication timed out
 ```
@@ -2258,13 +2339,14 @@ Transaction States:
 
 ```js
 // This entire operation is atomic
-db.users.updateOne(
+
+.users.updateOne(
   { _id: 1 },
   {
     $set: { name: "John Doe" },
     $inc: { loginCount: 1 },
     $push: { loginHistory: new Date() },
-  }
+  },
 );
 ```
 
@@ -2278,8 +2360,10 @@ db.users.updateOne(
 
 ```js
 // These are separate atomic operations
-db.accounts.updateOne({ _id: "A" }, { $inc: { balance: -100 } }); // Operation 1
-db.accounts.updateOne({ _id: "B" }, { $inc: { balance: +100 } }); // Operation 2
+
+.accounts.updateOne({ _id: "A" }, { $inc: { balance: -100 } }); // Operation 1
+
+.accounts.updateOne({ _id: "B" }, { $inc: { balance: +100 } }); // Operation 2
 ```
 
 - If Operation 1 succeeds but Operation 2 fails:
@@ -2295,7 +2379,8 @@ db.accounts.updateOne({ _id: "B" }, { $inc: { balance: +100 } }); // Operation 2
 **Example 1: Insert with Embedded Documents**
 
 ```js
-db.orders.insertOne({
+
+.orders.insertOne({
   orderId: 12345,
   customer: "Alice",
   items: [
@@ -2318,7 +2403,8 @@ db.orders.insertOne({
 **Example 2: Update with Multiple Changes**
 
 ```js
-db.users.updateOne(
+
+.users.updateOne(
   { email: "alice@example.com" },
   {
     $set: {
@@ -2332,7 +2418,7 @@ db.users.updateOne(
       },
     },
     $inc: { version: 1 },
-  }
+  },
 );
 ```
 
@@ -2347,7 +2433,8 @@ db.users.updateOne(
 **Example 3: Embedded Document Update**
 
 ```js
-db.blogs.updateOne(
+
+.blogs.updateOne(
   { _id: "post123", "comments._id": "comment456" },
   {
     $set: {
@@ -2355,7 +2442,7 @@ db.blogs.updateOne(
       "comments.$.editedAt": new Date(),
     },
     $inc: { "comments.$.editCount": 1 },
-  }
+  },
 );
 ```
 
@@ -2371,7 +2458,8 @@ db.blogs.updateOne(
 For operations spanning **multiple documents**, use transactions:
 
 ```js
-const session = db.getMongo().startSession();
+const session =
+.getMongo().startSession();
 session.startTransaction();
 
 try {
@@ -2411,7 +2499,8 @@ try {
 
 ```js
 // Good: Embed related data
-db.orders.insertOne({
+
+.orders.insertOne({
   orderId: 123,
   items: [...],
   total: 100,
@@ -2433,9 +2522,10 @@ session.commitTransaction();
 
 ```js
 // Use atomic operators for concurrent updates
-db.products.updateOne(
+
+.products.updateOne(
   { _id: "product123" },
-  { $inc: { quantity: -1 } } // Atomic decrement
+  { $inc: { quantity: -1 } }, // Atomic decrement
 );
 ```
 
@@ -2443,7 +2533,8 @@ db.products.updateOne(
 
 ```js
 try {
-  db.collection.insertOne({ ... });
+
+  .collection.insertOne({ ... });
 } catch (error) {
   // Operation is already rolled back
   console.error("Insert failed:", error);
@@ -2485,21 +2576,23 @@ mongoimport [options] <file>
 
 ### Common Options
 
-| Option                     | Description                                        | Example                    |
-| -------------------------- | -------------------------------------------------- | -------------------------- |
-| `-d, --db`                 | Database name                                      | `-d movieData`             |
-| `-c, --collection`         | Collection name                                    | `-c movies`                |
-| `--drop`                   | Drop collection before importing                   | `--drop`                   |
-| `--jsonArray`              | Import a JSON array (file contains `[{...}, ...]`) | `--jsonArray`              |
-| `--file`                   | Input file path                                    | `--file data.json`         |
-| `--type`                   | File type: json, csv, tsv                          | `--type csv`               |
-| `--headerline`             | Use first line as field names (CSV/TSV)            | `--headerline`             |
-| `--mode`                   | Import mode: insert, upsert, merge                 | `--mode upsert`            |
-| `--uri`                    | MongoDB connection string                          | `--uri mongodb://...`      |
-| `--host`                   | MongoDB host                                       | `--host localhost:27017`   |
-| `--ignoreBlanks`           | Ignore blank fields in CSV/TSV                     | `--ignoreBlanks`           |
-| `--stopOnError`            | Stop on first error                                | `--stopOnError`            |
-| `--maintainInsertionOrder` | Process documents in order                         | `--maintainInsertionOrder` |
+| Option | Description | Example |
+| ------ | ----------- | ------- |
+
+| `-d, --
+` | Database name | `-d movieData` |
+| `-c, --collection` | Collection name | `-c movies` |
+| `--drop` | Drop collection before importing | `--drop` |
+| `--jsonArray` | Import a JSON array (file contains `[{...}, ...]`) | `--jsonArray` |
+| `--file` | Input file path | `--file data.json` |
+| `--type` | File type: json, csv, tsv | `--type csv` |
+| `--headerline` | Use first line as field names (CSV/TSV) | `--headerline` |
+| `--mode` | Import mode: insert, upsert, merge | `--mode upsert` |
+| `--uri` | MongoDB connection string | `--uri mongodb://...` |
+| `--host` | MongoDB host | `--host localhost:27017` |
+| `--ignoreBlanks` | Ignore blank fields in CSV/TSV | `--ignoreBlanks` |
+| `--stopOnError` | Stop on first error | `--stopOnError` |
+| `--maintainInsertionOrder` | Process documents in order | `--maintainInsertionOrder` |
 
 ---
 
@@ -2549,12 +2642,14 @@ local         72.00 KiB
 movieData    188.00 KiB  // ✅ New database created
 
 test> use movieData
-switched to db movieData
+switched to
+ movieData
 
 movieData> show collections
 movies  // ✅ Collection created
 
-movieData> db.movies.find().limit(1)  // View first document
+movieData>
+.movies.find().limit(1)  // View first document
 [
   {
     _id: ObjectId('699af2612adc1485c87da5ab'),  // Auto-generated _id
@@ -2875,7 +2970,8 @@ mongoimport sample.json -d test -c mycoll
 mongoimport large-data.json -d mydb -c mycoll
 
 # Then create indexes in shell
-mongosh mydb --eval 'db.mycoll.createIndex({email: 1})'
+mongosh mydb --eval '
+.mycoll.createIndex({email: 1})'
 ```
 
 Importing without indexes is faster; add indexes after.
@@ -2934,3 +3030,1446 @@ mongoimport file.json -d dbname -c collection --drop
 # Upsert mode
 mongoimport file.json -d dbname -c collection --mode upsert
 ```
+
+---
+
+## Read Operations Deep Dive
+
+Read operations in MongoDB allow you to query and retrieve documents efficiently using various operators and filters.
+
+**Key Objectives:**
+
+- Read documents with powerful query operators
+- Access required data efficiently
+- Filter results precisely
+- Control data presentation with projection
+
+---
+
+### Understanding MongoDB Query Syntax
+
+MongoDB queries follow a structured pattern:
+
+```js
+
+.collectionName.method(filter, options)
+```
+
+**Query Structure Breakdown:**
+
+```js
+
+.                        // Access current database
+  mycollection.            // Access this collection
+  find()                   // Apply this method
+```
+
+**Filter Examples:**
+
+```js
+// Simple equality filter
+
+.users.find({ age: 32 })
+// Field: age, Value: 32
+
+// Operator-based filter
+
+.users.find({ age: { $gt: 30 } })
+// Field: age, Operator: $gt, Value: 30
+```
+
+---
+
+### MongoDB Operators Overview
+
+MongoDB provides three main categories of operators:
+
+| Operator Type            | Purpose                  | Changes Data? | Example |
+| ------------------------ | ------------------------ | ------------- | ------- |
+| **Query Selectors**      | Locate data              | ❌ No         | `$eq`   |
+| **Projection Operators** | Modify data presentation | ❌ No         | `$`     |
+| **Update Operators**     | Modify and add data      | ✅ Yes        | `$inc`  |
+
+**Explanation:**
+
+- **Query Selectors**: Filter which documents to retrieve (e.g., find users older than 30)
+- **Projection Operators**: Control which fields to show (e.g., show only name and email)
+- **Update Operators**: Modify document content (e.g., increment a counter)
+
+---
+
+## Query Selectors
+
+Query selectors allow you to filter documents based on specific criteria.
+
+### Comparison Operators
+
+Used to compare field values against specified values.
+
+#### Complete Comparison Operators Reference
+
+| Operator | Meaning               | Example                           | Description                |
+| -------- | --------------------- | --------------------------------- | -------------------------- |
+| `$eq`    | Equal                 | `{ runtime: { $eq: 60 } }`        | Exactly equals             |
+| `$ne`    | Not Equal             | `{ runtime: { $ne: 60 } }`        | Does not equal             |
+| `$gt`    | Greater Than          | `{ runtime: { $gt: 60 } }`        | Strictly greater           |
+| `$gte`   | Greater Than or Equal | `{ runtime: { $gte: 60 } }`       | Greater or equal           |
+| `$lt`    | Less Than             | `{ runtime: { $lt: 60 } }`        | Strictly less              |
+| `$lte`   | Less Than or Equal    | `{ runtime: { $lte: 60 } }`       | Less or equal              |
+| `$in`    | In Array              | `{ runtime: { $in: [30, 42] } }`  | Matches any value in array |
+| `$nin`   | Not In Array          | `{ runtime: { $nin: [30, 42] } }` | Matches no value in array  |
+
+---
+
+#### Comparison Operators Examples
+
+**`$eq` - Equal**
+
+```js
+// Find movies with exactly 60 minute runtime
+
+.movies.find({ runtime: { $eq: 60 } })
+
+// Shorthand (implicit $eq)
+
+.movies.find({ runtime: 60 })
+```
+
+---
+
+**`$ne` - Not Equal**
+
+```js
+// Find movies that are NOT 60 minutes
+
+.movies.find({ runtime: { $ne: 60 } })
+```
+
+**Use Cases:**
+
+- Exclude specific values
+- Find all documents except certain ones
+- Filter out default or placeholder values
+
+---
+
+**`$gt` and `$gte` - Greater Than**
+
+```js
+// Movies longer than 60 minutes (exclusive)
+
+.movies.find({ runtime: { $gt: 60 } })
+
+// Movies 60 minutes or longer (inclusive)
+
+.movies.find({ runtime: { $gte: 60 } })
+```
+
+---
+
+**`$lt` and `$lte` - Less Than**
+
+```js
+// Movies shorter than 60 minutes
+
+.movies.find({ runtime: { $lt: 60 } })
+
+// Movies 60 minutes or shorter
+
+.movies.find({ runtime: { $lte: 60 } })
+```
+
+---
+
+**Querying Nested Fields**
+
+Use **dot notation** to query embedded document fields:
+
+```js
+// Find highly rated movies (rating > 7)
+
+.movies.find({ "rating.average": { $gt: 7 } })
+
+// Find lower rated movies
+
+.movies.find({ "rating.average": { $lt: 7 } })
+```
+
+**Important:**
+
+- Use quotes around dotted field names
+- Works with any nesting depth
+- Example: `"network.country.name"`
+
+---
+
+**`$in` - Match Any Value in Array**
+
+```js
+// Find movies with specific genres
+
+.movies.find({ genres: { $in: ["Anime"] } })
+
+// Shorthand for single value
+
+.movies.find({ genres: "Anime" })
+
+// Multiple values - match ANY
+
+.movies.find({ runtime: { $in: [30, 42] } })
+```
+
+**Explanation:**
+
+- Returns documents where field matches **any** value in the array
+- Useful for OR-like queries on a single field
+- More efficient than multiple queries
+
+**Use Cases:**
+
+- Find users in multiple cities: `{ city: { $in: ["NYC", "LA", "Chicago"] } }`
+- Find products in specific categories: `{ category: { $in: ["Electronics", "Books"] } }`
+
+---
+
+**`$nin` - Not In Array**
+
+```js
+// Exclude specific genres
+
+.movies.find({ genres: { $nin: ["Anime", "Drama"] } })
+```
+
+**Explanation:**
+
+- Returns documents where field does **not** match any value in the array
+- Opposite of `$in`
+
+**Use Cases:**
+
+- Exclude blocked users: `{ userId: { $nin: blockedUserIds } }`
+- Filter out specific statuses: `{ status: { $nin: ["cancelled", "deleted"] } }`
+
+---
+
+### Example Query Result
+
+**Query:**
+
+```js
+
+.movies.find({ runtime: { $ne: 60 } }).limit(1)
+```
+
+**Result:**
+
+```js
+[
+  {
+    _id: ObjectId("699af2612adc1485c87da5fb"),
+    id: 86,
+    url: "http://www.tvmaze.com/shows/86/stalker",
+    name: "Stalker",
+    type: "Scripted",
+    language: "English",
+    genres: ["Crime", "Thriller"],
+    status: "Ended",
+    runtime: 60, // Runtime value
+    premiered: "2014-10-01",
+    officialSite: null,
+    schedule: {
+      time: "22:00",
+      days: ["Wednesday"],
+    },
+    rating: {
+      average: 7.7, // Nested rating field
+    },
+    weight: 73,
+    network: {
+      id: 2,
+      name: "CBS",
+      country: {
+        name: "United States",
+        code: "US",
+        timezone: "America/New_York",
+      }, // Deep nesting example
+    },
+    webChannel: null,
+    externals: {
+      tvrage: 41213,
+      thetvdb: 281697,
+      imdb: "tt3560094",
+    },
+    image: {
+      medium:
+        "http://static.tvmaze.com/uploads/images/medium_portrait/0/647.jpg",
+      original:
+        "http://static.tvmaze.com/uploads/images/original_untouched/0/647.jpg",
+    },
+    summary:
+      "<p><b>Stalker</b> is a psychological thriller about detectives who investigate stalking incidents...</p>",
+    updated: 1535297749,
+    _links: {
+      self: { href: "http://api.tvmaze.com/shows/86" },
+      previousepisode: { href: "http://api.tvmaze.com/episodes/155326" },
+    },
+  },
+];
+```
+
+**Document Features:**
+
+- **Nested Objects**: `rating.average`, `network.country.name`
+- **Arrays**: `genres`, `schedule.days`
+- **Null Values**: `officialSite`, `webChannel`
+- **ObjectId**: Automatically generated `_id`
+
+---
+
+### Other Query Selector Categories
+
+MongoDB provides additional query selector types for advanced filtering:
+
+### Evaluation Operators
+
+Evaluate expressions and perform text searches.
+
+**Common Evaluation Operators:**
+
+- `$regex` - Pattern matching
+- `$text` - Full-text search
+- `$where` - JavaScript expressions
+- `$expr` - Aggregation expressions in queries
+- `$mod` - Modulo operation
+- `$jsonSchema` - Validate documents against JSON Schema
+
+**Example:**
+
+```js
+// Find movies with names starting with "The"
+
+db.movies.find({ name: { $regex: /^The/ } });
+
+db.movies.find({ summary: { $regex: /Dome/ } });
+
+// Full-text search
+
+db.movies.find({ $text: { $search: "thriller action" } });
+
+// expression
+
+financialData >
+  db.sales.find({ $expr: { $gt: ["$volume", "$target"] } })[
+    ({ _id: ObjectId("699c7e7a9c0ae94b759e3c09"), volume: 89, target: 80 },
+    { _id: ObjectId("699c7e7a9c0ae94b759e3c0a"), volume: 200, target: 177 })
+  ];
+
+financialData >
+  db.sales.find({
+    $expr: {
+      $gt: [
+        {
+          $cond: {
+            if: { $gte: ["$volume", 190] },
+            then: { $subtract: ["$volume", 10] },
+            else: "$volume",
+          },
+        },
+        "$target",
+      ],
+    },
+  })[
+    ({ _id: ObjectId("699c7e7a9c0ae94b759e3c09"), volume: 89, target: 80 },
+    { _id: ObjectId("699c7e7a9c0ae94b759e3c0a"), volume: 200, target: 177 })
+  ];
+financialData >
+  db.sales.find({
+    $expr: {
+      $gt: [
+        {
+          $cond: {
+            if: { $gte: ["$volume", 190] },
+            then: { $subtract: ["$volume", 20] },
+            else: "$volume",
+          },
+        },
+        "$target",
+      ],
+    },
+  })[
+    ({ _id: ObjectId("699c7e7a9c0ae94b759e3c09"), volume: 89, target: 80 },
+    { _id: ObjectId("699c7e7a9c0ae94b759e3c0a"), volume: 200, target: 177 })
+  ];
+financialData >
+  db.sales.find({
+    $expr: {
+      $gt: [
+        {
+          $cond: {
+            if: { $gte: ["$volume", 190] },
+            then: { $subtract: ["$volume", 30] },
+            else: "$volume",
+          },
+        },
+        "$target",
+      ],
+    },
+  })[{ _id: ObjectId("699c7e7a9c0ae94b759e3c09"), volume: 89, target: 80 }];
+```
+
+---
+
+### Logical Operators
+
+Combine multiple query conditions.
+
+**Logical Operators:**
+
+- `$and` - All conditions must be true
+- `$or` - At least one condition must be true
+- `$not` - Inverts the effect of a query
+- `$nor` - None of the conditions can be true
+
+**Examples:**
+
+```js
+// AND - Both conditions must match
+
+.movies.find({
+  $and: [
+    { runtime: { $gt: 60 } },
+    { "rating.average": { $gte: 8 } }
+  ]
+})
+
+
+.movies.find( { $and : [ {"rating.average" : { $gt: 9}} , {genres : "Drama"}]})
+
+movieData>
+.movies.find({$and : [{genres : "Drama"} , {genres: "Horror"}]} ).count()
+17
+movieData>
+.movies.find({ genres : "Drama" , genres: "Horror"}).count();
+23
+
+// OR - Either condition matches
+
+.movies.find({
+  $or: [
+    { genres: "Comedy" },
+    { genres: "Drama" }
+  ]
+})
+
+
+.movies.find({
+  $or :  [
+    { "rating.average" : {$gt : 9}} ,
+    { "rating.average" : { $lt : 5}}
+  ]
+})
+
+// NOR
+
+.movies.find({
+  $nor :  [
+    { "rating.average" : {$gt : 9}} ,
+    { "rating.average" : { $lt : 5}}
+  ]
+})
+
+// NOT - Invert condition
+
+.movies.find({
+  runtime: { $not: { $gte: 60 } }
+})
+
+
+.movies.find( {runtime : {$not : {$eq : 50}}})
+```
+
+---
+
+### Array Operators
+
+Query array fields with advanced conditions.
+
+**Array Operators:**
+
+- `$all` - Array contains all specified elements
+- `$elemMatch` - At least one array element matches all conditions
+- `$size` - Array has specific number of elements
+
+**Examples:**
+
+```js
+// Array contains all genres
+
+db.movies.find({
+  genres: { $all: ["Drama", "Thriller"] },
+});
+
+boxOffice > db.movieStarts.find({ genre: ["thriller"] });
+
+boxOffice > db.movieStarts.find({ genre: { $all: ["thriller"] } });
+[
+  {
+    _id: ObjectId("699c83569c0ae94b759e3c0c"),
+    title: "The Last Student Returns",
+    meta: { rating: 9.5, aired: 2018, runtime: 100 },
+    visitors: 1300000,
+    expectedVisitors: 1550000,
+    genre: ["thriller", "drama", "action"],
+  },
+  {
+    _id: ObjectId("699c83569c0ae94b759e3c0d"),
+    title: "Supercharged Teaching",
+    meta: { rating: 9.3, aired: 2016, runtime: 60 },
+    visitors: 370000,
+    expectedVisitors: 1000000,
+    genre: ["thriller", "action"],
+  },
+  {
+    _id: ObjectId("699c83569c0ae94b759e3c0e"),
+    title: "Teach me if you can",
+    meta: { rating: 8.5, aired: 2014, runtime: 90 },
+    visitors: 590378,
+    expectedVisitors: 500000,
+    genre: ["action", "thriller"],
+  },
+];
+
+// Array element matches multiple conditions
+
+db.movies.find({
+  genres: { $elemMatch: { $regex: /^S/ } },
+});
+
+users >
+  db.users.find({
+    hobbies: { $elemMatch: { title: "Sports", freq: { $gte: 3 } } },
+  })[
+    ({
+      _id: ObjectId("699c79af9c0ae94b759e3c04"),
+      name: "Max",
+      hobbies: [
+        { title: "Sports", freq: 3 },
+        { title: "Cooking", freq: 6 },
+      ],
+      phone: 1213309053,
+    },
+    {
+      _id: ObjectId("699c7a209c0ae94b759e3c06"),
+      name: "Prashant",
+      hobbies: [
+        { title: "Sports", freq: 3 },
+        { title: "Cooking", freq: 6 },
+      ],
+      phone: "01213309052",
+      age: 26,
+    },
+    {
+      _id: ObjectId("699c7ab59c0ae94b759e3c07"),
+      name: "Anna",
+      hobbies: [
+        { title: "Sports", freq: 3 },
+        { title: "Cooking", freq: 6 },
+      ],
+      phone: "01213309050",
+      age: null,
+    })
+  ];
+
+// Array has exactly 2 elements
+
+db.movies.find({
+  genres: { $size: 2 },
+});
+
+users >
+  db.users.find({ hobbies: { $size: 3 } })[
+    {
+      _id: ObjectId("699c82e79c0ae94b759e3c0b"),
+      name: "Chris",
+      hobbies: ["Sports", "Cooking", "Hiking"],
+    }
+  ];
+
+db.users.find({ "hobbies.title": "Sports" });
+```
+
+---
+
+### Element Operators
+
+Query based on field existence and type.
+
+**Element Operators:**
+
+- `$exists` - Field exists or not
+- `$type` - Field is of specific BSON type
+
+**Examples:**
+
+```js
+// Find documents where officialSite exists
+
+db.movies.find({ officialSite: { $exists: true } })
+
+// Find documents where rating is missing
+
+db.movies.find({ rating: { $exists: false } })
+
+// Find where runtime is a number
+
+db.movies.find({ runtime: { $type: "number" } })
+
+// Find where name is a string
+
+db.movies.find({ name: { $type: "string" } })
+
+users> db.users.find( { age : { $exists : true} })
+[
+  {
+    _id: ObjectId('699c7a209c0ae94b759e3c06'),
+    name: 'Prashant',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: '01213309052',
+    age: 26
+  }
+]
+users> db.users.find( { age : { $exists : false} })
+[
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c04'),
+    name: 'Max',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: 1213309053
+  },
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c05'),
+    name: 'Manuel',
+    hobbies: [ { title: 'Cars', freq: 3 }, { title: 'Cooking', freq: 5 } ],
+    phone: 121330933
+  }
+]
+users> db.users.find( { age : { $exists : true} })
+[
+  {
+    _id: ObjectId('699c7a209c0ae94b759e3c06'),
+    name: 'Prashant',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: '01213309052',
+    age: 26
+  }
+]
+users> db.users.find( { age : { $exists : false} })
+[
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c04'),
+    name: 'Max',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: 1213309053
+  },
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c05'),
+    name: 'Manuel',
+    hobbies: [ { title: 'Cars', freq: 3 }, { title: 'Cooking', freq: 5 } ],
+    phone: 121330933
+  }
+]
+users> db.users.find({ phone : {$type : "number"}})
+[
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c04'),
+    name: 'Max',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: 1213309053
+  },
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c05'),
+    name: 'Manuel',
+    hobbies: [ { title: 'Cars', freq: 3 }, { title: 'Cooking', freq: 5 } ],
+    phone: 121330933
+  }
+]
+users> db.users.find({ phone : {$type : "double"}})
+
+users> db.users.find({ phone : {$type : ["number" , "string"]}})
+[
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c04'),
+    name: 'Max',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: 1213309053
+  },
+  {
+    _id: ObjectId('699c79af9c0ae94b759e3c05'),
+    name: 'Manuel',
+    hobbies: [ { title: 'Cars', freq: 3 }, { title: 'Cooking', freq: 5 } ],
+    phone: 121330933
+  },
+  {
+    _id: ObjectId('699c7a209c0ae94b759e3c06'),
+    name: 'Prashant',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: '01213309052',
+    age: 26
+  },
+  {
+    _id: ObjectId('699c7ab59c0ae94b759e3c07'),
+    name: 'Anna',
+    hobbies: [ { title: 'Sports', freq: 3 }, { title: 'Cooking', freq: 6 } ],
+    phone: '01213309050',
+    age: null
+  }
+]
+users>
+
+```
+
+---
+
+### Geospatial Operators
+
+Query location-based data.
+
+**Geospatial Operators:**
+
+- `$geoWithin` - Within a specified shape
+- `$geoIntersects` - Intersects with a shape
+- `$near` - Near a point
+- `$nearSphere` - Near a point on a sphere
+
+**Example:**
+
+```js
+// Find locations within 5km radius
+
+.locations.find({
+  coordinates: {
+    $near: {
+      $geometry: { type: "Point", coordinates: [-73.9667, 40.78] },
+      $maxDistance: 5000
+    }
+  }
+})
+```
+
+---
+
+## Working with Cursors
+
+When you execute a `find()` query, MongoDB doesn't immediately return all documents. Instead, it returns a **cursor** - a pointer to the result set that allows you to iterate through documents efficiently.
+
+### What is a Cursor?
+
+**Key Characteristics:**
+
+- `find()` returns a cursor object, not an array
+- Cursors fetch documents in **batches** (not all at once)
+- Default batch size: **101 documents** for first batch, then **16 MB** or **1000 documents** per batch
+- Shell automatically iterates first **20 documents**
+- Efficient for large result sets (memory-friendly)
+
+**Why Cursors?**
+
+```
+Without Cursor (Bad):
+find() → Load ALL 1,000,000 docs → Memory overflow ❌
+
+With Cursor (Good):
+find() → Cursor → Fetch 101 docs → Process → Fetch next batch →
+Process → ... ✅
+```
+
+---
+
+### Cursor Methods
+
+#### `cursor.next()`
+
+Retrieves the next document from the cursor.
+
+**Example:**
+
+```js
+// Create a cursor
+const cursor = db.movies.find();
+
+// Get first document
+cursor.next();
+```
+
+**Result:**
+
+```js
+{
+  _id: ObjectId('699af2612adc1485c87da5ab'),
+  id: 1,
+  name: 'Under the Dome',
+  type: 'Scripted',
+  language: 'English',
+  genres: [ 'Drama', 'Science-Fiction', 'Thriller' ],
+  status: 'Ended',
+  runtime: 60,
+  rating: { average: 6.5 },
+  network: {
+    id: 2,
+    name: 'CBS',
+    country: { name: 'United States', code: 'US', timezone: 'America/New_York' }
+  },
+  // ... more fields
+}
+```
+
+**Get next document:**
+
+```js
+cursor.next();
+```
+
+**Result:**
+
+```js
+{
+  _id: ObjectId('699af2612adc1485c87da5ac'),
+  id: 5,
+  name: 'True Detective',
+  type: 'Scripted',
+  language: 'English',
+  genres: [ 'Drama', 'Crime', 'Thriller' ],
+  status: 'Running',
+  runtime: 60,
+  rating: { average: 8.3 },
+  network: {
+    id: 8,
+    name: 'HBO',
+    country: { name: 'United States', code: 'US', timezone: 'America/New_York' }
+  },
+  // ... more fields
+}
+```
+
+---
+
+#### `cursor.hasNext()`
+
+Checks if there are more documents to retrieve.
+
+**Example:**
+
+```js
+const cursor = db.movies.find();
+
+// Check if cursor has documents
+cursor.hasNext(); // true
+
+// Consume all documents
+cursor.forEach((doc) => {
+  printjson(doc);
+});
+
+// Check again after exhausting cursor
+cursor.hasNext(); // false
+```
+
+**Use Case:**
+
+```js
+// Manual iteration
+while (cursor.hasNext()) {
+  const doc = cursor.next();
+  // Process document
+}
+```
+
+---
+
+#### `cursor.forEach()`
+
+Iterates through all remaining documents in the cursor.
+
+**Syntax:**
+
+```js
+cursor.forEach((document) => {
+  // Process each document
+});
+```
+
+**Example:**
+
+```js
+const cursor = db.movies.find({ genres: "Drama" });
+
+cursor.forEach((doc) => {
+  printjson(doc);
+});
+
+// After forEach, cursor is exhausted
+cursor.hasNext(); // false
+```
+
+---
+
+### Creating New Cursors
+
+Once a cursor is exhausted, you need to create a new one:
+
+```js
+// First cursor
+const cursor = db.movies.find();
+cursor.forEach((doc) => {
+  /* process */
+});
+cursor.hasNext(); // false - exhausted
+
+// Create new cursor to iterate again
+const newCursor = db.movies.find();
+newCursor.hasNext(); // true - ready to use
+```
+
+---
+
+## Sorting Results
+
+The `sort()` method orders query results by one or more fields.
+
+### Sort Syntax
+
+```js
+db.collection.find().sort({ field: 1 }); // Ascending
+db.collection.find().sort({ field: -1 }); // Descending
+```
+
+**Sort Values:**
+
+- `1` = Ascending order (A→Z, 0→9, low→high)
+- `-1` = Descending order (Z→A, 9→0, high→low)
+
+---
+
+### Single Field Sorting
+
+**Ascending Order (Low to High):**
+
+```js
+db.movies.find().sort({ "rating.average": 1 });
+```
+
+**Result:**
+
+```js
+// Returns movies sorted by rating from lowest to highest
+{ name: "Bad Movie", rating: { average: 3.2 } }
+{ name: "OK Movie", rating: { average: 5.5 } }
+{ name: "Good Movie", rating: { average: 7.8 } }
+{ name: "Great Movie", rating: { average: 9.1 } }
+```
+
+---
+
+**Descending Order (High to Low):**
+
+```js
+db.movies.find().sort({ "rating.average": -1 });
+```
+
+**Result:**
+
+```js
+// Returns movies sorted by rating from highest to lowest
+{ name: "Great Movie", rating: { average: 9.1 } }
+{ name: "Good Movie", rating: { average: 7.8 } }
+{ name: "OK Movie", rating: { average: 5.5 } }
+{ name: "Bad Movie", rating: { average: 3.2 } }
+```
+
+---
+
+### Multi-Field Sorting
+
+Sort by multiple fields with priority order.
+
+**Example:**
+
+```js
+db.movies.find().sort({ "rating.average": 1, runtime: -1 });
+```
+
+**How it works:**
+
+1. **Primary sort**: By `rating.average` ascending (low→high)
+2. **Secondary sort**: If ratings are equal, sort by `runtime` descending (high→low)
+
+**Result:**
+
+```js
+// Same rating: sorted by runtime (high to low)
+{ name: "Movie A", rating: { average: 7.5 }, runtime: 120 }
+{ name: "Movie B", rating: { average: 7.5 }, runtime: 90 }
+{ name: "Movie C", rating: { average: 7.5 }, runtime: 60 }
+
+// Different rating: sorted by rating (low to high)
+{ name: "Movie D", rating: { average: 8.0 }, runtime: 45 }
+{ name: "Movie E", rating: { average: 8.2 }, runtime: 150 }
+```
+
+**Sort Priority:**
+
+- First field has highest priority
+- Subsequent fields break ties
+- Can sort by unlimited fields
+
+---
+
+## Pagination: Skip & Limit
+
+Control which subset of results to retrieve - essential for pagination.
+
+### The `.count()` Method
+
+Returns the total number of matching documents.
+
+**Example:**
+
+```js
+db.movies.find().sort({ "rating.average": 1, runtime: -1 }).count();
+// Result: 240
+```
+
+**Total documents:** 240 movies
+
+---
+
+### The `.skip()` Method
+
+Skips the specified number of documents from the beginning.
+
+**Syntax:**
+
+```js
+db.collection.find().skip(n);
+```
+
+**Example 1: Skip 10 documents**
+
+```js
+db.movies.find().sort({ "rating.average": 1, runtime: -1 }).skip(10).count();
+// Result: 230
+```
+
+**Explanation:**
+
+- Total: 240 documents
+- Skip: 10 documents
+- Remaining: 230 documents
+
+---
+
+**Example 2: Skip 100 documents**
+
+```js
+db.movies.find().sort({ "rating.average": 1, runtime: -1 }).skip(100).count();
+// Result: 140
+```
+
+**Explanation:**
+
+- Total: 240 documents
+- Skip: 100 documents
+- Remaining: 140 documents
+
+---
+
+### The `.limit()` Method
+
+Limits the number of documents returned.
+
+**Syntax:**
+
+```js
+db.collection.find().limit(n);
+```
+
+**Example 1: Skip 10, limit to 10**
+
+```js
+db.movies
+  .find()
+  .sort({ "rating.average": 1, runtime: -1 })
+  .skip(10)
+  .limit(10)
+  .count();
+// Result: 10
+```
+
+**Explanation:**
+
+- Skip first 10 documents
+- Return next 10 documents
+- **Page 2** of results (if 10 per page)
+
+---
+
+**Example 2: Skip 100, limit to 10**
+
+```js
+db.movies
+  .find()
+  .sort({ "rating.average": 1, runtime: -1 })
+  .skip(100)
+  .limit(10)
+  .count();
+// Result: 10
+```
+
+**Explanation:**
+
+- Skip first 100 documents
+- Return next 10 documents
+- **Page 11** of results (if 10 per page)
+
+---
+
+### Pagination Implementation
+
+**Pagination Formula:**
+
+```js
+const page = 5; // Which page to show
+const pageSize = 10; // Documents per page
+
+db.movies
+  .find()
+  .skip((page - 1) * pageSize) // Skip previous pages
+  .limit(pageSize); // Show only current page
+```
+
+**Example: Show page 5 with 10 items per page**
+
+```js
+const page = 5;
+const pageSize = 10;
+
+db.movies
+  .find()
+  .sort({ "rating.average": -1 })
+  .skip((5 - 1) * 10) // Skip 40 documents (pages 1-4)
+  .limit(10); // Show 10 documents (page 5)
+```
+
+**Page Breakdown:**
+
+- Page 1: Documents 1-10 (skip: 0, limit: 10)
+- Page 2: Documents 11-20 (skip: 10, limit: 10)
+- Page 3: Documents 21-30 (skip: 20, limit: 10)
+- Page 4: Documents 31-40 (skip: 30, limit: 10)
+- **Page 5: Documents 41-50** (skip: 40, limit: 10)
+
+---
+
+### Method Chaining Order
+
+**Best Practice Order:**
+
+```js
+db.collection
+  .find(filter) // 1. Filter
+  .sort(sortSpec) // 2. Sort
+  .skip(n) // 3. Skip
+  .limit(n); // 4. Limit
+```
+
+**Why this order?**
+
+1. **Filter** - Get matching documents
+2. **Sort** - Order them
+3. **Skip** - Skip already-shown documents
+4. **Limit** - Return only needed documents
+
+**MongoDB optimizes internally**, but this is the logical order.
+
+---
+
+### Cursor Methods Summary
+
+| Method       | Purpose                    | Example                      | Returns      |
+| ------------ | -------------------------- | ---------------------------- | ------------ |
+| `.next()`    | Get next document          | `cursor.next()`              | Document     |
+| `.hasNext()` | Check if more docs exist   | `cursor.hasNext()`           | Boolean      |
+| `.forEach()` | Iterate all docs           | `cursor.forEach(fn)`         | Void         |
+| `.toArray()` | Convert to array           | `cursor.toArray()`           | Array        |
+| `.count()`   | Count matching docs        | `cursor.count()`             | Number       |
+| `.sort()`    | Sort results               | `.sort({ field: 1 })`        | Cursor       |
+| `.skip()`    | Skip N documents           | `.skip(10)`                  | Cursor       |
+| `.limit()`   | Limit to N documents       | `.limit(10)`                 | Cursor       |
+| `.pretty()`  | Format output (shell only) | `.pretty()`                  | Cursor       |
+| `.explain()` | Show query plan            | `.explain("executionStats")` | Explain data |
+
+---
+
+### Performance Considerations
+
+**Efficient Pagination:**
+
+✅ **Good** for small skip values:
+
+```js
+db.movies.find().skip(10).limit(10); // Fast
+```
+
+❌ **Slow** for large skip values:
+
+```js
+db.movies.find().skip(100000).limit(10); // Slow!
+```
+
+**Why?** MongoDB still scans through skipped documents.
+
+---
+
+**Better Approach for Large Offsets:**
+
+Use **range queries** instead of skip:
+
+```js
+// Instead of: .skip(10000).limit(10)
+// Use:
+db.movies.find({ _id: { $gt: lastSeenId } }).limit(10);
+```
+
+**Benefits:**
+
+- Uses index efficiently
+- Constant performance regardless of page
+- Skips no documents
+
+---
+
+### Practical Examples
+
+**Example 1: Top 10 Highest Rated Movies**
+
+```js
+db.movies.find().sort({ "rating.average": -1 }).limit(10);
+```
+
+---
+
+**Example 2: Movies 21-30 by Runtime**
+
+```js
+db.movies.find({ status: "Running" }).sort({ runtime: -1 }).skip(20).limit(10);
+```
+
+---
+
+**Example 3: Search with Pagination**
+
+```js
+const searchTerm = "Detective";
+const page = 3;
+const perPage = 20;
+
+db.movies
+  .find({ name: { $regex: searchTerm, $options: "i" } })
+  .sort({ "rating.average": -1 })
+  .skip((page - 1) * perPage)
+  .limit(perPage);
+```
+
+---
+
+**Example 4: Count Total Pages**
+
+```js
+const totalDocs = db.movies.find({ genres: "Drama" }).count();
+const perPage = 20;
+const totalPages = Math.ceil(totalDocs / perPage);
+
+print(`Total pages: ${totalPages}`);
+// Result: Total pages: 12 (240 documents / 20 per page)
+```
+
+---
+
+### Best Practices
+
+**1. Always Sort Before Pagination**
+
+```js
+// ❌ Bad: Inconsistent results across pages
+db.movies.find().skip(10).limit(10);
+
+// ✅ Good: Consistent ordering
+db.movies.find().sort({ _id: 1 }).skip(10).limit(10);
+```
+
+---
+
+**2. Use Indexes for Sort Fields**
+
+```js
+// Create index for frequently sorted fields
+db.movies.createIndex({ "rating.average": -1 });
+
+// Now sorting is much faster
+db.movies.find().sort({ "rating.average": -1 });
+```
+
+---
+
+**3. Limit Results When Possible**
+
+```js
+// ❌ Avoid: Fetching everything
+db.movies.find().toArray(); // Loads all 240 docs
+
+// ✅ Better: Limit what you need
+db.movies.find().limit(20); // Loads only 20 docs
+```
+
+---
+
+**4. Combine with Projection**
+
+```js
+// Only fetch needed fields
+db.movies
+  .find({}, { name: 1, "rating.average": 1 })
+  .sort({ "rating.average": -1 })
+  .limit(10);
+```
+
+Reduces network bandwidth and improves performance.
+
+---
+
+## Projection Operators
+
+Projection operators control which fields are returned and how array fields are presented.
+
+### Projection Operators Overview
+
+| Operator     | Description                                  | Example                             |
+| ------------ | -------------------------------------------- | ----------------------------------- |
+| `$`          | Projects first matching array element        | `{ "comments.$": 1 }`               |
+| `$elemMatch` | Projects first matching element by condition | `{ comments: { $elemMatch: {...} }` |
+| `$slice`     | Limits number of array elements              | `{ comments: { $slice: 5 } }`       |
+| `$meta`      | Projects metadata (text search score)        | `{ score: { $meta: "textScore" } }` |
+
+---
+
+### Projection Operator Examples
+
+**`$` - Positional Operator**
+
+Projects the first array element that matches the query condition.
+
+```js
+// Find movie with specific genre and return only that genre
+
+db.movies.find({ genres: "Drama" }, { "genres.$": 1 });
+
+// Result: Only the matched "Drama" entry in genres array
+```
+
+---
+
+**`$elemMatch` - Element Match Projection**
+
+Projects the first array element that matches the specified condition.
+
+```js
+// Project only comments with score > 5
+
+db.posts.find(
+  {},
+  {
+    comments: {
+      $elemMatch: { score: { $gt: 5 } },
+    },
+  }
+);
+```
+
+---
+
+**`$slice` - Array Slice**
+
+Limits the number of array elements returned.
+
+```js
+// Return only first 3 genres
+
+db.movies.find({}, { genres: { $slice: 3 } });
+
+// Return last 2 genres
+
+db.movies.find({}, { genres: { $slice: -2 } });
+
+// Skip 1, return 3
+
+db.movies.find({}, { genres: { $slice: [1, 3] } });
+```
+
+**Syntax:**
+
+- `{ $slice: N }` - First N elements
+- `{ $slice: -N }` - Last N elements
+- `{ $slice: [skip, limit] }` - Skip and limit
+
+---
+
+**`$meta` - Metadata Projection**
+
+Projects metadata, such as text search relevance scores.
+
+```js
+// Text search with relevance score
+
+db.movies
+  .find(
+    { $text: { $search: "thriller" } },
+    {
+      name: 1,
+      score: { $meta: "textScore" },
+    }
+  )
+  .sort({ score: { $meta: "textScore" } });
+```
+
+**Use Cases:**
+
+- Sort results by text search relevance
+- Show search score to users
+- Implement "best match" features
+
+---
+
+### Summary
+
+**Query Selectors** help you find the right documents:
+
+- **Comparison**: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`
+- **Logical**: `$and`, `$or`, `$not`, `$nor`
+- **Element**: `$exists`, `$type`
+- **Array**: `$all`, `$elemMatch`, `$size`
+- **Evaluation**: `$regex`, `$text`, `$expr`
+- **Geospatial**: `$near`, `$geoWithin`
+
+**Projection Operators** control what fields are returned:
+
+- `$` - First matching array element
+- `$elemMatch` - Conditional array element
+- `$slice` - Limited array elements
+- `$meta` - Metadata like search scores
+
+**Best Practices:**
+
+1. Use indexes on frequently queried fields
+2. Combine operators for precise filtering
+3. Use projection to reduce data transfer
+4. Test queries with `.explain()` for performance insights

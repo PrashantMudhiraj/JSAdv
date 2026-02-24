@@ -2,52 +2,40 @@
 
 ## Table of Contents
 
-- [MongoDB Basics](#mongodb-basics)
-- [Data Structure](#data-structure)
+- [JSON(BSON) Data Format](#jsonbson-data-format)
+- [The Key MongoDB Characteristics](#the-key-mongodb-characteristics)
 - [MongoDB Ecosystem](#mongodb-ecosystem)
-- [CRUD Operations](#document--crud-basics)
+- [Shell vs Drivers](#shell-vs-drivers)
+- [MongoDB Server Architecture](#mongodb-server-architecture)
+- [Document & CRUD Basics](#document--crud-basics)
 - [Projection](#projection)
 - [Embedded Documents & Arrays](#embedded-documents--arrays)
-- [Data Schemas and Relations](#data-schemas-and-data-modelling)
+- [Data Schemas and Data Modelling](#data-schemas-and-data-modelling)
+- [Relations-Options](#relations-options)
+- [Relationship Patterns](#relationship-patterns)
+- [Choosing Between Embedded vs Referenced](#choosing-between-embedded-vs-referenced)
 - [Joining with $lookup](#joining-with-lookup)
 - [Schema Validation](#schema-validation)
-- [Exploring The Shell & Server](#exploring-the-shell--the-server)
-- [Create Operations Deep Dive](#create-operations-deep-dive)
-- [Write Concern](#write-concern)
-- [Atomicity](#atomicity)
+- [Exploring The Shell & The Server](#exploring-the-shell--the-server)
+- [Create Operations (Deep Dive)](#create-operations-deep-dive)
+  - [Write Concern](#write-concern)
+  - [Atomicity](#atomicity)
 - [Importing Data with mongoimport](#importing-data-with-mongoimport)
 - [Read Operations Deep Dive](#read-operations-deep-dive)
-- [Query Selectors](#query-selectors)
-- [Working with Cursors](#working-with-cursors)
-- [Sorting Results](#sorting-results)
-- [Pagination: Skip & Limit](#pagination-skip--limit)
-- [Projection Operators](#projection-operators)
-
----
-
-## MongoDB Basics
-
-### Data Structure Hierarchy
-
-MongoDB organizes data in a three-tier hierarchy:
-
-```
-Database
-  └── Collections
-        └── Documents
-```
-
-**Explanation:**
-
-- **Database**: The top-level container that holds multiple collections (similar to a database in SQL)
-- **Collections**: Groups of documents (similar to tables in SQL, but without a fixed schema)
-- **Documents**: Individual records stored in JSON-like format (similar to rows in SQL)
-
-**Key Characteristics:**
-
-- A single database can hold multiple collections
-- A single collection can hold multiple documents
-- Databases and collections are created **lazily**, meaning they're automatically created when you insert the first document
+  - [Query Selectors](#query-selectors)
+  - [Working with Cursors](#working-with-cursors)
+  - [Sorting Results](#sorting-results)
+  - [Pagination: Skip & Limit](#pagination-skip--limit)
+  - [Projection Operators](#projection-operators)
+- [Update Operations Deep Dive](#update-operations-deep-dive)
+- [Field Update Operators](#field-update-operators)
+- [Upsert - Update or Insert](#upsert---update-or-insert)
+- [Updating Array Fields](#updating-array-fields)
+- [Adding Elements to Arrays](#adding-elements-to-arrays)
+- [Removing Elements from Arrays](#removing-elements-from-arrays)
+- [The `$addToSet` Operator](#the-addtoset-operator)
+- [Update Operations Module Summary](#update-operations-module-summary)
+- [Delete Operations](#delete-operations)
 
 ---
 
@@ -179,8 +167,7 @@ Use these methods to insert new documents into a collection:
 Inserts a single document into a collection.
 
 ```js
-
-.users.insertOne({ name: "John", age: 30 });
+db.users.insertOne({ name: "John", age: 30 });
 ```
 
 #### `insertMany(data, options)`
@@ -188,8 +175,7 @@ Inserts a single document into a collection.
 Inserts multiple documents at once.
 
 ```js
-
-.users.insertMany([
+db.users.insertMany([
   { name: "Alice", age: 25 },
   { name: "Bob", age: 28 },
 ]);
@@ -223,15 +209,15 @@ Returns the first document that matches the filter.
 ```js
 // Find flights with distance greater than 10000
 
-.flightData.find({ distance: { $gt: 10000 } });
+db.flightData.find({ distance: { $gt: 10000 } });
 
 // Find flights with distance less than 10000
 
-.flightData.find({ distance: { $lt: 10000 } });
+db.flightData.find({ distance: { $lt: 10000 } });
 
 // Find first flight with distance > 900
 
-.flightData.findOne({ distance: { $gt: 900 } });
+db.flightData.findOne({ distance: { $gt: 900 } });
 ```
 
 **Accessing Embedded Fields:**
@@ -239,17 +225,17 @@ Returns the first document that matches the filter.
 ```js
 // Get hobbies of a specific person
 
-.passengers.findOne({ name: "Albert Twostone" }).hobbies;
+db.passengers.findOne({ name: "Albert Twostone" }).hobbies;
 
 // Find passengers with a specific hobby
 
-.passengers.findOne({ hobbies: "Sports" });
+db.passengers.findOne({ hobbies: "Sports" });
 
 // Search in nested objects using dot notation
 
-.flightData.find({ "status.description": "on-time" });
+db.flightData.find({ "status.description": "on-time" });
 
-.flightData.find({ "status.details.responsible": "Prashant" });
+db.flightData.find({ "status.details.responsible": "Prashant" });
 ```
 
 **Common Query Operators:**
@@ -292,20 +278,20 @@ Older method that overrides complete data; use `updateOne` or `updateMany` inste
 ```js
 // Add a marker field to one document
 
-.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
+db.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
 
 // Add marker to all documents
 
-.flightData.updateMany(
+db.flightData.updateMany(
   {}, // empty filter = match all
-  { $set: { marker: "delete" } },
+  { $set: { marker: "delete" } }
 );
 
 // Update an array field
 
-.passengers.updateOne(
+db.passengers.updateOne(
   { name: "Albert Twostone" },
-  { $set: { hobbies: ["Sports", "Cooking"] } },
+  { $set: { hobbies: ["Sports", "Cooking"] } }
 );
 ```
 
@@ -328,8 +314,7 @@ Remove documents from a collection:
 Deletes the first document that matches the filter.
 
 ```js
-
-.users.deleteOne({ name: "John" });
+db.users.deleteOne({ name: "John" });
 ```
 
 #### `deleteMany(filter, options)`
@@ -339,11 +324,11 @@ Deletes all documents that match the filter.
 ```js
 // Delete all users over 65
 
-.users.deleteMany({ age: { $gt: 65 } });
+db.users.deleteMany({ age: { $gt: 65 } });
 
 // Delete all documents in collection
 
-.users.deleteMany({});
+db.users.deleteMany({});
 ```
 
 **⚠️ Warning:** Be careful with `deleteMany({})` - it deletes everything!
@@ -357,8 +342,7 @@ Deletes all documents that match the filter.
 **Syntax:**
 
 ```js
-
-.collection.find(filter, projection);
+db.collection.find(filter, projection);
 ```
 
 ### How Projection Works
@@ -368,7 +352,7 @@ Use `1` to include a field and `0` to exclude it:
 ```js
 // Only return name and age, exclude _id
 
-.passengers.find({}, { name: 1, age: 1, _id: 0 })[
+db.passengers.find({}, { name: 1, age: 1, _id: 0 })[
   // Result:
   ({ name: "John", age: 30 }, { name: "Alice", age: 25 })
 ];
@@ -386,15 +370,15 @@ Use `1` to include a field and `0` to exclude it:
 ```js
 // Include only specific fields
 
-.users.find({}, { name: 1, email: 1 }); // _id is included by default
+db.users.find({}, { name: 1, email: 1 }); // _id is included by default
 
 // Exclude specific fields
 
-.users.find({}, { password: 0, secret: 0 }); // Everything except password and secret
+db.users.find({}, { password: 0, secret: 0 }); // Everything except password and secret
 
 // Include fields and exclude _id
 
-.products.find({}, { title: 1, price: 1, _id: 0 });
+db.products.find({}, { title: 1, price: 1, _id: 0 });
 ```
 
 ---
@@ -453,15 +437,15 @@ MongoDB imposes some constraints on document structure:
 ```js
 // Dot notation for nested fields
 
-.users.find({ "address.city": "New York" });
+db.users.find({ "address.city": "New York" });
 
 // Query array elements
 
-.users.find({ hobbies: "Reading" }); // Matches if array contains "Reading"
+db.users.find({ hobbies: "Reading" }); // Matches if array contains "Reading"
 
 // Query nested objects in arrays
 
-.users.find({ "tags.category": "premium" });
+db.users.find({ "tags.category": "premium" });
 ```
 
 ---
@@ -473,8 +457,7 @@ MongoDB is schema-less, but you should still design your data structure carefull
 ### Example Document with Various Data Types
 
 ```js
-
-.companies.insertOne({
+db.companies.insertOne({
   name: "Fresh Apple Inc",
   isStartUp: true,
   employees: 33,
@@ -497,23 +480,6 @@ MongoDB is schema-less, but you should still design your data structure carefull
 - `Array`: tags
 - `Date`: foundingDate
 - `Timestamp`: insertedAt
-
----
-
-## Relations-Options
-
-MongoDB offers two main approaches to model relationships between data:
-
-```js
-{
-  userName: 'Max',
-  age: 29,
-  address: {
-    street: "Second Street",
-    city: "New York",
-  }
-}
-```
 
 ---
 
@@ -646,7 +612,7 @@ MongoDB offers two main approaches to model relationships between data:
 ```js
 // Persons Collection
 carData>
-.persons.insertOne({name: "Max", age: 29, salary: 3000})
+db.persons.insertOne({name: "Max", age: 29, salary: 3000})
 {
   acknowledged: true,
   insertedId: ObjectId('6994872e0aed413665b6c1d8')
@@ -663,7 +629,7 @@ carData>
 
 // Cars Collection (references the person via ObjectId)
 carData>
-.cars.insertOne({
+db.cars.insertOne({
   model: "BMW",
   price: 40000,
   owner: ObjectId('6994872e0aed413665b6c1d8')  // Reference to person
@@ -674,7 +640,7 @@ carData>
 }
 
 carData>
-.cars.findOne()
+db.cars.findOne()
 {
   _id: ObjectId('699487560aed413665b6c1d9'),
   model: 'BMW',
@@ -698,7 +664,7 @@ carData>
 
 ```js
 support>
-.questionThreads.insertOne({
+db.questionThreads.insertOne({
   creator: "Max",
   question: "How does that all work?",
   answers: [
@@ -712,7 +678,7 @@ support>
 }
 
 support>
-.questionThreads.find()
+db.questionThreads.find()
 [
   {
     _id: ObjectId('699489d30aed413665b6c1db'),
@@ -748,7 +714,7 @@ support>
 ```js
 // Cities Collection
 cityData>
-.cities.insertOne({
+db.cities.insertOne({
   name: "New York City",
   coordinates: { lat: 21, lng: 55 }
 })
@@ -758,7 +724,7 @@ cityData>
 }
 
 cityData>
-.cities.find()
+db.cities.find()
 [
   {
     _id: ObjectId('69948ab20aed413665b6c1dc'),
@@ -769,7 +735,7 @@ cityData>
 
 // Citizens Collection (each citizen references their city)
 cityData>
-.citizens.insertMany([
+db.citizens.insertMany([
   {
     name: "Prashant",
     cityId: ObjectId('69948ab20aed413665b6c1dc')  // Reference
@@ -788,7 +754,7 @@ cityData>
 }
 
 cityData>
-.citizens.find()
+db.citizens.find()
 [
   {
     _id: ObjectId('69948b6a0aed413665b6c1dd'),
@@ -808,7 +774,7 @@ cityData>
 - Citizens and cities are in separate collections
 - Each citizen document stores a reference to their city's `_id`
 - To find all citizens of a city: `
-.citizens.find({ cityId: cityId })`
+db.citizens.find({ cityId: cityId })`
 - To get city details for a citizen: look up the city using the `cityId`
 
 **When to Use Referenced One-to-Many:**
@@ -826,7 +792,7 @@ cityData>
 ```js
 // Products Collection
 shop>
-.products.insertOne({ title: "A Book", price: 12.99 })
+db.products.insertOne({ title: "A Book", price: 12.99 })
 {
   acknowledged: true,
   insertedId: ObjectId('69948c880aed413665b6c1df')
@@ -834,14 +800,14 @@ shop>
 
 // Customers Collection (orders embedded in customer)
 shop>
-.customers.insertOne({name: "Prashant", age: 29})
+db.customers.insertOne({name: "Prashant", age: 29})
 {
   acknowledged: true,
   insertedId: ObjectId('69948ca50aed413665b6c1e0')
 }
 
 shop>
-.customers.updateOne(
+db.customers.updateOne(
   {},
   {
     $set: {
@@ -864,7 +830,7 @@ shop>
 }
 
 shop>
-.customers.find()
+db.customers.find()
 [
   {
     _id: ObjectId('69948ca50aed413665b6c1e0'),
@@ -976,8 +942,7 @@ The `$lookup` aggregation stage performs a **left outer join** between collectio
 **Syntax:**
 
 ```js
-
-.collection.aggregate([
+db.collection.aggregate([
   {
     $lookup: {
       from: "foreignCollection", // Collection to join
@@ -1004,8 +969,7 @@ The `$lookup` aggregation stage performs a **left outer join** between collectio
 
 ```js
 cityData >
-
-  .citizens.aggregate([
+  db.citizens.aggregate([
     {
       $lookup: {
         from: "cities", // Join with cities collection
@@ -1060,7 +1024,7 @@ cityData >
 
 ```js
 
-.citizens.aggregate([
+db.citizens.aggregate([
   {
     $lookup: {
       from: "cities",
@@ -1091,7 +1055,7 @@ cityData >
 
 ```js
 
-.citizens.aggregate([
+db.citizens.aggregate([
   {
     $lookup: {
       from: "cities",
@@ -1175,8 +1139,7 @@ Controls **what happens** when validation fails:
 ### Creating a Collection with Validation
 
 ```js
-
-.createCollection("posts", {
+db.createCollection("posts", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
@@ -1235,7 +1198,7 @@ Controls **what happens** when validation fails:
 
 ```js
 blog>
-.posts.insertOne({
+db.posts.insertOne({
   title: "My First Post",
   text: "This is my post, I hope you like it!",
   tags: ["new", "tech"],
@@ -1308,11 +1271,10 @@ Additional information: {
 ### Modifying Validation on Existing Collections
 
 Use `
-.runCommand()` with `collMod` to update validation rules:
+db.runCommand()` with `collMod` to update validation rules:
 
 ```js
-
-.runCommand({
+db.runCommand({
   collMod: "posts", // Collection to modify
   validator: {
     $jsonSchema: {
@@ -1365,7 +1327,7 @@ Use `
 ```js
 // Same invalid data, but with validationAction: 'warn'
 blog>
-.posts.insertOne({
+db.posts.insertOne({
   title: "My First Post",
   text: "This is my post, I hope you like it!",
   tags: ["new", "tech"],
@@ -1386,7 +1348,7 @@ blog>
 
 // Document is inserted despite validation failure
 blog>
-.posts.find()
+db.posts.find()
 [
   {
     _id: ObjectId('69949e6fd781863a9f36ade3'),
@@ -1476,8 +1438,7 @@ required: ["userId", "email", "createdAt"];
 **4. Combine with Indexes**
 
 ```js
-
-.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ email: 1 }, { unique: true });
 ```
 
 - Validation ensures type correctness
@@ -1702,15 +1663,14 @@ Inserts a single document into a collection.
 **Syntax:**
 
 ```js
-
-.collectionName.insertOne({ field: "value" });
+db.collectionName.insertOne({ field: "value" });
 ```
 
 **Example:**
 
 ```js
 
-.users.insertOne({
+db.users.insertOne({
   name: "Alice",
   email: "alice@example.com",
   age: 30
@@ -1738,15 +1698,14 @@ Inserts multiple documents in a single operation.
 **Syntax:**
 
 ```js
-
-.collectionName.insertMany([{ field: "value1" }, { field: "value2" }]);
+db.collectionName.insertMany([{ field: "value1" }, { field: "value2" }]);
 ```
 
 **Example:**
 
 ```js
 
-.users.insertMany([
+db.users.insertMany([
   { name: "Bob", age: 25 },
   { name: "Charlie", age: 35 },
   { name: "Diana", age: 28 }
@@ -1784,9 +1743,9 @@ Inserts multiple documents in a single operation.
 ```js
 // Don't use this anymore!
 
-.collectionName.insert({ field: "value" })  // Single
+db.collectionName.insert({ field: "value" })  // Single
 
-.collectionName.insert([{...}, {...}])      // Multiple
+db.collectionName.insert([{...}, {...}])      // Multiple
 ```
 
 **Why Avoid:**
@@ -1850,7 +1809,7 @@ By default, `insertMany()` is **ordered** - it inserts documents sequentially an
 
 ```js
 hobbies>
-.hobbies.insertMany([
+db.hobbies.insertMany([
   {_id: "sports", name: "Sports"},
   {_id: "cooking", name: "Cooking"},
   {_id: "cars", name: "Cars"}
@@ -1867,7 +1826,7 @@ hobbies>
 
 ```js
 hobbies>
-.hobbies.insertMany([
+db.hobbies.insertMany([
   {_id: "yoga", name: "Yoga"},      // ✅ Inserted (index 0)
   {_id: "sports", name: "Sports"},  // ❌ ERROR - duplicate (index 1)
   {_id: "hiking", name: "Hiking"}   // ⏭️ SKIPPED - never attempted
@@ -1895,8 +1854,7 @@ Write Errors: [
 
 ```js
 hobbies >
-
-  .hobbies.find()[
+  db.hobbies.find()[
     ({ _id: "sports", name: "Sports" }, // Original
     { _id: "cooking", name: "Cooking" }, // Original
     { _id: "cars", name: "Cars" }, // Original
@@ -1922,7 +1880,7 @@ Set `ordered: false` to continue inserting even after errors.
 
 ```js
 hobbies>
-.hobbies.insertMany([
+db.hobbies.insertMany([
   {_id: "sports", name: "Sports"},   // ❌ ERROR - duplicate (index 0)
   {_id: "hiking", name: "Hiking"},   // ✅ INSERTED (index 1)
   {_id: "yoga", name: "Yoga"}        // ❌ ERROR - duplicate (index 2)
@@ -1957,8 +1915,7 @@ Write Errors: [
 
 ```js
 hobbies >
-
-  .hobbies.find()[
+  db.hobbies.find()[
     ({ _id: "sports", name: "Sports" }, // Original
     { _id: "cooking", name: "Cooking" }, // Original
     { _id: "cars", name: "Cars" }, // Original
@@ -2009,8 +1966,7 @@ hobbies >
 
 ```js
 try {
-  const result =
-  .products.insertMany(productArray, { ordered: false });
+  const result = db.products.insertMany(productArray, { ordered: false });
   print(`Inserted ${result.insertedCount} documents`);
 } catch (error) {
   print(`Inserted ${error.result.insertedCount} documents`);
@@ -2059,7 +2015,7 @@ Data Files (Disk) ← Permanent storage
 
 ```js
 
-.collection.insertOne(
+db.collection.insertOne(
   { document },
   { writeConcern: { w: <value>, j: <boolean>, wtimeout: <ms> } }
 )
@@ -2081,7 +2037,7 @@ Data Files (Disk) ← Permanent storage
 
 ```js
 
-.persons.insertOne(
+db.persons.insertOne(
   {name: "Chrissy", age: 41},
   {writeConcern: { w: 0 }}
 )
@@ -2106,7 +2062,7 @@ Data Files (Disk) ← Permanent storage
 
 ```js
 
-.persons.insertOne(
+db.persons.insertOne(
   {name: "Alex", age: 41},
   {writeConcern: { w: 1 }}
 )
@@ -2130,10 +2086,9 @@ Data Files (Disk) ← Permanent storage
 **`w: "majority"` - Majority of Replica Set**
 
 ```js
-
-.persons.insertOne(
+db.persons.insertOne(
   { name: "Sara", age: 35 },
-  { writeConcern: { w: "majority" } },
+  { writeConcern: { w: "majority" } }
 );
 ```
 
@@ -2152,7 +2107,7 @@ Data Files (Disk) ← Permanent storage
 
 ```js
 
-.persons.insertOne(
+db.persons.insertOne(
   {name: "Michael", age: 41},
   {writeConcern: { w: 1, j: false }}
 )
@@ -2176,7 +2131,7 @@ Data Files (Disk) ← Permanent storage
 
 ```js
 
-.persons.insertOne(
+db.persons.insertOne(
   {name: "Michaela", age: 41},
   {writeConcern: { w: 1, j: true }}
 )
@@ -2203,7 +2158,7 @@ Sets a time limit for write concern acknowledgment.
 
 ```js
 
-.persons.insertOne(
+db.persons.insertOne(
   {name: "Aliya", age: 21},
   {writeConcern: { w: 1, j: true, wtimeout: 200 }}
 )
@@ -2227,9 +2182,9 @@ Sets a time limit for write concern acknowledgment.
 ```js
 // If replication is slow
 
-.persons.insertOne(
+db.persons.insertOne(
   { name: "Test" },
-  { writeConcern: { w: "majority", wtimeout: 100 } },
+  { writeConcern: { w: "majority", wtimeout: 100 } }
 );
 // Error: waiting for replication timed out
 ```
@@ -2340,13 +2295,13 @@ Transaction States:
 ```js
 // This entire operation is atomic
 
-.users.updateOne(
+db.users.updateOne(
   { _id: 1 },
   {
     $set: { name: "John Doe" },
     $inc: { loginCount: 1 },
     $push: { loginHistory: new Date() },
-  },
+  }
 );
 ```
 
@@ -2361,9 +2316,9 @@ Transaction States:
 ```js
 // These are separate atomic operations
 
-.accounts.updateOne({ _id: "A" }, { $inc: { balance: -100 } }); // Operation 1
+db.accounts.updateOne({ _id: "A" }, { $inc: { balance: -100 } }); // Operation 1
 
-.accounts.updateOne({ _id: "B" }, { $inc: { balance: +100 } }); // Operation 2
+db.accounts.updateOne({ _id: "B" }, { $inc: { balance: +100 } }); // Operation 2
 ```
 
 - If Operation 1 succeeds but Operation 2 fails:
@@ -2379,8 +2334,7 @@ Transaction States:
 **Example 1: Insert with Embedded Documents**
 
 ```js
-
-.orders.insertOne({
+db.orders.insertOne({
   orderId: 12345,
   customer: "Alice",
   items: [
@@ -2403,8 +2357,7 @@ Transaction States:
 **Example 2: Update with Multiple Changes**
 
 ```js
-
-.users.updateOne(
+db.users.updateOne(
   { email: "alice@example.com" },
   {
     $set: {
@@ -2418,7 +2371,7 @@ Transaction States:
       },
     },
     $inc: { version: 1 },
-  },
+  }
 );
 ```
 
@@ -2433,8 +2386,7 @@ Transaction States:
 **Example 3: Embedded Document Update**
 
 ```js
-
-.blogs.updateOne(
+db.blogs.updateOne(
   { _id: "post123", "comments._id": "comment456" },
   {
     $set: {
@@ -2442,7 +2394,7 @@ Transaction States:
       "comments.$.editedAt": new Date(),
     },
     $inc: { "comments.$.editCount": 1 },
-  },
+  }
 );
 ```
 
@@ -2458,8 +2410,7 @@ Transaction States:
 For operations spanning **multiple documents**, use transactions:
 
 ```js
-const session =
-.getMongo().startSession();
+const session = db.getMongo().startSession();
 session.startTransaction();
 
 try {
@@ -2500,7 +2451,7 @@ try {
 ```js
 // Good: Embed related data
 
-.orders.insertOne({
+db.orders.insertOne({
   orderId: 123,
   items: [...],
   total: 100,
@@ -2523,9 +2474,9 @@ session.commitTransaction();
 ```js
 // Use atomic operators for concurrent updates
 
-.products.updateOne(
+db.products.updateOne(
   { _id: "product123" },
-  { $inc: { quantity: -1 } }, // Atomic decrement
+  { $inc: { quantity: -1 } } // Atomic decrement
 );
 ```
 
@@ -2534,7 +2485,7 @@ session.commitTransaction();
 ```js
 try {
 
-  .collection.insertOne({ ... });
+  db.collection.insertOne({ ... });
 } catch (error) {
   // Operation is already rolled back
   console.error("Insert failed:", error);
@@ -2648,8 +2599,8 @@ switched to
 movieData> show collections
 movies  // ✅ Collection created
 
-movieData>
-.movies.find().limit(1)  // View first document
+moviewData>
+db.movies.find().limit(1)  // View first document
 [
   {
     _id: ObjectId('699af2612adc1485c87da5ab'),  // Auto-generated _id
@@ -2971,7 +2922,7 @@ mongoimport large-data.json -d mydb -c mycoll
 
 # Then create indexes in shell
 mongosh mydb --eval '
-.mycoll.createIndex({email: 1})'
+db.mycoll.createIndex({email: 1})'
 ```
 
 Importing without indexes is faster; add indexes after.
@@ -3051,8 +3002,7 @@ Read operations in MongoDB allow you to query and retrieve documents efficiently
 MongoDB queries follow a structured pattern:
 
 ```js
-
-.collectionName.method(filter, options)
+db.collectionName.method(filter, options);
 ```
 
 **Query Structure Breakdown:**
@@ -3069,12 +3019,12 @@ MongoDB queries follow a structured pattern:
 ```js
 // Simple equality filter
 
-.users.find({ age: 32 })
+db.users.find({ age: 32 });
 // Field: age, Value: 32
 
 // Operator-based filter
 
-.users.find({ age: { $gt: 30 } })
+db.users.find({ age: { $gt: 30 } });
 // Field: age, Operator: $gt, Value: 30
 ```
 
@@ -3098,11 +3048,11 @@ MongoDB provides three main categories of operators:
 
 ---
 
-## Query Selectors
+#### Query Selectors
 
 Query selectors allow you to filter documents based on specific criteria.
 
-### Comparison Operators
+#### Comparison Operators
 
 Used to compare field values against specified values.
 
@@ -3126,13 +3076,13 @@ Used to compare field values against specified values.
 **`$eq` - Equal**
 
 ```js
-// Find movies with exactly 60 minute runtime
+// Find movies with exactly 60  minute runtime
 
-.movies.find({ runtime: { $eq: 60 } })
+db.movies.find({ runtime: { $eq: 60 } });
 
 // Shorthand (implicit $eq)
 
-.movies.find({ runtime: 60 })
+db.movies.find({ runtime: 60 });
 ```
 
 ---
@@ -3142,7 +3092,7 @@ Used to compare field values against specified values.
 ```js
 // Find movies that are NOT 60 minutes
 
-.movies.find({ runtime: { $ne: 60 } })
+db.movies.find({ runtime: { $ne: 60 } });
 ```
 
 **Use Cases:**
@@ -3158,11 +3108,11 @@ Used to compare field values against specified values.
 ```js
 // Movies longer than 60 minutes (exclusive)
 
-.movies.find({ runtime: { $gt: 60 } })
+db.movies.find({ runtime: { $gt: 60 } });
 
 // Movies 60 minutes or longer (inclusive)
 
-.movies.find({ runtime: { $gte: 60 } })
+db.movies.find({ runtime: { $gte: 60 } });
 ```
 
 ---
@@ -3172,11 +3122,11 @@ Used to compare field values against specified values.
 ```js
 // Movies shorter than 60 minutes
 
-.movies.find({ runtime: { $lt: 60 } })
+db.movies.find({ runtime: { $lt: 60 } });
 
 // Movies 60 minutes or shorter
 
-.movies.find({ runtime: { $lte: 60 } })
+db.movies.find({ runtime: { $lte: 60 } });
 ```
 
 ---
@@ -3188,11 +3138,11 @@ Use **dot notation** to query embedded document fields:
 ```js
 // Find highly rated movies (rating > 7)
 
-.movies.find({ "rating.average": { $gt: 7 } })
+db.movies.find({ "rating.average": { $gt: 7 } });
 
 // Find lower rated movies
 
-.movies.find({ "rating.average": { $lt: 7 } })
+db.movies.find({ "rating.average": { $lt: 7 } });
 ```
 
 **Important:**
@@ -3208,15 +3158,15 @@ Use **dot notation** to query embedded document fields:
 ```js
 // Find movies with specific genres
 
-.movies.find({ genres: { $in: ["Anime"] } })
+db.movies.find({ genres: { $in: ["Anime"] } });
 
 // Shorthand for single value
 
-.movies.find({ genres: "Anime" })
+db.movies.find({ genres: "Anime" });
 
 // Multiple values - match ANY
 
-.movies.find({ runtime: { $in: [30, 42] } })
+db.movies.find({ runtime: { $in: [30, 42] } });
 ```
 
 **Explanation:**
@@ -3237,7 +3187,7 @@ Use **dot notation** to query embedded document fields:
 ```js
 // Exclude specific genres
 
-.movies.find({ genres: { $nin: ["Anime", "Drama"] } })
+db.movies.find({ genres: { $nin: ["Anime", "Drama"] } });
 ```
 
 **Explanation:**
@@ -3252,13 +3202,12 @@ Use **dot notation** to query embedded document fields:
 
 ---
 
-### Example Query Result
+#### Example Query Result
 
 **Query:**
 
 ```js
-
-.movies.find({ runtime: { $ne: 60 } }).limit(1)
+db.movies.find({ runtime: { $ne: 60 } }).limit(1);
 ```
 
 **Result:**
@@ -3326,11 +3275,11 @@ Use **dot notation** to query embedded document fields:
 
 ---
 
-### Other Query Selector Categories
+#### Other Query Selector Categories
 
 MongoDB provides additional query selector types for advanced filtering:
 
-### Evaluation Operators
+#### Evaluation Operators
 
 Evaluate expressions and perform text searches.
 
@@ -3419,7 +3368,7 @@ financialData >
 
 ---
 
-### Logical Operators
+#### Logical Operators
 
 Combine multiple query conditions.
 
@@ -3435,62 +3384,48 @@ Combine multiple query conditions.
 ```js
 // AND - Both conditions must match
 
-.movies.find({
-  $and: [
-    { runtime: { $gt: 60 } },
-    { "rating.average": { $gte: 8 } }
-  ]
-})
+db.movies.find({
+  $and: [{ runtime: { $gt: 60 } }, { "rating.average": { $gte: 8 } }],
+});
 
+db.movies.find({
+  $and: [{ "rating.average": { $gt: 9 } }, { genres: "Drama" }],
+});
 
-.movies.find( { $and : [ {"rating.average" : { $gt: 9}} , {genres : "Drama"}]})
-
-movieData>
-.movies.find({$and : [{genres : "Drama"} , {genres: "Horror"}]} ).count()
-17
-movieData>
-.movies.find({ genres : "Drama" , genres: "Horror"}).count();
-23
+movieData >
+  db.movies.find({ $and: [{ genres: "Drama" }, { genres: "Horror" }] }).count();
+17;
+movieData > db.movies.find({ genres: "Drama", genres: "Horror" }).count();
+23;
 
 // OR - Either condition matches
 
-.movies.find({
-  $or: [
-    { genres: "Comedy" },
-    { genres: "Drama" }
-  ]
-})
+db.movies.find({
+  $or: [{ genres: "Comedy" }, { genres: "Drama" }],
+});
 
-
-.movies.find({
-  $or :  [
-    { "rating.average" : {$gt : 9}} ,
-    { "rating.average" : { $lt : 5}}
-  ]
-})
+db.movies.find({
+  $or: [{ "rating.average": { $gt: 9 } }, { "rating.average": { $lt: 5 } }],
+});
 
 // NOR
 
-.movies.find({
-  $nor :  [
-    { "rating.average" : {$gt : 9}} ,
-    { "rating.average" : { $lt : 5}}
-  ]
-})
+db.movies.find({
+  $nor: [{ "rating.average": { $gt: 9 } }, { "rating.average": { $lt: 5 } }],
+});
 
 // NOT - Invert condition
 
-.movies.find({
-  runtime: { $not: { $gte: 60 } }
-})
+db.movies.find({
+  runtime: { $not: { $gte: 60 } },
+});
 
-
-.movies.find( {runtime : {$not : {$eq : 50}}})
+db.movies.find({ runtime: { $not: { $eq: 50 } } });
 ```
 
 ---
 
-### Array Operators
+#### Array Operators
 
 Query array fields with advanced conditions.
 
@@ -3600,7 +3535,7 @@ db.users.find({ "hobbies.title": "Sports" });
 
 ---
 
-### Element Operators
+#### Element Operators
 
 Query based on field existence and type.
 
@@ -3730,7 +3665,7 @@ users>
 
 ---
 
-### Geospatial Operators
+#### Geospatial Operators
 
 Query location-based data.
 
@@ -3746,23 +3681,23 @@ Query location-based data.
 ```js
 // Find locations within 5km radius
 
-.locations.find({
+db.locations.find({
   coordinates: {
     $near: {
       $geometry: { type: "Point", coordinates: [-73.9667, 40.78] },
-      $maxDistance: 5000
-    }
-  }
-})
+      $maxDistance: 5000,
+    },
+  },
+});
 ```
 
 ---
 
-## Working with Cursors
+### Working with Cursors
 
 When you execute a `find()` query, MongoDB doesn't immediately return all documents. Instead, it returns a **cursor** - a pointer to the result set that allows you to iterate through documents efficiently.
 
-### What is a Cursor?
+#### What is a Cursor?
 
 **Key Characteristics:**
 
@@ -3785,9 +3720,9 @@ Process → ... ✅
 
 ---
 
-### Cursor Methods
+#### Cursor Methods
 
-#### `cursor.next()`
+##### `cursor.next()`
 
 Retrieves the next document from the cursor.
 
@@ -3853,7 +3788,7 @@ cursor.next();
 
 ---
 
-#### `cursor.hasNext()`
+##### `cursor.hasNext()`
 
 Checks if there are more documents to retrieve.
 
@@ -3886,7 +3821,7 @@ while (cursor.hasNext()) {
 
 ---
 
-#### `cursor.forEach()`
+##### `cursor.forEach()`
 
 Iterates through all remaining documents in the cursor.
 
@@ -3913,7 +3848,7 @@ cursor.hasNext(); // false
 
 ---
 
-### Creating New Cursors
+#### Creating New Cursors
 
 Once a cursor is exhausted, you need to create a new one:
 
@@ -3932,11 +3867,11 @@ newCursor.hasNext(); // true - ready to use
 
 ---
 
-## Sorting Results
+### Sorting Results
 
 The `sort()` method orders query results by one or more fields.
 
-### Sort Syntax
+#### Sort Syntax
 
 ```js
 db.collection.find().sort({ field: 1 }); // Ascending
@@ -3950,7 +3885,7 @@ db.collection.find().sort({ field: -1 }); // Descending
 
 ---
 
-### Single Field Sorting
+#### Single Field Sorting
 
 **Ascending Order (Low to High):**
 
@@ -3988,7 +3923,7 @@ db.movies.find().sort({ "rating.average": -1 });
 
 ---
 
-### Multi-Field Sorting
+#### Multi-Field Sorting
 
 Sort by multiple fields with priority order.
 
@@ -4024,11 +3959,11 @@ db.movies.find().sort({ "rating.average": 1, runtime: -1 });
 
 ---
 
-## Pagination: Skip & Limit
+### Pagination: Skip & Limit
 
 Control which subset of results to retrieve - essential for pagination.
 
-### The `.count()` Method
+#### The `.count()` Method
 
 Returns the total number of matching documents.
 
@@ -4043,7 +3978,7 @@ db.movies.find().sort({ "rating.average": 1, runtime: -1 }).count();
 
 ---
 
-### The `.skip()` Method
+#### The `.skip()` Method
 
 Skips the specified number of documents from the beginning.
 
@@ -4083,7 +4018,7 @@ db.movies.find().sort({ "rating.average": 1, runtime: -1 }).skip(100).count();
 
 ---
 
-### The `.limit()` Method
+#### The `.limit()` Method
 
 Limits the number of documents returned.
 
@@ -4133,7 +4068,7 @@ db.movies
 
 ---
 
-### Pagination Implementation
+#### Pagination Implementation
 
 **Pagination Formula:**
 
@@ -4170,9 +4105,9 @@ db.movies
 
 ---
 
-### Method Chaining Order
+#### Method Chaining Order
 
-**Best Practice Order:**
+**Best Practice Order:\*\***
 
 ```js
 db.collection
@@ -4193,7 +4128,7 @@ db.collection
 
 ---
 
-### Cursor Methods Summary
+#### Cursor Methods Summary
 
 | Method       | Purpose                    | Example                      | Returns      |
 | ------------ | -------------------------- | ---------------------------- | ------------ |
@@ -4210,9 +4145,9 @@ db.collection
 
 ---
 
-### Performance Considerations
+#### Performance Considerations
 
-**Efficient Pagination:**
+**Efficient Pagination:\*\***
 
 ✅ **Good** for small skip values:
 
@@ -4248,7 +4183,7 @@ db.movies.find({ _id: { $gt: lastSeenId } }).limit(10);
 
 ---
 
-### Practical Examples
+#### Practical Examples
 
 **Example 1: Top 10 Highest Rated Movies**
 
@@ -4295,7 +4230,7 @@ print(`Total pages: ${totalPages}`);
 
 ---
 
-### Best Practices
+#### Best Practices
 
 **1. Always Sort Before Pagination**
 
@@ -4347,11 +4282,11 @@ Reduces network bandwidth and improves performance.
 
 ---
 
-## Projection Operators
+### Projection Operators
 
 Projection operators control which fields are returned and how array fields are presented.
 
-### Projection Operators Overview
+#### Projection Operators Overview
 
 | Operator     | Description                                  | Example                             |
 | ------------ | -------------------------------------------- | ----------------------------------- |
@@ -4362,7 +4297,7 @@ Projection operators control which fields are returned and how array fields are 
 
 ---
 
-### Projection Operator Examples
+#### Projection Operator Examples
 
 **`$` - Positional Operator**
 
@@ -4449,7 +4384,7 @@ db.movies
 
 ---
 
-### Summary
+#### Summary
 
 **Query Selectors** help you find the right documents:
 
@@ -4473,3 +4408,3195 @@ db.movies
 2. Combine operators for precise filtering
 3. Use projection to reduce data transfer
 4. Test queries with `.explain()` for performance insights
+
+---
+
+## Update Operations Deep Dive
+
+Update operations allow you to modify existing documents in MongoDB collections using powerful operators.
+
+**Key Objectives:**
+
+- Modify document fields efficiently
+- Update array elements selectively or in bulk
+- Use atomic operators for safe concurrent updates
+- Understand upsert behavior
+
+**Main Update Methods:**
+
+- `updateOne()` - Updates first matching document
+- `updateMany()` - Updates all matching documents
+- `replaceOne()` - Replaces entire document
+- `findOneAndUpdate()` - Updates and returns document
+
+---
+
+## Field Update Operators
+
+### The `$set` Operator
+
+**Purpose:** Sets the value of a field. Creates the field if it doesn't exist.
+
+**Syntax:**
+
+```js
+db.collection.updateOne({ filter }, { $set: { field: value } });
+```
+
+---
+
+#### `$set` with updateOne()
+
+```js
+users> db.users.updateOne({_id : ObjectId('699d1a86704ebd0e15ed4433')} , { $set : {phone : "3830297039" , age : 26}})
+{
+  acknowledged: true,
+  insertedId: null,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+users> db.users.updateOne(
+   { _id: ObjectId("699d1a86704ebd0e15ed4433") },
+   {
+     $set: {
+       hobbies: [
+         { title: "Sports", freq: 5 },
+         { title: "Cooking", freq: 3 },
+         { title: "Hiking", freq: 1 },
+       ],
+     },
+   },
+ );
+
+{
+  acknowledged: true,
+  insertedId: null,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+---
+
+#### `$set` with updateMany()
+
+**Example: Update Multiple Documents**
+
+```js
+db.users.updateMany(
+  { "hobbies.title": "Sports" },
+  { $set: { isSporty: true } }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 3,      // Found 3 documents with Sports hobby
+  modifiedCount: 3,     // Modified all 3 documents
+  upsertedCount: 0
+}
+```
+
+---
+
+**Verify Changes:**
+
+```js
+db.users.find({ "hobbies.title": "Sports" });
+```
+
+**Result:**
+
+```js
+[
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4430"),
+    name: "Max",
+    hobbies: [
+      { title: "Sports", frequency: 3 },
+      { title: "Cooking", frequency: 6 },
+    ],
+    phone: 131782734,
+    isSporty: true, // ✅ New field added
+  },
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4432"),
+    name: "Anna",
+    hobbies: [
+      { title: "Sports", frequency: 2 },
+      { title: "Yoga", frequency: 3 },
+    ],
+    phone: "80811987291",
+    age: null,
+    isSporty: true, // ✅ New field added
+  },
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4433"),
+    name: "Chris",
+    hobbies: [
+      { title: "Sports", freq: 5 },
+      { title: "Cooking", freq: 3 },
+      { title: "Hiking", freq: 1 },
+    ],
+    age: 26,
+    phone: "3830297039",
+    isSporty: true, // ✅ New field added
+  },
+];
+```
+
+**What Happened:**
+
+- Found all users with "Sports" in their hobbies array
+- Added `isSporty: true` field to each matching user
+- All 3 users now have the new field
+
+---
+
+### The `$inc` Operator
+
+**Purpose:** Increments (or decrements) the value of a numeric field by a specified amount.
+
+**Syntax:**
+
+```js
+db.collection.updateOne({ filter }, { $inc: { field: amount } });
+```
+
+**Key Points:**
+
+- Positive values increment
+- Negative values decrement
+- Field must be numeric (or will be created as 0 + increment)
+- Atomic operation (safe for concurrent updates)
+
+---
+
+**Example 1: Increment Age**
+
+```js
+db.users.updateOne(
+  { name: "Manuel" },
+  {
+    $inc: {
+      age: 2, // Increment age by 2
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+// Manuel's age: 32 → 34
+```
+
+---
+
+**Example 2: Combine `$inc` with `$set`**
+
+```js
+db.users.updateOne(
+  { name: "Manuel" },
+  {
+    $inc: {
+      age: 1, // Increment age by 1
+    },
+    $set: {
+      isSporty: false, // Set isSporty field
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+---
+
+**Verify Changes:**
+
+```js
+db.users.find({ name: "Manuel" });
+```
+
+**Result:**
+
+```js
+[
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4431"),
+    name: "Manuel",
+    hobbies: [
+      { title: "Cooking", frequency: 5 },
+      { title: "Cars", frequency: 2 },
+    ],
+    phone: "012177972",
+    age: 35, // ✅ Incremented from 34 to 35
+    isSporty: false, // ✅ Set to false
+  },
+];
+```
+
+**Common Use Cases:**
+
+- Page view counters: `{ $inc: { views: 1 } }`
+- Inventory management: `{ $inc: { quantity: -5 } }` (decrement)
+- Score updates: `{ $inc: { score: 100 } }`
+- Like/upvote counters: `{ $inc: { likes: 1 } }`
+
+---
+
+### The `$min`, `$max`, and `$mul` Operators
+
+These operators provide specialized numeric update operations.
+
+---
+
+#### `$min` - Update Only if Smaller
+
+**Purpose:** Updates the field value only if the specified value is **less than** the current value.
+
+**Syntax:**
+
+```js
+db.collection.updateOne({ filter }, { $min: { field: value } });
+```
+
+**Example:**
+
+```js
+db.users.updateOne({ name: "Chris" }, { $min: { age: 30 } });
+```
+
+**Behavior:**
+
+- Current age: 29 → Updates to 30 ❌ (29 < 30, no change)
+- Current age: 35 → Updates to 30 ✅ (35 > 30, updates to 30)
+
+**Use Cases:**
+
+- Ensure value doesn't exceed maximum: `{ $min: { price: 100 } }`
+- Cap values at certain threshold
+- Track minimum scores/values
+
+---
+
+#### `$max` - Update Only if Larger
+
+**Purpose:** Updates the field value only if the specified value is **greater than** the current value.
+
+**Syntax:**
+
+```js
+db.collection.updateOne({ filter }, { $max: { field: value } });
+```
+
+**Example:**
+
+```js
+db.users.updateOne({ name: "Chris" }, { $max: { age: 30 } });
+```
+
+**Behavior:**
+
+- Current age: 25 → Updates to 30 ✅ (25 < 30, updates)
+- Current age: 35 → Updates to 30 ❌ (35 > 30, no change)
+
+**Use Cases:**
+
+- Track highest score: `{ $max: { highScore: newScore } }`
+- Ensure minimum value: `{ $max: { price: 10 } }`
+- Update "last seen" timestamps
+
+---
+
+#### `$mul` - Multiply Value
+
+**Purpose:** Multiplies the field value by a specified number.
+
+**Syntax:**
+
+```js
+db.collection.updateOne({ filter }, { $mul: { field: multiplier } });
+```
+
+**Example:**
+
+```js
+db.users.updateOne(
+  { name: "Chris" },
+  { $mul: { age: 1.1 } } // Multiply age by 1.1 (10% increase)
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+---
+
+**Verify Change:**
+
+```js
+db.users.find({ name: "Chris" });
+```
+
+**Result:**
+
+```js
+[
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4433"),
+    name: "Chris",
+    hobbies: [
+      { title: "Sports", freq: 5 },
+      { title: "Cooking", freq: 3 },
+      { title: "Hiking", freq: 1 },
+    ],
+    age: 31.900000000000002, // ✅ 29 * 1.1 = 31.9
+    phone: "3830297039",
+    isSporty: true,
+  },
+];
+```
+
+**Original age:** 29  
+**After multiplication:** 29 × 1.1 = 31.9
+
+**Use Cases:**
+
+- Apply percentage increases: `{ $mul: { price: 1.15 } }` (15% increase)
+- Apply discounts: `{ $mul: { price: 0.8 } }` (20% discount)
+- Scale values: `{ $mul: { quantity: 2 } }` (double)
+- Depreciation: `{ $mul: { value: 0.9 } }` (10% decrease)
+
+---
+
+### Comparison Table
+
+| Operator | Purpose                    | Example                 | Result (if age=30) |
+| -------- | -------------------------- | ----------------------- | ------------------ |
+| `$inc`   | Add/subtract value         | `{ $inc: { age: 5 } }`  | 35                 |
+| `$mul`   | Multiply by value          | `{ $mul: { age: 2 } }`  | 60                 |
+| `$min`   | Set if new value < current | `{ $min: { age: 25 } }` | 25                 |
+| `$max`   | Set if new value > current | `{ $max: { age: 35 } }` | 35                 |
+| `$set`   | Set to exact value         | `{ $set: { age: 40 } }` | 40                 |
+
+---
+
+### The `$unset` Operator
+
+**Purpose:** Removes a field from documents.
+
+**Syntax:**
+
+```js
+db.collection.updateMany(
+  { filter },
+  { $unset: { field: "" } } // Value doesn't matter (use "" or 1)
+);
+```
+
+**Key Points:**
+
+- Deletes the field completely
+- Value specified doesn't matter (use `""` or `1` by convention)
+- If field doesn't exist, no error occurs
+- Cannot unset `_id` field
+
+---
+
+**Example: Remove Phone Field**
+
+```js
+db.users.updateMany(
+  { isSporty: true },
+  { $unset: { phone: "" } } // Remove 'phone' field
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 3,      // Found 3 sporty users
+  modifiedCount: 3,     // Removed phone from all 3
+  upsertedCount: 0
+}
+```
+
+**What Happened:**
+
+- Found all users where `isSporty: true`
+- Removed `phone` field from those documents
+- Documents no longer have `phone` field at all
+
+**Before:**
+
+```js
+{ name: "Max", phone: "131782734", isSporty: true }
+```
+
+**After:**
+
+```js
+{ name: "Max", isSporty: true }    // phone field removed
+```
+
+**Use Cases:**
+
+- Remove deprecated fields
+- Clean up unnecessary data
+- Remove sensitive information
+- Schema migration
+
+---
+
+### The `$rename` Operator
+
+**Purpose:** Renames a field.
+
+**Syntax:**
+
+```js
+db.collection.updateMany(
+  { filter },
+  { $rename: { oldFieldName: "newFieldName" } }
+);
+```
+
+**Key Points:**
+
+- Renames field without changing its value
+- If old field doesn't exist, nothing happens (no error)
+- If new field already exists, it gets overwritten
+- Can rename nested fields using dot notation
+
+---
+
+**Example: Rename 'age' to 'totalAge'**
+
+```js
+db.users.updateMany(
+  {}, // Empty filter = all documents
+  { $rename: { age: "totalAge" } }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 4,      // Checked 4 documents
+  modifiedCount: 3,     // Only 3 had 'age' field to rename
+  upsertedCount: 0
+}
+```
+
+**What Happened:**
+
+- Found all users in collection (4 total)
+- Renamed `age` field to `totalAge` in 3 documents
+- 1 document didn't have `age` field (not modified)
+
+**Before:**
+
+```js
+{ name: "Max", age: 29 }
+```
+
+**After:**
+
+```js
+{ name: "Max", totalAge: 29 }
+```
+
+**Use Cases:**
+
+- Fix naming conventions
+- Schema migrations
+- Standardize field names across collections
+- Refactoring data structure
+
+**Example: Rename Nested Field**
+
+```js
+db.users.updateMany(
+  {},
+  { $rename: { "address.zipCode": "address.postalCode" } }
+);
+```
+
+---
+
+## Upsert - Update or Insert
+
+**Upsert** = **Up**date + In**sert**
+
+**Purpose:** If a document matching the filter exists, update it. If not, insert a new document.
+
+**Syntax:**
+
+```js
+db.collection.updateOne(
+  { filter },
+  { updateOperators },
+  { upsert: true } // Enable upsert
+);
+```
+
+**Default Behavior:** `upsert: false` (only update existing documents)
+
+---
+
+### Upsert Example
+
+**Scenario:** Update Maria's data, or create her document if she doesn't exist.
+
+```js
+db.users.updateOne(
+  { name: "Maria" }, // Filter: Find Maria
+  {
+    $set: {
+      age: 29,
+      hobbies: [{ title: "Good food", freq: 3 }],
+      isSporty: true,
+    },
+  },
+  { upsert: true } // If not found, insert
+);
+```
+
+**Result (Maria doesn't exist):**
+
+```js
+{
+  acknowledged: true,
+  insertedId: ObjectId('699d2fcb1932bc8273d4a6bf'),  // ✅ New document created
+  matchedCount: 0,        // No existing document found
+  modifiedCount: 0,       // Nothing to modify
+  upsertedCount: 1        // 1 document inserted
+}
+```
+
+**New Document Created:**
+
+```js
+{
+  _id: ObjectId('699d2fcb1932bc8273d4a6bf'),
+  name: "Maria",          // From filter
+  age: 29,                // From $set
+  hobbies: [{ title: "Good food", freq: 3 }],
+  isSporty: true
+}
+```
+
+---
+
+### Upsert Behavior
+
+**Case 1: Document Exists**
+
+```js
+// Maria already exists
+db.users.updateOne(
+  { name: "Maria" },
+  { $set: { age: 30 } },
+  { upsert: true }
+)
+
+// Result:
+{
+  matchedCount: 1,        // Found Maria
+  modifiedCount: 1,       // Updated her age
+  upsertedCount: 0        // No insert needed
+}
+```
+
+---
+
+**Case 2: Document Doesn't Exist**
+
+```js
+// Maria doesn't exist
+db.users.updateOne(
+  { name: "Maria" },
+  { $set: { age: 30 } },
+  { upsert: true }
+)
+
+// Result:
+{
+  insertedId: ObjectId('...'),  // New document created
+  matchedCount: 0,              // No match found
+  modifiedCount: 0,             // Nothing to update
+  upsertedCount: 1              // Inserted new doc
+}
+```
+
+---
+
+### Use Cases for Upsert
+
+**1. Counters and Metrics**
+
+```js
+// Increment page view counter (create if doesn't exist)
+db.pageViews.updateOne(
+  { page: "/home" },
+  { $inc: { views: 1 } },
+  { upsert: true }
+);
+```
+
+---
+
+**2. User Preferences**
+
+```js
+// Save user settings (update or create)
+db.settings.updateOne(
+  { userId: "user123" },
+  { $set: { theme: "dark", language: "en" } },
+  { upsert: true }
+);
+```
+
+---
+
+**3. Session Tracking**
+
+```js
+// Update or create session
+db.sessions.updateOne(
+  { sessionId: "abc123" },
+  {
+    $set: { lastActive: new Date() },
+    $inc: { requestCount: 1 },
+  },
+  { upsert: true }
+);
+```
+
+---
+
+**4. Inventory Management**
+
+```js
+// Update stock or add new product
+db.inventory.updateOne(
+  { sku: "LAPTOP-001" },
+  { $set: { quantity: 50, price: 999 } },
+  { upsert: true }
+);
+```
+
+---
+
+### Important Notes
+
+**Filter Fields in Insert:**
+
+- Filter criteria become part of the new document
+- Filter: `{ name: "Maria" }` → New doc will have `name: "Maria"`
+
+**Combining Operators:**
+
+```js
+db.users.updateOne(
+  { email: "maria@example.com" },
+  {
+    $set: { name: "Maria" },
+    $inc: { loginCount: 1 },
+    $setOnInsert: { createdAt: new Date() }, // Only on insert
+  },
+  { upsert: true }
+);
+```
+
+**`$setOnInsert` Operator:**
+
+- Sets fields only when inserting (upsert creates new doc)
+- Ignored when updating existing doc
+- Useful for timestamps, defaults
+
+---
+
+## Updating Array Fields
+
+MongoDB provides powerful operators to update specific elements within arrays.
+
+### The Problem with Simple Queries
+
+**`$and` vs `$elemMatch` for Arrays:**
+
+❌ **Using separate conditions** (implicit `$and`):
+
+```js
+db.users.find({
+  "hobbies.title": "Sports",
+  "hobbies.frequency": { $gte: 3 },
+});
+```
+
+**Problem:** Matches if **any** hobby is "Sports" AND **any** hobby has frequency ≥ 3 (they don't have to be the same hobby!).
+
+✅ **Using `$elemMatch`:**
+
+```js
+db.users.find({
+  hobbies: {
+    $elemMatch: {
+      title: "Sports",
+      frequency: { $gte: 3 },
+    },
+  },
+});
+```
+
+**Solution:** Matches only if **the same** hobby element satisfies both conditions.
+
+---
+
+### Updating Matched Array Elements with `$`
+
+**The `$` Positional Operator:**
+
+**Purpose:** Updates the **first** array element that matched the query filter.
+
+**Syntax:**
+
+```js
+db.collection.updateMany(
+  { "array.field": value }, // Filter
+  { $set: { "array.$.newField": value } } // $ = matched element
+);
+```
+
+---
+
+**Example: Add 'highFrequency' Flag**
+
+```js
+db.users.updateMany(
+  {
+    hobbies: {
+      $elemMatch: {
+        title: "Sports",
+        frequency: { $gte: 3 },
+      },
+    },
+  },
+  {
+    $set: {
+      "hobbies.$.highFrequency": true, // $ = first matched hobby
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,      // 1 user has Sports hobby with freq ≥ 3
+  modifiedCount: 1,     // Updated that user
+  upsertedCount: 0
+}
+```
+
+---
+
+**Verify Change:**
+
+```js
+db.users.find({
+  hobbies: {
+    $elemMatch: {
+      title: "Sports",
+      frequency: { $gte: 3 },
+    },
+  },
+});
+```
+
+**Result:**
+
+```js
+[
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4430"),
+    name: "Max",
+    hobbies: [
+      {
+        title: "Sports",
+        frequency: 3,
+        highFrequency: true, // ✅ Added to matched element
+      },
+      {
+        title: "Cooking",
+        frequency: 6, // ❌ Not modified (not matched)
+      },
+    ],
+    isSporty: true,
+  },
+];
+```
+
+**Key Point:** Only the **first matching element** in the `hobbies` array was updated.
+
+---
+
+### Limitation of `$` Operator
+
+**Problem:** `$` only updates the **first** matching array element per document.
+
+**Example:**
+
+```js
+// User has multiple high-frequency hobbies
+{
+  name: "Alex",
+  hobbies: [
+    { title: "Sports", frequency: 5 },      // Matches
+    { title: "Cooking", frequency: 4 }      // Also matches, but NOT updated
+  ]
+}
+```
+
+After update with `$`:
+
+```js
+{
+  name: "Alex",
+  hobbies: [
+    { title: "Sports", frequency: 5, highFrequency: true },   // ✅ Updated
+    { title: "Cooking", frequency: 4 }                        // ❌ Not updated
+  ]
+}
+```
+
+---
+
+### Updating All Array Elements with `$[]`
+
+**The `$[]` Operator (All Positional):**
+
+**Purpose:** Updates **all** elements in an array, regardless of filter conditions.
+
+**Syntax:**
+
+```js
+db.collection.updateMany(
+  { filter },
+  { $set: { "array.$[].field": value } } // $[] = all elements
+);
+```
+
+---
+
+### Understanding the Difference
+
+| Operator        | Updates                        | Use Case                       |
+| --------------- | ------------------------------ | ------------------------------ |
+| `$`             | First matched array element    | Update specific matching item  |
+| `$[]`           | All array elements             | Update every item in array     |
+| `$[identifier]` | Elements matching arrayFilters | Update multiple matching items |
+
+---
+
+### Example: Decrement All Hobby Frequencies
+
+**Scenario:** For users over 30, decrease frequency of all their hobbies by 1.
+
+**Step 1: Find Users Over 30**
+
+```js
+db.users.find({ totalAge: { $gt: 30 } });
+```
+
+**Found:**
+
+```js
+[
+  { name: "Manuel", totalAge: 35, hobbies: [...] },
+  { name: "Chris", totalAge: 31.9, hobbies: [...] }
+]
+```
+
+---
+
+**Step 2: Update All Hobbies for These Users**
+
+❌ **Wrong Approach** (treats hobbies as single field):
+
+```js
+db.users.updateMany(
+  { totalAge: { $gt: 30 } },
+  { $inc: { "hobbies.frequency": -1 } } // ERROR!
+);
+// Error: Cannot create field frequency in element hobbies
+```
+
+**Problem:** `hobbies` is an array, not a document.
+
+---
+
+✅ **Correct Approach** (update all array elements):
+
+```js
+db.users.updateMany(
+  { totalAge: { $gt: 30 } },
+  {
+    $inc: {
+      "hobbies.$[].frequency": -1, // $[] = all hobbies
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 2,      // Found 2 users over 30
+  modifiedCount: 2,     // Updated both users
+  upsertedCount: 0
+}
+```
+
+---
+
+**Step 3: Verify Changes**
+
+```js
+db.users.find({ totalAge: { $gt: 30 } });
+```
+
+**Result:**
+
+```js
+[
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4431"),
+    name: "Manuel",
+    hobbies: [
+      { title: "Cooking", frequency: 4 }, // Was 5, now 4 ✅
+      { title: "Cars", frequency: 1 }, // Was 2, now 1 ✅
+    ],
+    isSporty: false,
+    totalAge: 35,
+  },
+  {
+    _id: ObjectId("699d1a86704ebd0e15ed4433"),
+    name: "Chris",
+    hobbies: [
+      { title: "Sports", frequency: -1 }, // All frequencies
+      { title: "Cooking", frequency: -1 }, // decremented ✅
+      { title: "Hiking", frequency: -1 },
+    ],
+    isSporty: true,
+    totalAge: 31.9,
+  },
+];
+```
+
+**What Happened:**
+
+- Found users with `totalAge > 30` (Manuel and Chris)
+- Decremented **all** hobby frequencies by 1
+- Every element in the hobbies array was updated
+
+---
+
+### Key Differences Illustrated
+
+**Original Data:**
+
+```js
+{
+  name: "Alex",
+  hobbies: [
+    { title: "Sports", frequency: 5 },
+    { title: "Cooking", frequency: 3 },
+    { title: "Reading", frequency: 2 }
+  ]
+}
+```
+
+---
+
+**Using `$` (First Match Only):**
+
+```js
+db.users.updateOne(
+  { name: "Alex", "hobbies.frequency": { $gte: 3 } },
+  { $set: { "hobbies.$.popular": true } }
+);
+
+// Result:
+{
+  hobbies: [
+    { title: "Sports", frequency: 5, popular: true }, // ✅ Updated
+    { title: "Cooking", frequency: 3 }, // ❌ Not updated
+    { title: "Reading", frequency: 2 },
+  ];
+}
+```
+
+---
+
+**Using `$[]` (All Elements):**
+
+```js
+db.users.updateOne({ name: "Alex" }, { $inc: { "hobbies.$[].frequency": 1 } });
+
+// Result:
+{
+  hobbies: [
+    { title: "Sports", frequency: 6 }, // ✅ Incremented
+    { title: "Cooking", frequency: 4 }, // ✅ Incremented
+    { title: "Reading", frequency: 3 }, // ✅ Incremented
+  ];
+}
+```
+
+---
+
+### When to Use `$[]`
+
+**Use Cases:**
+
+✅ Apply bulk changes to all array elements
+
+```js
+// Add field to all items
+db.products.updateOne(
+  { _id: productId },
+  { $set: { "reviews.$[].verified": false } }
+);
+```
+
+✅ Increment/decrement all values
+
+```js
+// Increase all prices by 10%
+db.products.updateMany({}, { $mul: { "prices.$[].amount": 1.1 } });
+```
+
+✅ Remove field from all array elements
+
+```js
+// Remove temporary flag from all comments
+db.posts.updateMany({}, { $unset: { "comments.$[].tempFlag": "" } });
+```
+
+---
+
+### Important Notes
+
+**1. Works with Embedded Documents:**
+
+```js
+// Update nested field in all array elements
+db.users.updateOne(
+  { name: "Alex" },
+  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } }
+);
+```
+
+**2. Works with Simple Arrays:**
+
+```js
+// Array of primitives
+{
+  tags: ["mongodb", "database", "nosql"];
+}
+
+// Can't use dot notation after $[]
+db.blogs.updateOne(
+  { _id: blogId },
+  { $set: { "tags.$[]": "updated" } } // Replaces all tags with "updated"
+);
+```
+
+**3. Combine with Other Operators:**
+
+```js
+db.users.updateOne(
+  { name: "Alex" },
+  {
+    $inc: { "hobbies.$[].frequency": 1 },
+    $set: { lastModified: new Date() },
+  }
+);
+```
+
+---
+
+### Updating Specific Array Elements with `arrayFilters`
+
+**The `$[<identifier>]` Operator with `arrayFilters`:**
+
+**Purpose:** Updates **multiple** array elements that match specific conditions (more flexible than `$` or `$[]`).
+
+**Why Use It?**
+
+| Limitation                       | Solution                                           |
+| -------------------------------- | -------------------------------------------------- |
+| `$` updates only **first** match | `$[identifier]` updates **all** matches            |
+| `$[]` updates **all** elements   | `$[identifier]` updates only **filtered** elements |
+
+**Syntax:**
+
+```js
+db.collection.updateMany(
+  { documentFilter }, // Filter documents
+  { $set: { "array.$[identifier].field": value } }, // Update matching array elements
+  { arrayFilters: [{ "identifier.field": condition }] } // Filter array elements
+);
+```
+
+---
+
+### Complete Example
+
+**Scenario:** Add `goodFrequency: true` to all hobbies with frequency > 2.
+
+**Step 1: Find Users with High-Frequency Hobbies**
+
+```js
+db.users.find({ "hobbies.frequency": { $gt: 2 } });
+```
+
+**Found Users:**
+
+```js
+// Maria - has one hobby with freq > 2
+{ name: "Maria", hobbies: [{ title: "Cooking", frequency: 3 }] }
+
+// Anna - has hobbies with mixed frequencies
+{ name: "Anna", hobbies: [
+  { title: "Sports", frequency: 5 },    // ✅ > 2
+  { title: "Reading", frequency: 1 }    // ❌ ≤ 2
+]}
+
+// Max - both hobbies qualify
+{ name: "Max", hobbies: [
+  { title: "Gaming", frequency: 4 },    // ✅ > 2
+  { title: "Coding", frequency: 5 }     // ✅ > 2
+]}
+```
+
+**Key Point:** Finding documents with `"hobbies.frequency": { $gt: 2 }` returns the **entire document**, not just matching hobbies.
+
+---
+
+**Step 2: Update Matching Array Elements**
+
+```js
+db.users.updateMany(
+  { "hobbies.frequency": { $gt: 2 } }, // Document filter
+  { $set: { "hobbies.$[el].goodFrequency": true } }, // Array update
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // Array element filter
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 3,      // Found 3 users
+  modifiedCount: 3,     // Updated all 3
+  upsertedCount: 0
+}
+```
+
+---
+
+**Step 3: Verify Changes**
+
+```js
+db.users.find();
+```
+
+**Result:**
+
+```js
+// Maria - goodFrequency added to qualifying hobby
+{
+  name: "Maria",
+  hobbies: [{
+    title: "Cooking",
+    frequency: 3,
+    goodFrequency: true    // ✅ Added (freq > 2)
+  }]
+}
+
+// Anna - only high-frequency hobby updated
+{
+  name: "Anna",
+  hobbies: [
+    {
+      title: "Sports",
+      frequency: 5,
+      goodFrequency: true    // ✅ Added (freq > 2)
+    },
+    {
+      title: "Reading",
+      frequency: 1           // ❌ Not updated (freq ≤ 2)
+    }
+  ]
+}
+
+// Max - both hobbies updated
+{
+  name: "Max",
+  hobbies: [
+    {
+      title: "Gaming",
+      frequency: 4,
+      goodFrequency: true    // ✅ Added (freq > 2)
+    },
+    {
+      title: "Coding",
+      frequency: 5,
+      goodFrequency: true    // ✅ Added (freq > 2)
+    }
+  ]
+}
+```
+
+---
+
+### Breaking Down the Syntax
+
+**1. Document Filter (First Argument)**
+
+```js
+{ "hobbies.frequency": { $gt: 2 } }
+```
+
+- Finds **documents** where at least one hobby has frequency > 2
+- Determines which documents to update
+
+---
+
+**2. Update Expression (Second Argument)**
+
+```js
+{ $set: { "hobbies.$[el].goodFrequency": true } }
+```
+
+- `$[el]` is a placeholder/identifier (you choose the name)
+- Refers to array elements that match the `arrayFilters` condition
+- `el` could be any name: `$[hobby]`, `$[item]`, `$[x]`, etc.
+
+---
+
+**3. Array Filters (Third Argument)**
+
+```js
+{
+  arrayFilters: [{ "el.frequency": { $gt: 2 } }];
+}
+```
+
+- Defines which array elements to update
+- `"el"` must match the identifier used in update expression
+- Can have multiple filters for different arrays
+
+---
+
+### Key Differences: Document Filter vs Array Filter
+
+**Important:** These two filters are **independent**!
+
+```js
+db.users.updateMany(
+  { totalAge: { $gt: 30 } }, // ← Document filter
+  { $set: { "hobbies.$[el].goodFrequency": true } },
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // ← Array element filter
+);
+```
+
+**What This Does:**
+
+1. Find users older than 30 (document filter)
+2. Within those users, update hobbies with frequency > 2 (array filter)
+3. Filters don't need to match!
+
+**Result:**
+
+- Users under 30: Not touched at all
+- Users over 30 with low-frequency hobbies: Document matched, but hobbies not updated
+- Users over 30 with high-frequency hobbies: Both document and hobbies updated
+
+---
+
+### Multiple Array Filters
+
+You can filter multiple arrays with different identifiers:
+
+```js
+db.posts.updateMany(
+  { status: "published" },
+  {
+    $set: {
+      "comments.$[comment].verified": true,
+      "tags.$[tag].active": true,
+    },
+  },
+  {
+    arrayFilters: [
+      { "comment.upvotes": { $gte: 10 } }, // Filter for comments
+      { "tag.category": "tech" }, // Filter for tags
+    ],
+  }
+);
+```
+
+---
+
+### Comparison Table
+
+| Operator        | Updates                   | Filtering           | Example Use Case                  |
+| --------------- | ------------------------- | ------------------- | --------------------------------- |
+| `$`             | First match per document  | Query filter only   | Update first expired session      |
+| `$[]`           | All elements              | No filtering        | Add timestamp to all items        |
+| `$[identifier]` | Multiple filtered matches | Custom arrayFilters | Update all items with price > 100 |
+
+---
+
+### Practical Examples
+
+**Example 1: Update Product Ratings**
+
+```js
+// Verify all reviews with upvotes >= 5
+db.products.updateMany(
+  { category: "Electronics" },
+  { $set: { "reviews.$[review].verified": true } },
+  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] }
+);
+```
+
+---
+
+**Example 2: Apply Discount to Expensive Items**
+
+```js
+// Apply 10% discount to items over $50
+db.orders.updateMany(
+  { status: "pending" },
+  { $mul: { "items.$[item].price": 0.9 } },
+  { arrayFilters: [{ "item.price": { $gt: 50 } }] }
+);
+```
+
+---
+
+**Example 3: Multiple Conditions in Array Filter**
+
+```js
+// Update comments that are old AND popular
+db.posts.updateMany(
+  {},
+  { $set: { "comments.$[c].featured": true } },
+  {
+    arrayFilters: [
+      {
+        "c.upvotes": { $gte: 10 },
+        "c.createdAt": { $lt: new Date("2025-01-01") },
+      },
+    ],
+  }
+);
+```
+
+---
+
+### Best Practices
+
+**1. Choose Descriptive Identifiers**
+
+```js
+// ❌ Unclear
+{
+  arrayFilters: [{ "x.status": "active" }];
+}
+
+// ✅ Clear
+{
+  arrayFilters: [{ "employee.status": "active" }];
+}
+```
+
+**2. Document Filters Should Be Broad**
+
+```js
+// Get all potentially relevant documents first
+{
+  category: "tech";
+}
+// Then filter array elements precisely
+{
+  arrayFilters: [{ "item.price": { $lt: 100 } }];
+}
+```
+
+**3. Test Array Filters First**
+
+```js
+// Test your filter with a find query first
+db.users.find({
+  hobbies: {
+    $elemMatch: { frequency: { $gt: 2 } },
+  },
+});
+
+// Then apply in update
+db.users.updateMany(
+  {},
+  { $set: { "hobbies.$[h].goodFrequency": true } },
+  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] }
+);
+```
+
+---
+
+## Adding Elements to Arrays
+
+### The `$push` Operator
+
+**Purpose:** Adds one or more elements to an array field.
+
+**Syntax:**
+
+```js
+// Single element
+db.collection.updateOne({ filter }, { $push: { arrayField: value } });
+
+// Multiple elements with modifiers
+db.collection.updateOne(
+  { filter },
+  {
+    $push: {
+      arrayField: {
+        $each: [value1, value2],
+        $sort: { field: 1 },
+        $slice: N,
+        $position: N,
+      },
+    },
+  }
+);
+```
+
+---
+
+### Simple Push (Single Element)
+
+**Example: Add One Hobby**
+
+**Before:**
+
+```js
+{
+  name: "Maria",
+  hobbies: [{ title: "Good food", freq: 3 }]
+}
+```
+
+**Update:**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  { $push: { hobbies: { title: "Sports", frequency: 2 } } }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+**After:**
+
+```js
+{
+  name: "Maria",
+  hobbies: [
+    { title: "Good food", freq: 3 },
+    { title: "Sports", frequency: 2 }    // ✅ Added to end
+  ]
+}
+```
+
+**Key Points:**
+
+- Element added to **end** of array
+- Previous elements remain unchanged
+- Can push any data type (strings, numbers, objects, arrays)
+
+---
+
+### Push Multiple Elements with `$each`
+
+**`$each` Modifier:** Adds multiple elements at once.
+
+**Example: Add Multiple Hobbies**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $push: {
+      hobbies: {
+        $each: [
+          { title: "abc", frequency: 2 },
+          { title: "xyz", frequency: 1 },
+        ],
+      },
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+**Multiple elements added to array at once!**
+
+---
+
+### Push with Sorting - `$sort`
+
+**`$sort` Modifier:** Sorts the array **after** pushing new elements.
+
+**Why Use It?**
+
+✅ User data comes in random order  
+✅ You want consistent sorted arrays  
+✅ Automatic sorting during insert
+
+**Example: Add and Sort Hobbies**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $push: {
+      hobbies: {
+        $each: [
+          { title: "abc", frequency: 2 },
+          { title: "xyz", frequency: 1 },
+        ],
+        $sort: { frequency: -1 }, // Sort by frequency descending
+      },
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+**Verify:**
+
+```js
+db.users.find({ name: "Maria" });
+```
+
+**Result:**
+
+```js
+[
+  {
+    _id: ObjectId("699d2fcb1932bc8273d4a6bf"),
+    name: "Maria",
+    age: 29,
+    hobbies: [
+      { title: "Good food", freq: 3 }, // Highest first
+      { title: "Sports", frequency: 2 }, // Then 2
+      { title: "abc", frequency: 2 }, // Then 2
+      { title: "xyz", frequency: 1 }, // Lowest last
+    ],
+    isSporty: true,
+  },
+];
+```
+
+**Key Points:**
+
+- `$sort` sorts the **entire array**, not just new elements
+- Existing elements are re-sorted too
+- Use `1` for ascending, `-1` for descending
+- Works with any field in array elements
+
+**Important:** If you execute the same push again, the array stays sorted:
+
+```js
+// Running same command again
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $push: {
+      hobbies: {
+        $each: [
+          { title: "abc", frequency: 2 },
+          { title: "xyz", frequency: 1 },
+        ],
+        $sort: { frequency: -1 },
+      },
+    },
+  }
+);
+
+// Array remains sorted even with duplicates
+// freq: 3, 2, 2, 2, 2, 1, 1 (descending order maintained)
+```
+
+---
+
+### Push with Limit - `$slice`
+
+**`$slice` Modifier:** Limits array size **after** pushing (keeps first/last N elements).
+
+**Syntax:**
+
+```js
+{
+  $push: {
+    array: {
+      $each: [values],
+      $sort: { field: 1 },      // Optional: sort first
+      $slice: N                 // Then limit
+    }
+  }
+}
+```
+
+**Slice Values:**
+
+- **Positive N**: Keep first N elements
+- **Negative N**: Keep last N elements
+- **0**: Empty the array
+
+---
+
+**Example: Keep Top 3 Hobbies**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $push: {
+      hobbies: {
+        $each: [{ title: "Reading", frequency: 4 }],
+        $sort: { frequency: -1 }, // Sort highest first
+        $slice: 3, // Keep only top 3
+      },
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  hobbies: [
+    { title: "Reading", frequency: 4 }, // Highest
+    { title: "Good food", frequency: 3 }, // Second
+    { title: "Sports", frequency: 2 }, // Third
+    // Others removed to keep only 3
+  ];
+}
+```
+
+**Use Cases:**
+
+- Leaderboards (keep top 10 scores)
+- Recent activity feeds (keep last 20 items)
+- Limited history (keep last 5 logins)
+- Top performers (keep top 3 products)
+
+---
+
+### Push with Position - `$position`
+
+**`$position` Modifier:** Inserts elements at specific index.
+
+**Syntax:**
+
+```js
+{
+  $push: {
+    array: {
+      $each: [values],
+      $position: index    // 0-based
+    }
+  }
+}
+```
+
+**Example: Insert at Beginning**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $push: {
+      hobbies: {
+        $each: [{ title: "Priority", frequency: 5 }],
+        $position: 0, // Insert at start
+      },
+    },
+  }
+);
+
+// Result: New hobby is first in array
+```
+
+---
+
+### Combining Push Modifiers
+
+**Example: Complex Push Operation**
+
+```js
+db.products.updateOne(
+  { _id: productId },
+  {
+    $push: {
+      reviews: {
+        $each: [
+          { user: "Alice", rating: 5, text: "Great!" },
+          { user: "Bob", rating: 4, text: "Good" },
+        ],
+        $sort: { rating: -1 }, // Sort by rating (highest first)
+        $slice: 10, // Keep only top 10 reviews
+        $position: 0, // Insert at beginning
+      },
+    },
+  }
+);
+```
+
+**Execution Order:**
+
+1. Insert new elements at position
+2. Sort the array
+3. Slice to limit size
+
+---
+
+### Push Modifiers Summary
+
+| Modifier    | Purpose                | Example                      | Use Case                        |
+| ----------- | ---------------------- | ---------------------------- | ------------------------------- |
+| `$each`     | Push multiple elements | `$each: [1, 2, 3]`           | Bulk additions                  |
+| `$sort`     | Sort after push        | `$sort: { date: -1 }`        | Keep sorted order               |
+| `$slice`    | Limit array size       | `$slice: 10` or `$slice: -5` | Top N, Recent N                 |
+| `$position` | Insert at index        | `$position: 0`               | Prepend/Insert at specific spot |
+
+**Best Practices:**
+
+1. Use `$each` even for single element (consistency)
+2. Always `$sort` before `$slice` for predictable results
+3. Combine modifiers for powerful array management
+4. Consider performance with large arrays
+
+---
+
+## Removing Elements from Arrays
+
+### The `$pull` Operator
+
+**Purpose:** Removes **all** array elements that match a condition.
+
+**Syntax:**
+
+```js
+db.collection.updateOne(
+  { documentFilter },
+  { $pull: { arrayField: condition } }
+);
+```
+
+**Key Points:**
+
+- Removes **all matching** elements (not just first)
+- Can use full query operators in condition
+- If no elements match, no error occurs
+
+---
+
+### Simple Pull (Exact Match)
+
+**Example: Remove Hobby by Title**
+
+**Before:**
+
+```js
+{
+  name: "Maria",
+  hobbies: [
+    { title: "Hiking", frequency: 2 },
+    { title: "Good Wine", frequency: 1 },
+    { title: "Good food", frequency: 3 }
+  ]
+}
+```
+
+**Update:**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $pull: {
+      hobbies: {
+        title: "Good food", // Remove by exact match
+      },
+    },
+  }
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+**After:**
+
+```js
+{
+  name: "Maria",
+  hobbies: [
+    { title: "Hiking", frequency: 2 },
+    { title: "Good Wine", frequency: 1 }
+    // "Good food" removed ✅
+  ]
+}
+```
+
+---
+
+### Pull with Query Operators
+
+**Example: Remove All Low-Frequency Hobbies**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $pull: {
+      hobbies: {
+        frequency: { $lte: 1 }, // Remove if frequency ≤ 1
+      },
+    },
+  }
+);
+```
+
+**Result:**
+
+Removes all hobbies with frequency 1 or less.
+
+---
+
+### Pull vs Filter
+
+| Feature          | `$pull`        | `$filter` (aggregation)     |
+| ---------------- | -------------- | --------------------------- |
+| Updates database | ✅ Yes         | ❌ No (read-only)           |
+| Removes elements | ✅ Permanently | ❌ Just hides in result     |
+| Use case         | Modify data    | Query/display filtered data |
+
+---
+
+### The `$pop` Operator
+
+**Purpose:** Removes **first** or **last** element from an array.
+
+**Syntax:**
+
+```js
+db.collection.updateOne({ filter }, { $pop: { arrayField: value } });
+```
+
+**Pop Values:**
+
+- `1` - Remove **last** element (end of array)
+- `-1` - Remove **first** element (start of array)
+
+---
+
+**Example: Remove Last Hobby**
+
+**Before:**
+
+```js
+{
+  name: "Chris",
+  hobbies: [
+    { title: "Sports", freq: 5 },
+    { title: "Cooking", freq: 3 },
+    { title: "Hiking", freq: 0 }    // Last element
+  ]
+}
+```
+
+**Update:**
+
+```js
+db.users.updateOne(
+  { name: "Chris" },
+  { $pop: { hobbies: 1 } } // 1 = remove last
+);
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+```
+
+**After:**
+
+```js
+{
+  name: "Chris",
+  hobbies: [
+    { title: "Sports", freq: 5 },
+    { title: "Cooking", freq: 3 }
+    // Hiking removed ✅
+  ]
+}
+```
+
+---
+
+**Example: Remove First Hobby**
+
+```js
+db.users.updateOne(
+  { name: "Chris" },
+  { $pop: { hobbies: -1 } } // -1 = remove first
+);
+
+// Result: "Sports" would be removed
+```
+
+---
+
+### When to Use Each Operator
+
+| Operator | Use When            | Example                         |
+| -------- | ------------------- | ------------------------------- |
+| `$pull`  | Remove by condition | Remove all items with low stock |
+| `$pop`   | Remove first/last   | Remove oldest/newest item       |
+| `$unset` | Remove entire array | Delete whole field              |
+
+---
+
+### Comparison: Pull vs Pop
+
+**`$pull` - Condition-Based Removal**
+
+```js
+// Remove all hobbies with low frequency
+db.users.updateOne(
+  { name: "Maria" },
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
+);
+// Removes: All matching elements (could be 0, 1, or many)
+```
+
+**`$pop` - Position-Based Removal**
+
+```js
+// Remove last hobby (whatever it is)
+db.users.updateOne({ name: "Maria" }, { $pop: { hobbies: 1 } });
+// Removes: Exactly one element (last one)
+```
+
+---
+
+### Practical Examples
+
+**Example 1: Queue Behavior (FIFO)**
+
+```js
+// Add to end
+db.queues.updateOne({ name: "tasks" }, { $push: { items: newTask } });
+
+// Remove from beginning
+db.queues.updateOne({ name: "tasks" }, { $pop: { items: -1 } });
+```
+
+---
+
+**Example 2: Stack Behavior (LIFO)**
+
+```js
+// Add to end
+db.stacks.updateOne({ name: "history" }, { $push: { actions: newAction } });
+
+// Remove from end
+db.stacks.updateOne({ name: "history" }, { $pop: { actions: 1 } });
+```
+
+---
+
+**Example 3: Remove Expired Items**
+
+```js
+// Remove all sessions older than 30 days
+db.users.updateMany(
+  {},
+  {
+    $pull: {
+      sessions: {
+        createdAt: { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
+    },
+  }
+);
+```
+
+---
+
+**Example 4: Maintain Top 5 Scores**
+
+```js
+// Add new score and keep only top 5
+db.players.updateOne(
+  { playerId: "player123" },
+  {
+    $push: {
+      scores: {
+        $each: [newScore],
+        $sort: { points: -1 },
+        $slice: 5, // Keep top 5
+      },
+    },
+  }
+);
+```
+
+---
+
+## The `$addToSet` Operator
+
+### Overview
+
+**Purpose:** Adds elements to an array **only if they don't already exist** (ensures uniqueness).
+
+**Key Difference from `$push`:**
+
+| Operator    | Duplicates Allowed? | Use Case                           |
+| ----------- | ------------------- | ---------------------------------- |
+| `$push`     | ✅ Yes              | Add all elements (even duplicates) |
+| `$addToSet` | ❌ No               | Add only unique elements           |
+
+**Syntax:**
+
+```js
+db.collection.updateOne({ filter }, { $addToSet: { arrayField: value } });
+```
+
+---
+
+### Basic Usage
+
+**Example: Add Single Element**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $addToSet: {
+      hobbies: { title: "Hiking", frequency: 2 },
+    },
+  }
+);
+```
+
+**First Execution:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,     // ✅ Element added
+  upsertedCount: 0
+}
+```
+
+**Second Execution (same command):**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 0,     // ❌ No change - already exists
+  upsertedCount: 0
+}
+```
+
+**Key Point:** `modifiedCount: 0` means the element already existed, so nothing was added.
+
+---
+
+### Comparison: `$push` vs `$addToSet`
+
+**Using `$push`:**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $push: {
+      hobbies: { title: "Hiking", frequency: 2 },
+    },
+  }
+);
+// Run again...
+// Run again...
+
+// Result:
+{
+  hobbies: [
+    { title: "Hiking", frequency: 2 },
+    { title: "Hiking", frequency: 2 }, // Duplicate ✅
+    { title: "Hiking", frequency: 2 }, // Duplicate ✅
+  ];
+}
+```
+
+**Using `$addToSet`:**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $addToSet: {
+      hobbies: { title: "Hiking", frequency: 2 },
+    },
+  }
+);
+// Run again...
+// Run again...
+
+// Result:
+{
+  hobbies: [
+    { title: "Hiking", frequency: 2 }, // Only one ✅
+  ];
+}
+```
+
+---
+
+### Using `$addToSet` with `$each`
+
+**Add Multiple Unique Elements:**
+
+```js
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $addToSet: {
+      hobbies: {
+        $each: [
+          { title: "abc", frequency: 2 },
+          { title: "xyz", frequency: 1 },
+        ],
+      },
+    },
+  }
+);
+```
+
+**First Execution:**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,     // ✅ Both elements added
+  upsertedCount: 0
+}
+```
+
+**Second Execution (same command):**
+
+```js
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 0,     // ❌ No duplicates added
+  upsertedCount: 0
+}
+```
+
+---
+
+### How Uniqueness is Determined
+
+**For Primitive Values:**
+
+```js
+// Tags array
+db.posts.updateOne({ _id: postId }, { $addToSet: { tags: "mongodb" } });
+
+// "mongodb" compared as string
+// Exact match = duplicate
+```
+
+**For Objects:**
+
+```js
+// Two objects are equal if ALL fields match
+{ title: "Hiking", frequency: 2 }
+===
+{ title: "Hiking", frequency: 2 }    // ✅ Duplicate
+
+≠
+
+{ title: "Hiking", frequency: 3 }    // ❌ Not duplicate (different frequency)
+```
+
+**Important:** Object comparison is **exact** - field order matters in some cases.
+
+---
+
+### Practical Use Cases
+
+**1. User Tags/Categories**
+
+```js
+db.articles.updateOne(
+  { _id: articleId },
+  { $addToSet: { tags: "javascript" } }
+);
+// Prevents duplicate tags
+```
+
+**2. Followers/Following**
+
+```js
+db.users.updateOne({ username: "alice" }, { $addToSet: { followers: "bob" } });
+// Bob can't follow Alice twice
+```
+
+**3. Viewed Items**
+
+```js
+db.users.updateOne(
+  { userId: "user123" },
+  { $addToSet: { viewedProducts: productId } }
+);
+// Track unique views only
+```
+
+**4. Permissions/Roles**
+
+```js
+db.users.updateOne(
+  { email: "admin@example.com" },
+  { $addToSet: { roles: "moderator" } }
+);
+// Can't assign same role twice
+```
+
+---
+
+### Limitations
+
+**1. Cannot Use with Sort/Slice:**
+
+```js
+// ❌ INVALID - $addToSet doesn't support $sort or $slice
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $addToSet: {
+      hobbies: {
+        $each: [{ title: "abc", frequency: 2 }],
+        $sort: { frequency: -1 }, // ❌ Error!
+      },
+    },
+  }
+);
+```
+
+**Solution:** Use `$push` with `$sort` if you need sorting.
+
+---
+
+**2. Performance with Large Arrays:**
+
+- MongoDB must scan entire array to check for duplicates
+- Consider using a separate collection for large sets
+
+---
+
+### Best Practices
+
+**✅ Use `$addToSet` when:**
+
+- Uniqueness is required (tags, followers, categories)
+- Duplicate prevention is critical
+- Array size is manageable (< 1000 elements)
+
+**✅ Use `$push` when:**
+
+- Duplicates are allowed (activity logs, history)
+- You need modifiers like `$sort`, `$slice`, `$position`
+- Performance is critical with large arrays
+
+---
+
+### Decision Tree
+
+```
+Need to add to array?
+  |
+  ├─ Need uniqueness?
+  |   |
+  |   ├─ Yes → Use $addToSet
+  |   └─ No → Use $push
+  |
+  ├─ Need sorting/limiting?
+  │   └─ Use $push with $sort/$slice
+  |
+  └─ Array > 1000 elements?
+      └─ Consider separate collection
+```
+
+---
+
+### Summary
+
+| Feature                | `$addToSet` | `$push`         |
+| ---------------------- | ----------- | --------------- |
+| Adds duplicates        | ❌ No       | ✅ Yes          |
+| Works with `$each`     | ✅ Yes      | ✅ Yes          |
+| Works with `$sort`     | ❌ No       | ✅ Yes          |
+| Works with `$slice`    | ❌ No       | ✅ Yes          |
+| Works with `$position` | ❌ No       | ✅ Yes          |
+| Use case               | Unique sets | Lists/sequences |
+
+---
+
+## Update Operations Module Summary
+
+### Key Concepts Covered
+
+**1. Update Methods**
+
+| Method              | Purpose                   | Updates                    |
+| ------------------- | ------------------------- | -------------------------- |
+| `updateOne()`       | Update single document    | First match only           |
+| `updateMany()`      | Update multiple documents | All matches                |
+| `replaceOne()`      | Replace entire document   | Keeps only `_id`           |
+| `update()` (legacy) | Old update method         | Use updateOne/Many instead |
+
+---
+
+**2. Method Structure**
+
+```js
+db.collection.updateOne(
+  { filter }, // 1st argument: Query selector (which documents?)
+  { update }, // 2nd argument: Update operators (what changes?)
+  { options } // 3rd argument: Options (upsert, arrayFilters, etc.)
+);
+```
+
+**Arguments:**
+
+1. **Filter (Query Selector):** Same syntax as `find()` - use any query operators
+2. **Update Operators:** `$set`, `$inc`, `$min`, `$max`, etc.
+3. **Options:** `upsert`, `arrayFilters`, `writeConcern`, etc.
+
+---
+
+### Update Operators Reference
+
+**Field Update Operators:**
+
+| Operator  | Purpose                    | Example                          |
+| --------- | -------------------------- | -------------------------------- |
+| `$set`    | Set field value            | `{ $set: { age: 30 } }`          |
+| `$inc`    | Increment/decrement        | `{ $inc: { age: 1 } }`           |
+| `$min`    | Update if value is smaller | `{ $min: { age: 18 } }`          |
+| `$max`    | Update if value is larger  | `{ $max: { score: 100 } }`       |
+| `$mul`    | Multiply field value       | `{ $mul: { price: 1.1 } }`       |
+| `$unset`  | Remove field               | `{ $unset: { deprecated: "" } }` |
+| `$rename` | Rename field               | `{ $rename: { old: "new" } }`    |
+
+---
+
+**Array Positional Operators:**
+
+| Operator          | Updates                | Requires              |
+| ----------------- | ---------------------- | --------------------- |
+| `$`               | First matching element | Array field in query  |
+| `$[]`             | All elements           | Nothing               |
+| `$[<identifier>]` | Filtered elements      | `arrayFilters` option |
+
+**Example:**
+
+```js
+// Update first match
+db.users.updateOne(
+  { "hobbies.title": "Sports" },
+  { $set: { "hobbies.$.frequency": 5 } }
+);
+
+// Update all elements
+db.users.updateOne({ name: "Maria" }, { $inc: { "hobbies.$[].frequency": 1 } });
+
+// Update filtered elements
+db.users.updateOne(
+  { name: "Maria" },
+  { $set: { "hobbies.$[el].goodFrequency": true } },
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }
+);
+```
+
+---
+
+**Array Manipulation Operators:**
+
+| Operator    | Purpose                  | Modifiers                               |
+| ----------- | ------------------------ | --------------------------------------- |
+| `$push`     | Add elements             | `$each`, `$sort`, `$slice`, `$position` |
+| `$pull`     | Remove matching elements | Supports query operators                |
+| `$pop`      | Remove first/last        | `1` (last), `-1` (first)                |
+| `$addToSet` | Add unique elements      | `$each` only                            |
+
+**Example:**
+
+```js
+// Push with sorting and limiting
+db.users.updateOne(
+  { name: "Maria" },
+  {
+    $push: {
+      hobbies: {
+        $each: [{ title: "Reading", frequency: 4 }],
+        $sort: { frequency: -1 },
+        $slice: 5,
+      },
+    },
+  }
+);
+
+// Pull by condition
+db.users.updateOne(
+  { name: "Maria" },
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
+);
+
+// Pop last element
+db.users.updateOne({ name: "Chris" }, { $pop: { hobbies: 1 } });
+
+// Add unique values
+db.users.updateOne({ name: "Maria" }, { $addToSet: { tags: "featured" } });
+```
+
+---
+
+### Important Options
+
+**1. Upsert:**
+
+```js
+db.users.updateOne(
+  { username: "alice" },
+  { $set: { lastLogin: new Date() } },
+  { upsert: true } // Insert if not found
+);
+```
+
+**2. arrayFilters:**
+
+```js
+db.users.updateMany(
+  {},
+  { $set: { "hobbies.$[hobby].active": true } },
+  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] }
+);
+```
+
+---
+
+### Document Replacement
+
+**Alternative to Updates:**
+
+```js
+// Replace entire document (keeps _id only)
+db.users.replaceOne(
+  { name: "Maria" },
+  {
+    name: "Maria",
+    age: 30,
+    hobbies: [],
+    active: true,
+    // All other fields removed
+  }
+);
+```
+
+**Use Case:** When you need to completely redefine a document structure.
+
+---
+
+### Best Practices Summary
+
+**✅ DO:**
+
+- Use `updateOne()` when updating single documents
+- Use `updateMany()` for bulk updates
+- Leverage positional operators (`$`, `$[]`, `$[identifier]`) for arrays
+- Use `arrayFilters` for complex array element updates
+- Combine `$push` with modifiers for powerful array management
+- Use `$addToSet` to prevent duplicates
+- Use `upsert` for "update or insert" patterns
+
+**❌ DON'T:**
+
+- Use legacy `update()` method (deprecated)
+- Forget to test filters before bulk updates
+- Overuse `replaceOne()` when field updates suffice
+- Use `$addToSet` with `$sort`/`$slice` (not supported)
+
+---
+
+### Quick Reference Decision Tree
+
+```
+Need to modify documents?
+  |
+  ├─ Replace entire document?
+  │   └─ Use replaceOne()
+  |
+  ├─ Update fields?
+  │   |
+  │   ├─ One document → updateOne()
+  │   └─ Multiple → updateMany()
+  |
+  ├─ Working with arrays?
+  │   |
+  │   ├─ Add elements?
+  │   │   ├─ Unique? → $addToSet
+  │   │   └─ Any? → $push (with modifiers)
+  │   |
+  │   ├─ Remove elements?
+  │   │   ├─ By condition? → $pull
+  │   │   └─ First/last? → $pop
+  │   |
+  │   └─ Update elements?
+  │       ├─ First match → $ (positional)
+  │       ├─ All elements → $[]
+  │       └─ Filtered → $[identifier] + arrayFilters
+  |
+  └─ Document might not exist?
+      └─ Add { upsert: true }
+```
+
+---
+
+## Delete Operations
+
+### Overview
+
+MongoDB provides several methods to delete documents and collections:
+
+| Method           | Scope              | Deletes                      |
+| ---------------- | ------------------ | ---------------------------- |
+| `deleteOne()`    | Single document    | First matching document      |
+| `deleteMany()`   | Multiple documents | All matching documents       |
+| `drop()`         | Entire collection  | Collection and all documents |
+| `dropDatabase()` | Entire database    | Database and all collections |
+
+---
+
+### `deleteOne()` Method
+
+**Purpose:** Deletes the **first** document that matches the filter.
+
+**Syntax:**
+
+```js
+db.collection.deleteOne(
+  { filter }, // Required: Query selector
+  { writeConcern } // Optional: Write concern settings
+);
+```
+
+**Key Points:**
+
+- Deletes **only one** document (first match based on natural order)
+- If multiple documents match, only the first is deleted
+- Returns `deletedCount` (0 or 1)
+- Filter syntax same as `find()` - use any query operators
+
+---
+
+**Example: Delete Single User**
+
+```js
+db.users.deleteOne({ name: "Maria" });
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  deletedCount: 1        // ✅ One document deleted
+}
+```
+
+**Verify:**
+
+```js
+db.users.find();
+// Maria is gone, others remain (Chris, Anna, Manuel, Max)
+```
+
+---
+
+**Example: Delete by Multiple Conditions**
+
+```js
+db.users.deleteOne({
+  age: { $gte: 30 },
+  name: "Chris",
+  "hobbies.title": "Sports",
+});
+```
+
+**Behavior:**
+
+- All conditions must match (AND logic)
+- Only first matching document deleted
+- If no match, `deletedCount: 0` (no error)
+
+---
+
+### `deleteMany()` Method
+
+**Purpose:** Deletes **all** documents that match the filter.
+
+**Syntax:**
+
+```js
+db.collection.deleteMany(
+  { filter }, // Required: Query selector
+  { writeConcern } // Optional: Write concern settings
+);
+```
+
+**Key Difference from `deleteOne()`:**
+
+| Aspect              | `deleteOne()`         | `deleteMany()` |
+| ------------------- | --------------------- | -------------- |
+| Matches 1 document  | Deletes 1             | Deletes 1      |
+| Matches 5 documents | Deletes 1 (first)     | Deletes all 5  |
+| Use case            | Single record removal | Bulk deletion  |
+
+---
+
+**Example: Delete by Single Condition**
+
+```js
+db.users.deleteMany({ totalAge: { $gt: 30 }, isSporty: true });
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  deletedCount: 1        // Deleted all matching (could be 0, 1, or many)
+}
+```
+
+---
+
+**Example: Delete by Field Existence**
+
+**Scenario:** Delete all sporty users who don't have a `totalAge` field.
+
+```js
+db.users.deleteMany({
+  totalAge: { $exists: false },
+  isSporty: true,
+});
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  deletedCount: 2        // Max and Maria deleted
+}
+```
+
+**Why Some Documents Survived:**
+
+```js
+// Anna - Still exists
+{
+  name: "Anna",
+  isSporty: true,
+  totalAge: null         // ❌ Field EXISTS (but is null)
+}
+// $exists: false requires field to be ABSENT, not just null
+
+// Manuel - Still exists
+{
+  name: "Manuel",
+  isSporty: false,       // ❌ Not sporty
+  totalAge: 35
+}
+```
+
+**Important:** `null` value ≠ field doesn't exist!
+
+---
+
+**Example: Delete All Documents**
+
+```js
+db.users.deleteMany({}); // Empty filter = match all
+```
+
+**Result:**
+
+```js
+{
+  acknowledged: true,
+  deletedCount: 2        // All documents deleted
+}
+
+db.users.find()          // Empty result []
+// Collection still exists (just empty)
+```
+
+---
+
+### `drop()` Method
+
+**Purpose:** Removes an **entire collection** (including all documents and indexes).
+
+**Syntax:**
+
+```js
+db.collection.drop();
+```
+
+**Difference from `deleteMany({})`:**
+
+| Action             | `deleteMany({})` | `drop()` |
+| ------------------ | ---------------- | -------- |
+| Deletes documents  | ✅ Yes           | ✅ Yes   |
+| Deletes indexes    | ❌ No            | ✅ Yes   |
+| Removes collection | ❌ No            | ✅ Yes   |
+| Speed              | Slower           | Faster   |
+| Can undo           | ❌ No            | ❌ No    |
+
+---
+
+**Example: Drop Collection**
+
+```js
+db.users.drop();
+```
+
+**Result:**
+
+```js
+true; // ✅ Collection dropped successfully
+```
+
+**Verify:**
+
+```js
+db.users.find()
+// Error or empty - collection no longer exists
+
+show collections
+// "users" not in list
+```
+
+---
+
+### `dropDatabase()` Method
+
+**Purpose:** Removes the **entire current database** and all its collections.
+
+**Syntax:**
+
+```js
+db.dropDatabase();
+```
+
+⚠️ **DANGER:** This is irreversible and deletes EVERYTHING in the database!
+
+---
+
+**Example: Drop Database**
+
+```js
+db.dropDatabase();
+```
+
+**Result:**
+
+```js
+{
+  ok: 1,
+  dropped: 'users'       // Database name that was dropped
+}
+```
+
+**Verify:**
+
+```js
+show dbs
+// Database no longer in list
+```
+
+---
+
+### Return Values
+
+**`deleteOne()` / `deleteMany()` Return:**
+
+```js
+{
+  acknowledged: true,     // Write operation acknowledged
+  deletedCount: 2         // Number of documents deleted
+}
+```
+
+**Common `deletedCount` Values:**
+
+- `0` - No documents matched filter
+- `1` - One document deleted (`deleteOne` or `deleteMany` with one match)
+- `N` - N documents deleted (`deleteMany` only)
+
+---
+
+**`drop()` Return:**
+
+```js
+true; // Collection dropped
+false; // Collection doesn't exist (no error)
+```
+
+---
+
+**`dropDatabase()` Return:**
+
+```js
+{
+  ok: 1,                  // Success
+  dropped: 'dbName'       // Database that was dropped
+}
+```
+
+---
+
+### Write Concern (Optional)
+
+**Purpose:** Control acknowledgment level for delete operations.
+
+**Example:**
+
+```js
+db.users.deleteOne(
+  { name: "Chris" },
+  { writeConcern: { w: "majority", wtimeout: 5000 } }
+);
+```
+
+**Parameters:**
+
+- `w`: Number of servers that must acknowledge
+  - `1` - Primary only (default)
+  - `"majority"` - Majority of replica set
+  - `N` - N servers
+- `wtimeout`: Maximum wait time (milliseconds)
+
+---
+
+### Filters and Query Operators
+
+**Delete operations use the same filter syntax as `find()`:**
+
+```js
+// Comparison operators
+db.products.deleteMany({ price: { $lt: 10 } });
+
+// Logical operators
+db.users.deleteMany({
+  $or: [{ age: { $lt: 18 } }, { status: "inactive" }],
+});
+
+// Array operators
+db.posts.deleteMany({ tags: { $in: ["spam", "deleted"] } });
+
+// Field existence
+db.users.deleteMany({ email: { $exists: false } });
+
+// Regular expressions
+db.users.deleteMany({ name: /^test/i });
+```
+
+---
+
+### Best Practices
+
+**✅ DO:**
+
+1. **Always test filters first:**
+
+```js
+// Test with find() before deleting
+db.users.find({ totalAge: { $gt: 30 } });
+// Verify results, then:
+db.users.deleteMany({ totalAge: { $gt: 30 } });
+```
+
+2. **Use `deleteOne()` when expecting single match:**
+
+```js
+db.users.deleteOne({ _id: ObjectId("...") }); // ✅ Safer
+```
+
+3. **Check `deletedCount` after deletion:**
+
+```js
+const result = db.users.deleteMany({ status: "inactive" });
+if (result.deletedCount === 0) {
+  print("No inactive users found");
+}
+```
+
+4. **Use `drop()` for full collection removal:**
+
+```js
+// Instead of:
+db.tempData.deleteMany({}); // ❌ Slower, leaves indexes
+
+// Use:
+db.tempData.drop(); // ✅ Faster, complete cleanup
+```
+
+---
+
+**❌ DON'T:**
+
+1. **Don't use empty filter accidentally:**
+
+```js
+db.users.deleteMany({}); // ⚠️ Deletes ALL documents!
+```
+
+2. **Don't forget field names can be typos:**
+
+```js
+// Intended: delete users with age > 30
+db.users.deleteMany({ totalAge: { $gt: 30 } }); // ✅ Correct
+
+db.users.deleteMany({ age: { $gt: 30 } }); // ❌ Wrong field!
+// deletedCount: 0 (no error, just no matches)
+```
+
+3. **Don't confuse `null` with non-existence:**
+
+```js
+// Different behaviors:
+db.users.deleteMany({ field: null }); // Matches null OR missing
+db.users.deleteMany({ field: { $exists: false } }); // Only missing
+```
+
+---
+
+### Practical Examples
+
+**Example 1: Cleanup Old Records**
+
+```js
+// Delete logs older than 30 days
+const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+const result = db.logs.deleteMany({
+  createdAt: { $lt: thirtyDaysAgo },
+});
+
+print(`Deleted ${result.deletedCount} old log entries`);
+```
+
+---
+
+**Example 2: Delete User and Related Data**
+
+```js
+// Delete user by email
+const userEmail = "user@example.com";
+
+db.users.deleteOne({ email: userEmail });
+db.posts.deleteMany({ author: userEmail });
+db.comments.deleteMany({ author: userEmail });
+```
+
+---
+
+**Example 3: Delete Duplicates (Keep First)**
+
+```js
+// Find duplicate emails
+db.users
+  .aggregate([
+    { $group: { _id: "$email", ids: { $push: "$_id" }, count: { $sum: 1 } } },
+    { $match: { count: { $gt: 1 } } },
+  ])
+  .forEach((doc) => {
+    // Keep first, delete rest
+    doc.ids.shift(); // Remove first ID from array
+    db.users.deleteMany({ _id: { $in: doc.ids } });
+  });
+```
+
+---
+
+**Example 4: Conditional Collection Drop**
+
+```js
+// Drop collection if empty
+if (db.tempData.countDocuments() === 0) {
+  db.tempData.drop();
+  print("Dropped empty collection");
+}
+```
+
+---
+
+### Decision Tree
+
+```
+Need to delete?
+  |
+  ├─ Entire database?
+  │   └─ db.dropDatabase() ⚠️ IRREVERSIBLE
+  |
+  ├─ Entire collection?
+  │   ├─ Keep structure? → deleteMany({})
+  │   └─ Complete removal? → drop()
+  |
+  ├─ Multiple documents?
+  │   └─ deleteMany({ filter })
+  |
+  └─ Single document?
+      └─ deleteOne({ filter })
+```
+
+---
+
+### Summary
+
+| Method           | Deletes         | Returns        | Speed     | Indexes | Collection |
+| ---------------- | --------------- | -------------- | --------- | ------- | ---------- |
+| `deleteOne()`    | 1 document      | `deletedCount` | Fast      | Kept    | Kept       |
+| `deleteMany()`   | N documents     | `deletedCount` | Medium    | Kept    | Kept       |
+| `drop()`         | All documents   | `true/false`   | Very Fast | Removed | Removed    |
+| `dropDatabase()` | All collections | `{ok:1}`       | Very Fast | Removed | Removed    |
+
+**Key Takeaways:**
+
+- Use `find()` to test filters before deleting
+- `deleteOne()` stops after first match
+- `deleteMany()` deletes all matches
+- `drop()` is faster than `deleteMany({})` for clearing collections
+- All delete operations are **irreversible** - no undo!
+- `deletedCount: 0` is not an error - just no matches

@@ -76,12 +76,10 @@ MongoDB offers a comprehensive ecosystem of tools and services:
 ### MongoDB Database Options
 
 1. **Self-Managed/Enterprise**
-
    - Install and manage on your own servers
    - **CloudManager/OpsManager**: Tools for monitoring and automating database operations
 
 2. **Atlas (Cloud)**
-
    - Fully managed cloud database service (DBaaS - Database as a Service)
    - Available on AWS, Azure, and Google Cloud
    - Automatic backups, scaling, and monitoring
@@ -136,7 +134,6 @@ MongoDB Server
 **Explanation:**
 
 1. **Memory Storage**
-
    - Data is read into RAM for fast access
    - Write operations first go to memory
    - Extremely fast but volatile (lost on restart)
@@ -284,14 +281,14 @@ db.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
 
 db.flightData.updateMany(
   {}, // empty filter = match all
-  { $set: { marker: "delete" } }
+  { $set: { marker: "delete" } },
 );
 
 // Update an array field
 
 db.passengers.updateOne(
   { name: "Albert Twostone" },
-  { $set: { hobbies: ["Sports", "Cooking"] } }
+  { $set: { hobbies: ["Sports", "Cooking"] } },
 );
 ```
 
@@ -2088,7 +2085,7 @@ db.persons.insertOne(
 ```js
 db.persons.insertOne(
   { name: "Sara", age: 35 },
-  { writeConcern: { w: "majority" } }
+  { writeConcern: { w: "majority" } },
 );
 ```
 
@@ -2184,7 +2181,7 @@ db.persons.insertOne(
 
 db.persons.insertOne(
   { name: "Test" },
-  { writeConcern: { w: "majority", wtimeout: 100 } }
+  { writeConcern: { w: "majority", wtimeout: 100 } },
 );
 // Error: waiting for replication timed out
 ```
@@ -2301,7 +2298,7 @@ db.users.updateOne(
     $set: { name: "John Doe" },
     $inc: { loginCount: 1 },
     $push: { loginHistory: new Date() },
-  }
+  },
 );
 ```
 
@@ -2371,7 +2368,7 @@ db.users.updateOne(
       },
     },
     $inc: { version: 1 },
-  }
+  },
 );
 ```
 
@@ -2394,7 +2391,7 @@ db.blogs.updateOne(
       "comments.$.editedAt": new Date(),
     },
     $inc: { "comments.$.editCount": 1 },
-  }
+  },
 );
 ```
 
@@ -2476,7 +2473,7 @@ session.commitTransaction();
 
 db.products.updateOne(
   { _id: "product123" },
-  { $inc: { quantity: -1 } } // Atomic decrement
+  { $inc: { quantity: -1 } }, // Atomic decrement
 );
 ```
 
@@ -4326,7 +4323,7 @@ db.posts.find(
     comments: {
       $elemMatch: { score: { $gt: 5 } },
     },
-  }
+  },
 );
 ```
 
@@ -4371,7 +4368,7 @@ db.movies
     {
       name: 1,
       score: { $meta: "textScore" },
-    }
+    },
   )
   .sort({ score: { $meta: "textScore" } });
 ```
@@ -4487,7 +4484,7 @@ users> db.users.updateOne(
 ```js
 db.users.updateMany(
   { "hobbies.title": "Sports" },
-  { $set: { isSporty: true } }
+  { $set: { isSporty: true } },
 );
 ```
 
@@ -4586,7 +4583,7 @@ db.users.updateOne(
     $inc: {
       age: 2, // Increment age by 2
     },
-  }
+  },
 );
 ```
 
@@ -4616,7 +4613,7 @@ db.users.updateOne(
     $set: {
       isSporty: false, // Set isSporty field
     },
-  }
+  },
 );
 ```
 
@@ -4745,7 +4742,7 @@ db.collection.updateOne({ filter }, { $mul: { field: multiplier } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $mul: { age: 1.1 } } // Multiply age by 1.1 (10% increase)
+  { $mul: { age: 1.1 } }, // Multiply age by 1.1 (10% increase)
 );
 ```
 
@@ -4820,7 +4817,7 @@ db.users.find({ name: "Chris" });
 ```js
 db.collection.updateMany(
   { filter },
-  { $unset: { field: "" } } // Value doesn't matter (use "" or 1)
+  { $unset: { field: "" } }, // Value doesn't matter (use "" or 1)
 );
 ```
 
@@ -4838,7 +4835,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   { isSporty: true },
-  { $unset: { phone: "" } } // Remove 'phone' field
+  { $unset: { phone: "" } }, // Remove 'phone' field
 );
 ```
 
@@ -4889,7 +4886,7 @@ db.users.updateMany(
 ```js
 db.collection.updateMany(
   { filter },
-  { $rename: { oldFieldName: "newFieldName" } }
+  { $rename: { oldFieldName: "newFieldName" } },
 );
 ```
 
@@ -4907,7 +4904,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   {}, // Empty filter = all documents
-  { $rename: { age: "totalAge" } }
+  { $rename: { age: "totalAge" } },
 );
 ```
 
@@ -4952,7 +4949,7 @@ db.users.updateMany(
 ```js
 db.users.updateMany(
   {},
-  { $rename: { "address.zipCode": "address.postalCode" } }
+  { $rename: { "address.zipCode": "address.postalCode" } },
 );
 ```
 
@@ -4970,7 +4967,7 @@ db.users.updateMany(
 db.collection.updateOne(
   { filter },
   { updateOperators },
-  { upsert: true } // Enable upsert
+  { upsert: true }, // Enable upsert
 );
 ```
 
@@ -4992,7 +4989,7 @@ db.users.updateOne(
       isSporty: true,
     },
   },
-  { upsert: true } // If not found, insert
+  { upsert: true }, // If not found, insert
 );
 ```
 
@@ -5074,7 +5071,7 @@ db.users.updateOne(
 db.pageViews.updateOne(
   { page: "/home" },
   { $inc: { views: 1 } },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5087,7 +5084,7 @@ db.pageViews.updateOne(
 db.settings.updateOne(
   { userId: "user123" },
   { $set: { theme: "dark", language: "en" } },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5103,7 +5100,7 @@ db.sessions.updateOne(
     $set: { lastActive: new Date() },
     $inc: { requestCount: 1 },
   },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5116,7 +5113,7 @@ db.sessions.updateOne(
 db.inventory.updateOne(
   { sku: "LAPTOP-001" },
   { $set: { quantity: 50, price: 999 } },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5139,7 +5136,7 @@ db.users.updateOne(
     $inc: { loginCount: 1 },
     $setOnInsert: { createdAt: new Date() }, // Only on insert
   },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5198,7 +5195,7 @@ db.users.find({
 ```js
 db.collection.updateMany(
   { "array.field": value }, // Filter
-  { $set: { "array.$.newField": value } } // $ = matched element
+  { $set: { "array.$.newField": value } }, // $ = matched element
 );
 ```
 
@@ -5220,7 +5217,7 @@ db.users.updateMany(
     $set: {
       "hobbies.$.highFrequency": true, // $ = first matched hobby
     },
-  }
+  },
 );
 ```
 
@@ -5319,7 +5316,7 @@ After update with `$`:
 ```js
 db.collection.updateMany(
   { filter },
-  { $set: { "array.$[].field": value } } // $[] = all elements
+  { $set: { "array.$[].field": value } }, // $[] = all elements
 );
 ```
 
@@ -5363,7 +5360,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateMany(
   { totalAge: { $gt: 30 } },
-  { $inc: { "hobbies.frequency": -1 } } // ERROR!
+  { $inc: { "hobbies.frequency": -1 } }, // ERROR!
 );
 // Error: Cannot create field frequency in element hobbies
 ```
@@ -5381,7 +5378,7 @@ db.users.updateMany(
     $inc: {
       "hobbies.$[].frequency": -1, // $[] = all hobbies
     },
-  }
+  },
 );
 ```
 
@@ -5462,7 +5459,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateOne(
   { name: "Alex", "hobbies.frequency": { $gte: 3 } },
-  { $set: { "hobbies.$.popular": true } }
+  { $set: { "hobbies.$.popular": true } },
 );
 
 // Result:
@@ -5504,7 +5501,7 @@ db.users.updateOne({ name: "Alex" }, { $inc: { "hobbies.$[].frequency": 1 } });
 // Add field to all items
 db.products.updateOne(
   { _id: productId },
-  { $set: { "reviews.$[].verified": false } }
+  { $set: { "reviews.$[].verified": false } },
 );
 ```
 
@@ -5532,7 +5529,7 @@ db.posts.updateMany({}, { $unset: { "comments.$[].tempFlag": "" } });
 // Update nested field in all array elements
 db.users.updateOne(
   { name: "Alex" },
-  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } }
+  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } },
 );
 ```
 
@@ -5547,7 +5544,7 @@ db.users.updateOne(
 // Can't use dot notation after $[]
 db.blogs.updateOne(
   { _id: blogId },
-  { $set: { "tags.$[]": "updated" } } // Replaces all tags with "updated"
+  { $set: { "tags.$[]": "updated" } }, // Replaces all tags with "updated"
 );
 ```
 
@@ -5559,7 +5556,7 @@ db.users.updateOne(
   {
     $inc: { "hobbies.$[].frequency": 1 },
     $set: { lastModified: new Date() },
-  }
+  },
 );
 ```
 
@@ -5584,7 +5581,7 @@ db.users.updateOne(
 db.collection.updateMany(
   { documentFilter }, // Filter documents
   { $set: { "array.$[identifier].field": value } }, // Update matching array elements
-  { arrayFilters: [{ "identifier.field": condition }] } // Filter array elements
+  { arrayFilters: [{ "identifier.field": condition }] }, // Filter array elements
 );
 ```
 
@@ -5629,7 +5626,7 @@ db.users.find({ "hobbies.frequency": { $gt: 2 } });
 db.users.updateMany(
   { "hobbies.frequency": { $gt: 2 } }, // Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } }, // Array update
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // Array element filter
 );
 ```
 
@@ -5748,7 +5745,7 @@ db.users.find();
 db.users.updateMany(
   { totalAge: { $gt: 30 } }, // ← Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // ← Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // ← Array element filter
 );
 ```
 
@@ -5784,7 +5781,7 @@ db.posts.updateMany(
       { "comment.upvotes": { $gte: 10 } }, // Filter for comments
       { "tag.category": "tech" }, // Filter for tags
     ],
-  }
+  },
 );
 ```
 
@@ -5809,7 +5806,7 @@ db.posts.updateMany(
 db.products.updateMany(
   { category: "Electronics" },
   { $set: { "reviews.$[review].verified": true } },
-  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] }
+  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] },
 );
 ```
 
@@ -5822,7 +5819,7 @@ db.products.updateMany(
 db.orders.updateMany(
   { status: "pending" },
   { $mul: { "items.$[item].price": 0.9 } },
-  { arrayFilters: [{ "item.price": { $gt: 50 } }] }
+  { arrayFilters: [{ "item.price": { $gt: 50 } }] },
 );
 ```
 
@@ -5842,7 +5839,7 @@ db.posts.updateMany(
         "c.createdAt": { $lt: new Date("2025-01-01") },
       },
     ],
-  }
+  },
 );
 ```
 
@@ -5891,7 +5888,7 @@ db.users.find({
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[h].goodFrequency": true } },
-  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] }
+  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] },
 );
 ```
 
@@ -5921,7 +5918,7 @@ db.collection.updateOne(
         $position: N,
       },
     },
-  }
+  },
 );
 ```
 
@@ -5945,7 +5942,7 @@ db.collection.updateOne(
 ```js
 db.users.updateOne(
   { name: "Maria" },
-  { $push: { hobbies: { title: "Sports", frequency: 2 } } }
+  { $push: { hobbies: { title: "Sports", frequency: 2 } } },
 );
 ```
 
@@ -5998,7 +5995,7 @@ db.users.updateOne(
         ],
       },
     },
-  }
+  },
 );
 ```
 
@@ -6042,7 +6039,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // Sort by frequency descending
       },
     },
-  }
+  },
 );
 ```
 
@@ -6105,7 +6102,7 @@ db.users.updateOne(
         $sort: { frequency: -1 },
       },
     },
-  }
+  },
 );
 
 // Array remains sorted even with duplicates
@@ -6153,7 +6150,7 @@ db.users.updateOne(
         $slice: 3, // Keep only top 3
       },
     },
-  }
+  },
 );
 ```
 
@@ -6208,7 +6205,7 @@ db.users.updateOne(
         $position: 0, // Insert at start
       },
     },
-  }
+  },
 );
 
 // Result: New hobby is first in array
@@ -6235,7 +6232,7 @@ db.products.updateOne(
         $position: 0, // Insert at beginning
       },
     },
-  }
+  },
 );
 ```
 
@@ -6276,7 +6273,7 @@ db.products.updateOne(
 ```js
 db.collection.updateOne(
   { documentFilter },
-  { $pull: { arrayField: condition } }
+  { $pull: { arrayField: condition } },
 );
 ```
 
@@ -6316,7 +6313,7 @@ db.users.updateOne(
         title: "Good food", // Remove by exact match
       },
     },
-  }
+  },
 );
 ```
 
@@ -6359,7 +6356,7 @@ db.users.updateOne(
         frequency: { $lte: 1 }, // Remove if frequency ≤ 1
       },
     },
-  }
+  },
 );
 ```
 
@@ -6416,7 +6413,7 @@ db.collection.updateOne({ filter }, { $pop: { arrayField: value } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: 1 } } // 1 = remove last
+  { $pop: { hobbies: 1 } }, // 1 = remove last
 );
 ```
 
@@ -6451,7 +6448,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: -1 } } // -1 = remove first
+  { $pop: { hobbies: -1 } }, // -1 = remove first
 );
 
 // Result: "Sports" would be removed
@@ -6477,7 +6474,7 @@ db.users.updateOne(
 // Remove all hobbies with low frequency
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
 );
 // Removes: All matching elements (could be 0, 1, or many)
 ```
@@ -6530,7 +6527,7 @@ db.users.updateMany(
         createdAt: { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
     },
-  }
+  },
 );
 ```
 
@@ -6550,7 +6547,7 @@ db.players.updateOne(
         $slice: 5, // Keep top 5
       },
     },
-  }
+  },
 );
 ```
 
@@ -6588,7 +6585,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  }
+  },
 );
 ```
 
@@ -6629,7 +6626,7 @@ db.users.updateOne(
     $push: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  }
+  },
 );
 // Run again...
 // Run again...
@@ -6653,7 +6650,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  }
+  },
 );
 // Run again...
 // Run again...
@@ -6684,7 +6681,7 @@ db.users.updateOne(
         ],
       },
     },
-  }
+  },
 );
 ```
 
@@ -6748,7 +6745,7 @@ db.posts.updateOne({ _id: postId }, { $addToSet: { tags: "mongodb" } });
 ```js
 db.articles.updateOne(
   { _id: articleId },
-  { $addToSet: { tags: "javascript" } }
+  { $addToSet: { tags: "javascript" } },
 );
 // Prevents duplicate tags
 ```
@@ -6765,7 +6762,7 @@ db.users.updateOne({ username: "alice" }, { $addToSet: { followers: "bob" } });
 ```js
 db.users.updateOne(
   { userId: "user123" },
-  { $addToSet: { viewedProducts: productId } }
+  { $addToSet: { viewedProducts: productId } },
 );
 // Track unique views only
 ```
@@ -6775,7 +6772,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { email: "admin@example.com" },
-  { $addToSet: { roles: "moderator" } }
+  { $addToSet: { roles: "moderator" } },
 );
 // Can't assign same role twice
 ```
@@ -6797,7 +6794,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // ❌ Error!
       },
     },
-  }
+  },
 );
 ```
 
@@ -6881,7 +6878,7 @@ Need to add to array?
 db.collection.updateOne(
   { filter }, // 1st argument: Query selector (which documents?)
   { update }, // 2nd argument: Update operators (what changes?)
-  { options } // 3rd argument: Options (upsert, arrayFilters, etc.)
+  { options }, // 3rd argument: Options (upsert, arrayFilters, etc.)
 );
 ```
 
@@ -6923,7 +6920,7 @@ db.collection.updateOne(
 // Update first match
 db.users.updateOne(
   { "hobbies.title": "Sports" },
-  { $set: { "hobbies.$.frequency": 5 } }
+  { $set: { "hobbies.$.frequency": 5 } },
 );
 
 // Update all elements
@@ -6933,7 +6930,7 @@ db.users.updateOne({ name: "Maria" }, { $inc: { "hobbies.$[].frequency": 1 } });
 db.users.updateOne(
   { name: "Maria" },
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] },
 );
 ```
 
@@ -6962,13 +6959,13 @@ db.users.updateOne(
         $slice: 5,
       },
     },
-  }
+  },
 );
 
 // Pull by condition
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
 );
 
 // Pop last element
@@ -6988,7 +6985,7 @@ db.users.updateOne({ name: "Maria" }, { $addToSet: { tags: "featured" } });
 db.users.updateOne(
   { username: "alice" },
   { $set: { lastLogin: new Date() } },
-  { upsert: true } // Insert if not found
+  { upsert: true }, // Insert if not found
 );
 ```
 
@@ -6998,7 +6995,7 @@ db.users.updateOne(
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[hobby].active": true } },
-  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] }
+  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] },
 );
 ```
 
@@ -7018,7 +7015,7 @@ db.users.replaceOne(
     hobbies: [],
     active: true,
     // All other fields removed
-  }
+  },
 );
 ```
 
@@ -7105,7 +7102,7 @@ MongoDB provides several methods to delete documents and collections:
 ```js
 db.collection.deleteOne(
   { filter }, // Required: Query selector
-  { writeConcern } // Optional: Write concern settings
+  { writeConcern }, // Optional: Write concern settings
 );
 ```
 
@@ -7169,7 +7166,7 @@ db.users.deleteOne({
 ```js
 db.collection.deleteMany(
   { filter }, // Required: Query selector
-  { writeConcern } // Optional: Write concern settings
+  { writeConcern }, // Optional: Write concern settings
 );
 ```
 
@@ -7395,7 +7392,7 @@ false; // Collection doesn't exist (no error)
 ```js
 db.users.deleteOne(
   { name: "Chris" },
-  { writeConcern: { w: "majority", wtimeout: 5000 } }
+  { writeConcern: { w: "majority", wtimeout: 5000 } },
 );
 ```
 
@@ -7600,3 +7597,634 @@ Need to delete?
 - `drop()` is faster than `deleteMany({})` for clearing collections
 - All delete operations are **irreversible** - no undo!
 - `deletedCount: 0` is not an error - just no matches
+
+---
+
+## Indexes
+
+Indexes allow MongoDB to retrieve data efficiently without scanning every document in a collection.
+
+---
+
+### Why Indexes?
+
+**What is an Index?**
+
+An index is an **additional data structure** maintained alongside a collection. It stores selected field values in **sorted order** together with **pointers** to the original documents.
+
+| Without Index                                                | With Index                                                  |
+| ------------------------------------------------------------ | ----------------------------------------------------------- |
+| **Collection Scan (COLLSCAN)** — every document is inspected | **Index Scan (IXSCAN)** — jumps directly to matching values |
+| Slow on large collections                                    | Fast for selective queries                                  |
+| No extra disk or write cost                                  | Extra disk space + write overhead per index                 |
+
+**When Indexes Help**
+
+- Queries returning a **small subset** of documents (selective queries)
+- Fields frequently used in `find`, `update`, or `delete` filters
+- `sort()` operations on large result sets
+
+**Costs of Indexes**
+
+- Extra **disk space** per index
+- **Write slowdown** — every `insert`, `update`, and `delete` must also update all indexes on the collection
+- Too many indexes can hurt write performance more than they help read performance
+
+> **Rule of Thumb:** Index fields used in frequent, selective queries. Don't index everything.
+
+### Adding a Single Field Index
+
+**Goal:** Create an index on a single field and measure performance before and after.
+
+Use `explain("executionStats")` to analyze how MongoDB executes a query. Key metrics:
+
+| Metric                | Meaning                                           |
+| --------------------- | ------------------------------------------------- |
+| `stage`               | `COLLSCAN` = no index used, `IXSCAN` = index used |
+| `executionTimeMillis` | Total query time in ms                            |
+| `totalDocsExamined`   | How many documents MongoDB had to read            |
+| `totalKeysExamined`   | How many index entries were scanned               |
+| `nReturned`           | How many documents were actually returned         |
+
+---
+
+**Step 1 — Run the query WITHOUT an index**
+
+```js
+// No index exists yet — MongoDB must scan every document in the collection
+db.contacts.explain("executionStats").find({ "dob.age": { $gt: 60 } });
+```
+
+```js
+// Result: 5000 docs examined to return just 1222 — completely wasteful
+"executionStats": {
+  "nReturned": 1222,
+  "executionTimeMillis": 8,
+  "totalKeysExamined": 0,     // no index used
+  "totalDocsExamined": 5000,  // entire collection scanned
+  "executionStages": {
+    "stage": "COLLSCAN"       // full collection scan
+  }
+}
+```
+
+---
+
+**Step 2 — Create a single-field index on `dob.age`**
+
+```js
+// 1 = ascending order, -1 = descending
+// MongoDB can traverse the index in either direction, so the choice rarely matters for range queries
+db.contacts.createIndex({ "dob.age": 1 });
+// Returns: "dob.age_1"  ← MongoDB auto-generates the index name
+```
+
+---
+
+**Step 3 — Same query AFTER creating the index**
+
+```js
+db.contacts.explain("executionStats").find({ "dob.age": { $gt: 60 } });
+```
+
+```js
+// Result: Only 1222 keys examined — exactly matching what was returned. 8× faster.
+"executionStats": {
+  "nReturned": 1222,
+  "executionTimeMillis": 1,   // 8ms → 1ms
+  "totalKeysExamined": 1222,  // only keys matching the filter
+  "totalDocsExamined": 1222,  // only the relevant docs fetched
+  "executionStages": {
+    "stage": "FETCH",         // retrieves full documents from collection...
+    "inputStage": {
+      "stage": "IXSCAN",      // ...guided by the index scan
+      "indexName": "dob.age_1",
+      "indexBounds": {
+        "dob.age": ["(60, inf.0]"]  // only values > 60 were visited
+      }
+    }
+  }
+}
+```
+
+> **Before index:** 5000 docs examined → 1222 returned (wasteful).
+> **After index:** 1222 docs examined → 1222 returned (zero wasted reads).
+
+---
+
+#### How `createIndex()` Works Internally
+
+The index is a **sorted list** of field values with pointers back to the original documents. MongoDB only stores the indexed value + a reference, not the full document.
+
+```
+Index on "dob.age" (ascending):
+  (29,  → pointer to document a1)
+  (30,  → pointer to document a2)
+  (33,  → pointer to document a3)
+  ...
+```
+
+- Collection documents are stored in **insertion order** (unsorted)
+- The index is always **sorted** — MongoDB can binary-search it and skip whole value ranges
+- `createIndex({ age: 1 })` — ascending (smallest first)
+- `createIndex({ age: -1 })` — descending (largest first)
+- For range filters, MongoDB can traverse the index in either direction regardless of creation order
+
+### Understanding Index Restrictions
+
+**Indexes Don't Always Help**
+
+Indexes are most effective for **selective queries** — those returning a small fraction of documents. When a query returns most or all documents, the index adds overhead: MongoDB still has to visit nearly every document, but now also has the extra cost of traversing the index first.
+
+| Query                    | Docs returned | Selectivity | Index helps?          |
+| ------------------------ | ------------- | ----------- | --------------------- |
+| `"dob.age": { $gt: 60 }` | 1222 / 5000   | ~24%        | ✅ Yes                |
+| `"dob.age": { $gt: 20 }` | 5000 / 5000   | 100%        | ❌ No — adds overhead |
+
+---
+
+**Example — Non-selective query is SLOWER with an index**
+
+```js
+// Step 1: Run with the index in place — almost all 5000 docs match
+db.contacts.explain("executionStats").find({ "dob.age": { $gt: 20 } });
+```
+
+```js
+// Index used but unhelpful — 5000 keys scanned, 5000 docs returned, took 8ms
+// The extra index traversal step made it slower than a plain collection scan
+"executionStats": {
+  "nReturned": 5000,
+  "executionTimeMillis": 8,
+  "totalKeysExamined": 5000,
+  "totalDocsExamined": 5000
+}
+```
+
+```js
+// Step 2: Drop the index to compare
+db.contacts.dropIndex({ "dob.age": 1 });
+```
+
+```js
+// Step 3: Same query WITHOUT the index
+db.contacts.explain("executionStats").find({ "dob.age": { $gt: 20 } });
+```
+
+```js
+// Collection scan is now FASTER — no index overhead, documents loaded directly into memory
+"executionStats": {
+  "nReturned": 5000,
+  "executionTimeMillis": 2,   // 4× faster without the index
+  "totalKeysExamined": 0,
+  "totalDocsExamined": 5000
+}
+```
+
+> **Rule of thumb:** Index fields where queries return less than ~20% of documents.
+> For queries that routinely return the majority of docs, skip the index.
+
+### Compound Indexes
+
+**What Is a Compound Index?**
+
+- An index on **multiple fields**, e.g. `{ "dob.age": 1, gender: 1 }`.
+- Each entry in the index is a **combined key**, e.g. `(30, "male")`, `(30, "female")`, `(31, "male")`, ...
+- It is **one single index**, not two separate ones.
+
+**Left-Prefix Rule**
+
+A compound index `{ "dob.age": 1, gender: 1 }` can serve these queries:
+
+| Fields used in query                | Index used? | Reason                                    |
+| ----------------------------------- | ----------- | ----------------------------------------- |
+| `{ "dob.age": 35 }`                 | ✅ Yes      | leftmost prefix                           |
+| `{ "dob.age": 35, gender: "male" }` | ✅ Yes      | all fields                                |
+| `{ gender: "male" }`                | ❌ No       | right-only field — falls back to COLLSCAN |
+
+**When to use compound indexes:** queries that filter on multiple fields together, or filter on one field and sort on another.
+
+---
+
+**Example 1 — Single-field gender index (low selectivity, not very useful)**
+
+```js
+// Create a single-field index on gender
+db.contacts.createIndex({ gender: 1 });
+
+// Explain: gender has only 2 values, so ~half the docs match every query
+db.contacts.explain("executionStats").find({ gender: "male" });
+```
+
+```js
+// Result: 2435 keys scanned for 2435 returned — not selective enough to benefit much
+"executionStats": {
+  "nReturned": 2435,
+  "executionTimeMillis": 2,
+  "totalKeysExamined": 2435,
+  "totalDocsExamined": 2435
+}
+// Verdict: A single-field index on a boolean-like field rarely pays off
+```
+
+---
+
+**Example 2 — Create a compound index on age + gender**
+
+```js
+// Drop the single-field gender index, then create a compound one
+db.contacts.dropIndex({ gender: 1 });
+
+db.contacts.createIndex({ "dob.age": 1, gender: 1 });
+// index name auto-generated: "dob.age_1_gender_1"
+```
+
+---
+
+**Example 3 — Query using both fields (best case for compound index)**
+
+```js
+db.contacts.explain("executionStats").find({ "dob.age": 35, gender: "male" });
+```
+
+```js
+// Result: Highly selective — only 43 docs found, 43 keys examined
+"winningPlan": {
+  "stage": "FETCH",
+  "inputStage": {
+    "stage": "IXSCAN",
+    "indexName": "dob.age_1_gender_1"  // compound index used for both fields
+  }
+},
+"executionStats": {
+  "nReturned": 43,
+  "executionTimeMillis": 3,
+  "totalKeysExamined": 43,
+  "totalDocsExamined": 43
+}
+```
+
+---
+
+**Example 4 — Query using only the leftmost field (still uses the index)**
+
+```js
+db.contacts.explain("executionStats").find({ "dob.age": 35 });
+```
+
+```js
+// Left-prefix rule: compound index is reused even for age-only query
+"winningPlan": {
+  "stage": "FETCH",
+  "inputStage": {
+    "stage": "IXSCAN",
+    "indexName": "dob.age_1_gender_1"  // compound index reused
+  }
+}
+```
+
+---
+
+**Example 5 — Query using only the right field (index NOT used)**
+
+```js
+db.contacts.explain("executionStats").find({ gender: "male" });
+```
+
+```js
+// Falls back to COLLSCAN — cannot enter the compound index without the left prefix (age)
+"winningPlan": {
+  "stage": "COLLSCAN",
+  "filter": { "gender": { "$eq": "male" } }
+}
+```
+
+### Using Indexes for Sorting
+
+**How Indexes Speed Up `sort()`**
+
+An index already stores values in **sorted order**. MongoDB can reuse that order for `sort()` — eliminating the need for an expensive in-memory sort.
+
+- **Without a suitable index:** MongoDB loads all matching documents into RAM and sorts them there. Subject to a **32 MB in-memory sort limit**.
+- **With a matching index:** MongoDB reads documents in index order directly — no separate sort step needed.
+
+> **Important:** If the unsorted result set exceeds 32 MB and no index matches the sort, **the query fails** with a sort memory limit error. Always index fields you sort on for large collections.
+
+---
+
+**Example — Filter by age, sort by gender — both covered by one compound index**
+
+```js
+// Uses the existing compound index { "dob.age": 1, gender: 1 }
+db.contacts
+  .explain("executionStats")
+  .find({ "dob.age": 35 })
+  .sort({ gender: 1 });
+```
+
+```js
+// Result: Single IXSCAN covers both the filter (age = 35) and the sort (gender asc)
+// No in-memory sort stage — the index order IS the sort order
+"winningPlan": {
+  "stage": "FETCH",
+  "inputStage": {
+    "stage": "IXSCAN",
+    "indexName": "dob.age_1_gender_1",
+    "direction": "forward",           // ascending traversal matches sort({ gender: 1 })
+    "indexBounds": {
+      "dob.age": ["[35, 35]"],        // exact match on age
+      "gender": ["[MinKey, MaxKey]"]  // full gender range, already sorted by index
+    }
+  }
+}
+```
+
+> **Takeaway:** Design compound indexes to match your most common **filter + sort** combinations to avoid the 32 MB sort limit and get free sort ordering.
+
+### Default Index
+
+**The Built-in `_id` Index**
+
+MongoDB automatically creates a **unique ascending index on `_id`** for every collection. You cannot drop it.
+
+- Queries and sorts on `_id` are always fast
+- `_id` values are guaranteed to be unique within a collection
+- Use `getIndexes()` to list all indexes currently on a collection
+
+```js
+// List all indexes on the contacts collection
+db.contacts.getIndexes();
+```
+
+```js
+// Output: Two indexes — the default _id index + the compound index we created
+[
+  {
+    v: 2,
+    key: { _id: 1 },
+    name: "_id_", // always present — cannot be dropped
+  },
+  {
+    v: 2,
+    key: { "dob.age": 1, gender: 1 },
+    name: "dob.age_1_gender_1", // our compound index
+  },
+];
+```
+
+### Configuring Indexes — Unique Index
+
+**What is a Unique Index?**
+
+A unique index guarantees **no two documents** share the same value for the indexed field. The built-in `_id` index is unique by default. You can apply the same constraint to any other field.
+
+**Use cases:** `email`, `username`, `phone`, any business key that must not repeat.
+
+---
+
+**Example — Create a unique index on `email`**
+
+```js
+db.contacts.createIndex({ email: 1 }, { unique: true });
+```
+
+```js
+// Error: Index build fails because duplicates already exist in the data
+// E11000 duplicate key error index: email_1  dup key: { email: "abigail.clark@example.com" }
+```
+
+> MongoDB refuses to build the index — this reveals existing data quality issues.
+> Fix the duplicates first, then create the index.
+
+```js
+// Once duplicates are resolved and the index exists, any future duplicate insert fails:
+db.contacts.insertOne({ name: "Test", email: "abigail.clark@example.com" });
+// → E11000 duplicate key error — enforces uniqueness at the database level
+```
+
+### Understanding Partial Indexes
+
+**What is a Partial Index?**
+
+A partial index indexes **only documents that match a given filter** (`partialFilterExpression`). Documents that don't match the filter are simply not added to the index.
+
+|                 | Regular Index          | Partial Index                           |
+| --------------- | ---------------------- | --------------------------------------- |
+| What it indexes | Every document         | Only docs matching the filter           |
+| Index size      | Full                   | Smaller                                 |
+| Write cost      | Updated on every write | Only updated when filter matches        |
+| When usable     | Any query on the field | Only queries that imply the same filter |
+
+**Supported filter operators:** `$eq`, `$gt`, `$gte`, `$lt`, `$lte`, `$exists`, `$type`, `$and`
+
+---
+
+**Example 1 — Index `dob.age`, but only for male contacts**
+
+```js
+// Create partial index: only store dob.age entries where gender = "male"
+db.contacts.createIndex(
+  { "dob.age": 1 },
+  { partialFilterExpression: { gender: "male" } },
+);
+```
+
+**Query WITHOUT the partial filter condition — index NOT used**
+
+```js
+// MongoDB cannot safely use this index — the result set could include females
+// who are not in the index, so MongoDB falls back to a full scan
+db.contacts.explain("executionStats").find({ "dob.age": { $gt: 60 } });
+```
+
+```js
+// Result: COLLSCAN — MongoDB bypasses the partial index to avoid missing female docs
+"executionStages": {
+  "stage": "COLLSCAN",
+  "filter": { "dob.age": { "$gt": 60 } }
+}
+```
+
+**Query WITH the partial filter condition — index IS used**
+
+```js
+// Including gender: "male" tells MongoDB the result is fully within the index
+db.contacts.explain("executionStats").find({
+  "dob.age": { $gt: 60 },
+  gender: "male",
+});
+```
+
+```js
+// Result: IXSCAN used — 610 matching entries, zero wasted reads
+"executionStages": {
+  "stage": "FETCH",
+  "nReturned": 610,
+  "docsExamined": 610,
+  "inputStage": {
+    "stage": "IXSCAN"   // partial index used successfully
+  }
+}
+```
+
+> **Partial vs Compound Index:** Both require both fields in the query. The advantage of a partial index is **smaller index size** — female documents are never stored in it, saving disk space and reducing write cost for female inserts/updates.
+
+---
+
+**Example 2 — Partial index on the same field (age > 60 only)**
+
+```js
+// Alternative: filter on the same field being indexed
+// Only ages > 60 are stored — useful app that almost never queries younger ages
+db.contacts.createIndex(
+  { "dob.age": 1 },
+  { partialFilterExpression: { "dob.age": { $gt: 60 } } },
+);
+```
+
+#### Partial Index + Unique Constraint
+
+**Problem: Unique index on an optional field**
+
+A plain `unique` index treats **missing field values as `null`**. If two documents both lack the `email` field, MongoDB sees two `null` values → duplicate key error.
+
+---
+
+**Step 1 — Setup: insert docs with and without email**
+
+```js
+db.users.insertMany([
+  { name: "Prashant", email: "Prashant@test.com" }, // has email
+  { name: "Kohli" }, // no email field
+]);
+```
+
+---
+
+**Step 2 — Plain (non-unique) index — no issues**
+
+```js
+db.users.createIndex({ email: 1 });
+
+db.users.insertOne({ name: "xyz" }); // ✅ Works — plain index allows null values
+
+db.users.dropIndex({ email: 1 }); // drop before trying unique
+```
+
+---
+
+**Step 3 — Unique index — breaks for docs without email**
+
+```js
+db.users.createIndex({ email: 1 }, { unique: true });
+
+db.users.insertOne({ name: "xyz" });
+// ❌ E11000 duplicate key error  dup key: { email: null }
+// "Kohli" already has null in the index — the second null value is a duplicate
+
+db.users.dropIndex({ email: 1 }); // drop and fix with partial filter
+```
+
+---
+
+**Step 4 — Correct solution: unique + partialFilterExpression**
+
+```js
+// Only index documents WHERE email field actually exists
+// Documents without email are excluded from the index entirely
+db.users.createIndex(
+  { email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { email: { $exists: true } },
+  },
+);
+```
+
+```js
+// Test 1: Insert without email — allowed (not indexed, no uniqueness check)
+db.users.insertOne({ name: "xyz" });
+// ✅ Inserted successfully
+
+// Test 2: Insert with a duplicate email — blocked by unique constraint
+db.users.insertOne({ name: "abc", email: "Prashant@test.com" });
+// ❌ E11000 duplicate key error  dup key: { email: "Prashant@test.com" }
+```
+
+**Summary of behaviors:**
+
+| Action                                                     | Result                          |
+| ---------------------------------------------------------- | ------------------------------- |
+| Insert doc **without** `email`                             | ✅ Allowed — not added to index |
+| Insert doc **with unique** `email`                         | ✅ Allowed                      |
+| Insert second doc **without** `email` (plain unique index) | ❌ Duplicate `null`             |
+| Insert doc with **existing** `email`                       | ❌ Duplicate key error          |
+
+### Understanding the Time-To-Live (TTL) Index
+
+**What is a TTL Index?**
+
+A TTL index automatically **deletes documents** after a specified number of seconds. MongoDB's background thread runs roughly every 60 seconds and removes expired documents.
+
+**Expiry calculation:**
+
+```
+expires when:  now − document[dateField]  ≥  expireAfterSeconds
+```
+
+**Common use cases:** user sessions, auth tokens, OTP codes, temporary cart data, log entries with a retention window.
+
+**Restrictions:**
+
+| Rule                | Detail                                                                          |
+| ------------------- | ------------------------------------------------------------------------------- |
+| Field type          | Must be a **BSON Date** value (`new Date()`)                                    |
+| Index type          | **Single-field only** — not supported on compound indexes                       |
+| Cleanup granularity | Background job runs ~every 60s — not exact to the second                        |
+| Pre-existing docs   | Not deleted immediately on index creation — removed on the next background pass |
+
+---
+
+**Example — Auto-expiring session documents after 10 seconds**
+
+**Step 1 — Create the TTL index**
+
+```js
+db.sessions.createIndex({ createdAt: 1 }, { expireAfterSeconds: 10 });
+// Output: "createdAt_1"
+```
+
+---
+
+**Step 2 — Insert session documents with a Date value**
+
+```js
+db.sessions.insertOne({ data: "session-abc", createdAt: new Date() });
+// { acknowledged: true, insertedId: ObjectId('699f2991...') }
+
+db.sessions.insertOne({ data: "session-xyz", createdAt: new Date() });
+// { acknowledged: true, insertedId: ObjectId('699f2993...') }
+```
+
+---
+
+**Step 3 — Verify documents are in the collection**
+
+```js
+db.sessions.find();
+// [
+//   { _id: ObjectId('...'), data: 'session-abc', createdAt: ISODate('2026-02-25T16:55:45.332Z') },
+//   { _id: ObjectId('...'), data: 'session-xyz', createdAt: ISODate('2026-02-25T16:55:47.039Z') }
+// ]
+```
+
+---
+
+**Step 4 — After ~10–60 seconds MongoDB removes expired documents**
+
+```js
+db.sessions.find();
+// [] — collection is now empty; both documents were auto-deleted
+```
+
+> **Note:** The TTL background task removes documents **approximately** on schedule. Documents may persist up to 60 seconds past `expireAfterSeconds`. Do not rely on TTL for exact-second deletion.

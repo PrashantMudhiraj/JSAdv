@@ -36,12 +36,33 @@
 - [The `$addToSet` Operator](#the-addtoset-operator)
 - [Update Operations Module Summary](#update-operations-module-summary)
 - [Delete Operations](#delete-operations)
+- [Indexes](#indexes)
+  - [Why Indexes?](#why-indexes)
+  - [Adding a Single Field Index](#adding-a-single-field-index)
+  - [Understanding Index Restrictions](#understanding-index-restrictions)
+  - [Compound Indexes](#compound-indexes)
+  - [Using Indexes for Sorting](#using-indexes-for-sorting)
+  - [Default Index](#default-index)
+  - [Configuring Indexes — Unique Index](#configuring-indexes--unique-index)
+  - [Understanding Partial Indexes](#understanding-partial-indexes)
+  - [Partial Index + Unique Constraint](#partial-index--unique-constraint)
+  - [Understanding the Time-To-Live (TTL) Index](#understanding-the-time-to-live-ttl-index)
+  - [Query Diagnosis and Query Planning](#query-diagnosis-and-query-planning)
+  - [Understanding Covered Queries](#understanding-covered-queries)
+  - [How MongoDB Rejects a Plan](#how-mongodb-rejects-a-plan)
+  - [Using Multi Key Index](#using-multi-key-index)
+  - [Understanding `text` Index](#understanding-text-index)
+  - [Text Indexes and Sorting](#text-indexes-and-sorting)
+  - [Creating Combined Text Indexes](#creating-combined-text-indexes)
+  - [Using Text Index to Exclude Words](#using-text-index-to-exclude-words)
+  - [Setting Default Language and Using Weights](#setting-default-language-and-using-weights)
+  - [Building Indexes](#building-indexes)
 
 ---
 
 ## JSON(BSON) Data Format
 
-**BSON** = **B**inary **S**ON (Binary-encoded JSON)
+**BSON** = **B**inary J**S**ON (Binary-encoded JSON)
 
 **Explanation:**
 
@@ -3070,10 +3091,75 @@ Used to compare field values against specified values.
 
 #### Comparison Operators Examples
 
+> **Note:** These examples query the `movies` collection imported from `tv-shows.json` (240 documents). Below is a representative sample of that data to help you understand the queries.
+
+**Sample Input Data (`db.movies` collection):**
+
+```js
+db.movies.insertMany([
+  {
+    name: "Under the Dome",
+    runtime: 60,
+    genres: ["Drama", "Science-Fiction", "Thriller"],
+    rating: { average: 6.5 },
+    status: "Ended",
+  },
+  {
+    name: "True Detective",
+    runtime: 60,
+    genres: ["Drama", "Crime", "Thriller"],
+    rating: { average: 8.3 },
+    status: "Running",
+  },
+  {
+    name: "Rick and Morty",
+    runtime: 30,
+    genres: ["Animation", "Comedy", "Adventure"],
+    rating: { average: 9.2 },
+    status: "Running",
+  },
+  {
+    name: "Breaking Bad",
+    runtime: 47,
+    genres: ["Drama", "Crime", "Thriller"],
+    rating: { average: 9.5 },
+    status: "Ended",
+  },
+  {
+    name: "Game of Thrones",
+    runtime: 60,
+    genres: ["Drama", "Adventure", "Fantasy"],
+    rating: { average: 9.4 },
+    status: "Ended",
+  },
+  {
+    name: "Stalker",
+    runtime: 42,
+    genres: ["Crime", "Thriller"],
+    rating: { average: 7.7 },
+    status: "Ended",
+  },
+]);
+```
+
+**Key fields queried in the examples below:**
+
+| `name`          | `runtime` | `rating.average` | `genres`                         |
+| --------------- | --------- | ---------------- | -------------------------------- |
+| Under the Dome  | 60        | 6.5              | Drama, Science-Fiction, Thriller |
+| True Detective  | 60        | 8.3              | Drama, Crime, Thriller           |
+| Rick and Morty  | 30        | 9.2              | Animation, Comedy, Adventure     |
+| Breaking Bad    | 47        | 9.5              | Drama, Crime, Thriller           |
+| Game of Thrones | 60        | 9.4              | Drama, Adventure, Fantasy        |
+| Stalker         | 42        | 7.7              | Crime, Thriller                  |
+
+---
+
 **`$eq` - Equal**
 
 ```js
 // Find movies with exactly 60  minute runtime
+// Matches: Under the Dome, True Detective, Game of Thrones
 
 db.movies.find({ runtime: { $eq: 60 } });
 
@@ -3304,8 +3390,16 @@ db.movies.find({ $text: { $search: "thriller action" } });
 
 // expression
 
+// --- Input Data Setup ---
+// financialData> db.sales.insertMany([
+//   { volume: 89,  target: 80  },   // volume > target  ✅ matches $gt
+//   { volume: 177, target: 200 },   // volume < target  ❌ does not match
+//   { volume: 200, target: 177 }    // volume > target  ✅ matches $gt
+// ])
+// --- End Input Data Setup ---
+
 financialData >
-  db.sales.find({ $expr: { $gt: ["$volume", "$target"] } })[
+  db.sales.find({ $expr: { $gt: ["$volume", "$target"] } })[ // Returns: volume=89 & volume=200 (both exceed their target)
     ({ _id: ObjectId("699c7e7a9c0ae94b759e3c09"), volume: 89, target: 80 },
     { _id: ObjectId("699c7e7a9c0ae94b759e3c0a"), volume: 200, target: 177 })
   ];
@@ -3441,8 +3535,33 @@ db.movies.find({
   genres: { $all: ["Drama", "Thriller"] },
 });
 
+// --- Input Data Setup ---
+// boxOffice> db.movieStarts.insertMany([
+//   {
+//     title: "The Last Student Returns",
+//     meta: { rating: 9.5, aired: 2018, runtime: 100 },
+//     visitors: 1300000, expectedVisitors: 1550000,
+//     genre: ["thriller", "drama", "action"]
+//   },
+//   {
+//     title: "Supercharged Teaching",
+//     meta: { rating: 9.3, aired: 2016, runtime: 60 },
+//     visitors: 370000, expectedVisitors: 1000000,
+//     genre: ["thriller", "action"]
+//   },
+//   {
+//     title: "Teach me if you can",
+//     meta: { rating: 8.5, aired: 2014, runtime: 90 },
+//     visitors: 590378, expectedVisitors: 500000,
+//     genre: ["action", "thriller"]
+//   }
+// ])
+// --- End Input Data Setup ---
+
+// Exact array match — genre must be EXACTLY ["thriller"] — returns 0 results
 boxOffice > db.movieStarts.find({ genre: ["thriller"] });
 
+// $all match — genre array must CONTAIN "thriller" — returns all 3 documents
 boxOffice > db.movieStarts.find({ genre: { $all: ["thriller"] } });
 [
   {
@@ -3884,6 +4003,37 @@ db.collection.find().sort({ field: -1 }); // Descending
 
 #### Single Field Sorting
 
+> **Input Data:** These examples use the `movies` collection (240 TV shows). Below is a representative subset matching the output shown:
+>
+> ```js
+> db.movies.insertMany([
+>   {
+>     name: "Bad Movie",
+>     runtime: 90,
+>     rating: { average: 3.2 },
+>     genres: ["Drama"],
+>   },
+>   {
+>     name: "OK Movie",
+>     runtime: 60,
+>     rating: { average: 5.5 },
+>     genres: ["Comedy"],
+>   },
+>   {
+>     name: "Good Movie",
+>     runtime: 45,
+>     rating: { average: 7.8 },
+>     genres: ["Thriller"],
+>   },
+>   {
+>     name: "Great Movie",
+>     runtime: 120,
+>     rating: { average: 9.1 },
+>     genres: ["Sci-Fi"],
+>   },
+> ]);
+> ```
+
 **Ascending Order (Low to High):**
 
 ```js
@@ -3894,9 +4044,9 @@ db.movies.find().sort({ "rating.average": 1 });
 
 ```js
 // Returns movies sorted by rating from lowest to highest
-{ name: "Bad Movie", rating: { average: 3.2 } }
-{ name: "OK Movie", rating: { average: 5.5 } }
-{ name: "Good Movie", rating: { average: 7.8 } }
+{ name: "Bad Movie",   rating: { average: 3.2 } }
+{ name: "OK Movie",    rating: { average: 5.5 } }
+{ name: "Good Movie",  rating: { average: 7.8 } }
 { name: "Great Movie", rating: { average: 9.1 } }
 ```
 
@@ -3924,11 +4074,22 @@ db.movies.find().sort({ "rating.average": -1 });
 
 Sort by multiple fields with priority order.
 
+**Input Data:**
+
+````js
+db.movies.insertMany([
+  { name: "Movie A", rating: { average: 7.5 }, runtime: 120,  genres: ["Drama"] },
+  { name: "Movie B", rating: { average: 7.5 }, runtime: 90,   genres: ["Drama"] },
+  { name: "Movie C", rating: { average: 7.5 }, runtime: 60,   genres: ["Drama"] },
+  { name: "Movie D", rating: { average: 8.0 }, runtime: 45,   genres: ["Comedy"] },
+  { name: "Movie E", rating: { average: 8.2 }, runtime: 150,  genres: ["Thriller"] }
+]);
+
 **Example:**
 
 ```js
 db.movies.find().sort({ "rating.average": 1, runtime: -1 });
-```
+````
 
 **How it works:**
 
@@ -4314,8 +4475,36 @@ db.movies.find({ genres: "Drama" }, { "genres.$": 1 });
 
 Projects the first array element that matches the specified condition.
 
+**Input Data:**
+
 ```js
-// Project only comments with score > 5
+db.posts.insertMany([
+  {
+    title: "MongoDB Tips",
+    comments: [
+      { text: "Great post!", score: 9 },
+      { text: "Too long", score: 3 },
+      { text: "Very helpful!", score: 7 },
+    ],
+  },
+  {
+    title: "NoSQL Basics",
+    comments: [
+      { text: "Interesting", score: 4 },
+      { text: "Nice write-up", score: 6 },
+    ],
+  },
+  {
+    title: "Aggregation Guide",
+    comments: [{ text: "Confusing", score: 2 }],
+  },
+]);
+```
+
+```js
+// Project only the FIRST comment with score > 5 per document
+// Result: Only "MongoDB Tips" and "NoSQL Basics" appear
+//   ("Aggregation Guide" has no comment with score > 5)
 
 db.posts.find(
   {},
@@ -4325,6 +4514,22 @@ db.posts.find(
     },
   },
 );
+```
+
+**Output:**
+
+```js
+[
+  {
+    _id: ObjectId("..."),
+    comments: [{ text: "Great post!", score: 9 }], // First matching comment
+  },
+  {
+    _id: ObjectId("..."),
+    comments: [{ text: "Nice write-up", score: 6 }], // First matching comment
+  },
+  // "Aggregation Guide" excluded — no comment with score > 5
+];
 ```
 
 ---
@@ -4425,6 +4630,46 @@ Update operations allow you to modify existing documents in MongoDB collections 
 - `updateMany()` - Updates all matching documents
 - `replaceOne()` - Replaces entire document
 - `findOneAndUpdate()` - Updates and returns document
+
+> **Initial Setup — `users` collection used across all Update Operation examples:**
+>
+> ```js
+> use updateOps
+>
+> db.users.insertMany([
+>   {
+>     name: "Max",
+>     hobbies: [{ title: "Sports", frequency: 3 }, { title: "Cooking", frequency: 6 }],
+>     phone: 131782734
+>   },
+>   {
+>     name: "Manuel",
+>     hobbies: [{ title: "Cars", frequency: 2 }, { title: "Cooking", frequency: 5 }],
+>     phone: 121330933
+>   },
+>   {
+>     name: "Anna",
+>     hobbies: [{ title: "Sports", frequency: 2 }, { title: "Yoga", frequency: 3 }],
+>     phone: "80811987291",
+>     age: null
+>   },
+>   {
+>     name: "Chris",
+>     hobbies: [{ title: "Sports", frequency: 3 }, { title: "Cooking", frequency: 6 }],
+>     phone: "01213309052",
+>     age: 26
+>   }
+> ]);
+> ```
+>
+> **Key fields used in examples:**
+>
+> | `name` | `age` | `isSporty`    | hobbies count |
+> | ------ | ----- | ------------- | ------------- |
+> | Max    | —     | (added later) | 2             |
+> | Manuel | 32    | (added later) | 2             |
+> | Anna   | null  | (added later) | 2             |
+> | Chris  | 26→29 | (added later) | 2→3           |
 
 ---
 
@@ -4667,6 +4912,23 @@ db.users.find({ name: "Manuel" });
 
 These operators provide specialized numeric update operations.
 
+> **Input Data:** These examples work on `Chris` whose current `age` is **29** (set by `$set` in an earlier step).
+>
+> ```js
+> // Chris's document at this point:
+> db.users.insertOne({
+>   name: "Chris",
+>   hobbies: [
+>     { title: "Sports", freq: 5 },
+>     { title: "Cooking", freq: 3 },
+>     { title: "Hiking", freq: 1 },
+>   ],
+>   age: 29,
+>   phone: "3830297039",
+>   isSporty: true,
+> });
+> ```
+
 ---
 
 #### `$min` - Update Only if Smaller
@@ -4831,6 +5093,53 @@ db.collection.updateMany(
 ---
 
 **Example: Remove Phone Field**
+
+> **Input Data:** This example builds on the `users` collection after the previous `$set` / `$rename` operations. The collection at this point looks like:
+>
+> ```js
+> db.users.insertMany([
+>   {
+>     name: "Max",
+>     hobbies: [
+>       { title: "Sports", frequency: 3 },
+>       { title: "Cooking", frequency: 6 },
+>     ],
+>     phone: "131782734",
+>     isSporty: true,
+>   },
+>   {
+>     name: "Manuel",
+>     hobbies: [
+>       { title: "Cars", frequency: 2 },
+>       { title: "Cooking", frequency: 5 },
+>     ],
+>     phone: "012177972",
+>     isSporty: false,
+>     totalAge: 35,
+>   },
+>   {
+>     name: "Anna",
+>     hobbies: [
+>       { title: "Sports", frequency: 2 },
+>       { title: "Yoga", frequency: 3 },
+>     ],
+>     phone: "80811987291",
+>     isSporty: true,
+>     totalAge: null,
+>   },
+>   {
+>     name: "Chris",
+>     hobbies: [
+>       { title: "Sports", freq: 5 },
+>       { title: "Cooking", freq: 3 },
+>       { title: "Hiking", freq: 1 },
+>     ],
+>     phone: "3830297039",
+>     isSporty: true,
+>     totalAge: 31.9,
+>   },
+> ]);
+> ```
 
 ```js
 db.users.updateMany(
@@ -5152,6 +5461,49 @@ db.users.updateOne(
 
 MongoDB provides powerful operators to update specific elements within arrays.
 
+> **Input Data for this entire section:** The examples below use the `users` collection in the state before upsert/Maria was added. The core documents are:
+>
+> ```js
+> db.users.insertMany([
+>   {
+>     name: "Max",
+>     hobbies: [
+>       { title: "Sports", frequency: 3 },
+>       { title: "Cooking", frequency: 6 },
+>     ],
+>     isSporty: true,
+>   },
+>   {
+>     name: "Manuel",
+>     hobbies: [
+>       { title: "Cars", frequency: 2 },
+>       { title: "Cooking", frequency: 5 },
+>     ],
+>     isSporty: false,
+>     totalAge: 35,
+>   },
+>   {
+>     name: "Anna",
+>     hobbies: [
+>       { title: "Sports", frequency: 2 },
+>       { title: "Yoga", frequency: 3 },
+>     ],
+>     isSporty: true,
+>     totalAge: null,
+>   },
+>   {
+>     name: "Chris",
+>     hobbies: [
+>       { title: "Sports", freq: 5 },
+>       { title: "Cooking", freq: 3 },
+>       { title: "Hiking", freq: 1 },
+>     ],
+>     isSporty: true,
+>     totalAge: 31.9,
+>   },
+> ]);
+> ```
+
 ### The Problem with Simple Queries
 
 **`$and` vs `$elemMatch` for Arrays:**
@@ -5335,6 +5687,16 @@ db.collection.updateMany(
 ### Example: Decrement All Hobby Frequencies
 
 **Scenario:** For users over 30, decrease frequency of all their hobbies by 1.
+
+> **Input Data:** At this stage the `users` collection contains these two users with `totalAge` set (renamed from `age` using `$rename`):
+>
+> ```js
+> // Manuel — totalAge: 35
+> { name: "Manuel", totalAge: 35, hobbies: [{ title: "Cooking", frequency: 5 }, { title: "Cars", frequency: 2 }] }
+>
+> // Chris — totalAge: 31.9  (result of 29 * 1.1 from earlier $mul example)
+> { name: "Chris",  totalAge: 31.9, hobbies: [{ title: "Sports", freq: 5 }, { title: "Cooking", freq: 3 }, { title: "Hiking", freq: 1 }] }
+> ```
 
 **Step 1: Find Users Over 30**
 
@@ -5590,6 +5952,34 @@ db.collection.updateMany(
 ### Complete Example
 
 **Scenario:** Add `goodFrequency: true` to all hobbies with frequency > 2.
+
+> **Input Data:** The `users` collection at this point (after all prior update ops + Maria was upserted):
+>
+> ```js
+> db.users.insertMany([
+>   {
+>     name: "Maria",
+>     hobbies: [{ title: "Cooking", frequency: 3 }],
+>     isSporty: true,
+>   },
+>   {
+>     name: "Anna",
+>     hobbies: [
+>       { title: "Sports", frequency: 5 },
+>       { title: "Reading", frequency: 1 },
+>     ],
+>     isSporty: true,
+>   },
+>   {
+>     name: "Max",
+>     hobbies: [
+>       { title: "Gaming", frequency: 4 },
+>       { title: "Coding", frequency: 5 },
+>     ],
+>     isSporty: true,
+>   },
+> ]);
+> ```
 
 **Step 1: Find Users with High-Frequency Hobbies**
 
@@ -6576,6 +6966,21 @@ db.collection.updateOne({ filter }, { $addToSet: { arrayField: value } });
 
 ### Basic Usage
 
+> **Input Data:** Maria was created via upsert in an earlier step. At the start of the `$addToSet` examples her `hobbies` array looks like this (after prior `$push` and `$pull` operations reduced it back):
+>
+> ```js
+> // Maria's document before $addToSet examples:
+> {
+>   name: "Maria",
+>   age: 29,
+>   hobbies: [
+>     { title: "Hiking",    frequency: 2 },
+>     { title: "Good Wine", frequency: 1 }
+>   ],
+>   isSporty: true
+> }
+> ```
+
 **Example: Add Single Element**
 
 ```js
@@ -7115,6 +7520,40 @@ db.collection.deleteOne(
 
 ---
 
+> **Input Data:** The `users` collection at the start of the Delete Operations section (after all prior update examples). This matches the state used throughout all delete examples below:
+>
+> ```js
+> db.users.insertMany([
+>   {
+>     name: "Max",
+>     isSporty: true,
+>     // phone was removed by $unset, age was renamed to totalAge but then removed by Chris's $mul
+>   },
+>   {
+>     name: "Manuel",
+>     isSporty: false,
+>     totalAge: 35,
+>   },
+>   {
+>     name: "Anna",
+>     isSporty: true,
+>     totalAge: null, // field EXISTS with null value (important for $exists example)
+>   },
+>   {
+>     name: "Chris",
+>     isSporty: true,
+>     totalAge: 31.9,
+>   },
+>   {
+>     name: "Maria",
+>     age: 29,
+>     hobbies: [{ title: "Good food", freq: 3 }],
+>     isSporty: true,
+>     // Maria was created by upsert — note she has 'age', not 'totalAge'
+>   },
+> ]);
+> ```
+
 **Example: Delete Single User**
 
 ```js
@@ -7647,6 +8086,33 @@ Use `explain("executionStats")` to analyze how MongoDB executes a query. Key met
 | `nReturned`           | How many documents were actually returned         |
 
 ---
+
+> **Input Data:** The `contacts` collection is created by importing `persons.json` (5000 documents) using `mongoimport`:
+>
+> ```bash
+> mongoimport persons.json -d contactData -c contacts --jsonArray --drop
+> ```
+>
+> Each document has this shape:
+>
+> ```js
+> {
+>   gender: "male",
+>   name: { title: "mr", first: "Leon", last: "Curtis" },
+>   location: { street: "4656 Park Road", city: "Bradford", ... },
+>   email: "leon.curtis@example.com",
+>   dob: { date: "1952-08-14", age: 65 },   // ← queried field
+>   phone: "016977 8806",
+>   nat: "GB"
+> }
+> ```
+>
+> After importing:
+>
+> ```js
+> use contactData
+> db.contacts.countDocuments()  // 5000 documents
+> ```
 
 **Step 1 — Run the query WITHOUT an index**
 
@@ -8228,3 +8694,693 @@ db.sessions.find();
 ```
 
 > **Note:** The TTL background task removes documents **approximately** on schedule. Documents may persist up to 60 seconds past `expireAfterSeconds`. Do not rely on TTL for exact-second deletion.
+
+### Query Diagnosis and Query Planning
+
+Understanding how MongoDB executes your queries is essential for index optimization. The `explain()` method provides three verbosity levels, each offering different depths of insight.
+
+| Verbosity                | What It Shows                                              |
+| ------------------------ | ---------------------------------------------------------- |
+| `queryPlanner` (default) | Winning plan, index used — no execution stats              |
+| `executionStats`         | Winning plan + time, keys/docs examined, docs returned     |
+| `allPlansExecution`      | Full stats for ALL candidate plans including rejected ones |
+
+**Key Metrics to Evaluate Query Efficiency**
+
+| Metric                | Ideal Value        | Meaning                             |
+| --------------------- | ------------------ | ----------------------------------- |
+| `totalKeysExamined`   | ≈ `nReturned`      | Index is selective                  |
+| `totalDocsExamined`   | ≈ `nReturned`      | Fetching only needed docs           |
+| `totalDocsExamined`   | `0`                | Covered query — no doc fetch needed |
+| `executionTimeMillis` | As low as possible | Query execution time                |
+
+> **Rule of Thumb:** Keys examined and docs examined should be close to docs returned. If far apart, the index may not be selective enough for this query.
+
+---
+
+#### Understanding Covered Queries
+
+A **covered query** is one that can be answered entirely from the index — MongoDB never touches the actual collection documents. This is the most efficient query possible.
+
+**How to achieve a covered query:**
+
+1. Filter on an indexed field
+2. Project **only** the indexed field(s) — explicitly exclude `_id` with `_id: 0`
+3. Do NOT request any non-indexed fields
+
+When these conditions are met, `totalDocsExamined` drops to `0`.
+
+---
+
+**Step 1 — Setup: insert sample documents and create index**
+
+```js
+db.customers.insertMany([
+  { name: "Max", age: 29, salary: 3000 },
+  { name: "Manu", age: 30, salary: 4000 },
+]);
+
+db.customers.createIndex({ name: 1 });
+```
+
+---
+
+**Step 2 — Normal IXSCAN query (FETCH stage still required)**
+
+```js
+db.customers.explain("executionStats").find({ name: "Max" });
+```
+
+```js
+// Result: index used, but MongoDB still fetches the full document
+"winningPlan": {
+  "stage": "FETCH",           // must fetch document from collection
+  "inputStage": {
+    "stage": "IXSCAN",
+    "keyPattern": { "name": 1 }
+  }
+},
+"executionStats": {
+  "nReturned": 1,
+  "executionTimeMillis": 12,
+  "totalKeysExamined": 1,
+  "totalDocsExamined": 1      // one document fetched from disk
+}
+```
+
+---
+
+**Step 3 — Covered query (project only the indexed field)**
+
+```js
+db.customers.explain("executionStats").find(
+  { name: "Max" },
+  { _id: 0, name: 1 }, // only return indexed field, exclude _id
+);
+```
+
+```js
+// Result: no document fetch — answered entirely from the index
+"executionStats": {
+  "nReturned": 1,
+  "executionTimeMillis": 3,   // faster — no disk access
+  "totalKeysExamined": 1,
+  "totalDocsExamined": 0      // covered query: zero docs examined
+}
+```
+
+> **When to use:** If a query always returns only specific fields that happen to be indexed, create a compound index on exactly those fields. Projecting them (with `_id: 0`) achieves a covered query — MongoDB reads the answer from the B-tree without touching the collection at all.
+
+---
+
+#### How MongoDB Rejects a Plan
+
+When multiple indexes could satisfy a query, MongoDB uses a **plan racing** mechanism to select the most efficient one.
+
+**Plan Selection Process**
+
+| Step                   | What Happens                                                        |
+| ---------------------- | ------------------------------------------------------------------- |
+| 1. Identify candidates | MongoDB finds all indexes relevant to the query fields              |
+| 2. Race                | All candidate plans run in parallel; first to return ~101 docs wins |
+| 3. Cache winner        | The winning plan is cached for this exact query shape               |
+| 4. Reuse               | Future identical queries skip the race and use the cached plan      |
+
+**When the Plan Cache is Cleared**
+
+| Trigger                      | Reason                                                               |
+| ---------------------------- | -------------------------------------------------------------------- |
+| ~1,000 new documents written | Collection changed significantly — old plan may no longer be optimal |
+| Index dropped and recreated  | Index structure changed                                              |
+| New index added              | New candidate may outperform the cached winner                       |
+| MongoDB server restarted     | Cache is in-memory only, not persisted to disk                       |
+
+---
+
+**Example — Compound index wins over single-field index**
+
+```js
+// Existing index: { name: 1 }
+// Add a compound index
+db.customers.createIndex({ age: 1, name: 1 });
+
+// Query uses both fields — note: field ORDER in the query does not matter
+db.customers.explain().find({ name: "Max", age: 30 });
+```
+
+```js
+// Result: compound index wins; single-field name index is rejected
+"winningPlan": {
+  "stage": "FETCH",
+  "inputStage": {
+    "stage": "IXSCAN",
+    "keyPattern": { "age": 1, "name": 1 },  // compound index used
+    "indexName": "age_1_name_1"
+  }
+},
+"rejectedPlans": [
+  {
+    "stage": "FETCH",
+    "inputStage": {
+      "stage": "IXSCAN",
+      "keyPattern": { "name": 1 },           // single-field index rejected
+      "indexName": "name_1"
+    }
+  }
+]
+```
+
+```js
+// See full execution stats for ALL plans including rejected ones
+db.customers.explain("allPlansExecution").find({ name: "Max", age: 30 });
+```
+
+> **Note:** Query field order does not matter — `{ name: "Max", age: 30 }` and `{ age: 30, name: "Max" }` both use the same `age_1_name_1` compound index. MongoDB normalizes the AND conditions automatically.
+
+---
+
+#### Using Multi Key Index
+
+A **multi-key index** is an index on an **array field**. MongoDB detects the array automatically and stores each element as a separate entry in the index — no special syntax needed.
+
+**How Multi-Key Indexes Work**
+
+| Aspect              | Details                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| Trigger             | Any `createIndex()` on a field that holds an array                   |
+| Storage             | Each array element → one entry in the index                          |
+| `isMultiKey` flag   | Set to `true` in `explain()` output                                  |
+| Size impact         | Larger than single-field indexes (elements × docs)                   |
+| Nested field access | Index `"addresses.street"` for sub-fields inside objects in an array |
+
+**Compound Index Restriction**
+
+| Combination                                            | Allowed?                            |
+| ------------------------------------------------------ | ----------------------------------- |
+| One array field + one non-array field                  | Yes                                 |
+| Two array fields in one compound index                 | No — "cannot index parallel arrays" |
+| Multiple separate multi-key indexes on same collection | Yes                                 |
+
+---
+
+**Step 1 — Insert document with array fields**
+
+```js
+db.dummyContacts.insertOne({
+  name: "Max",
+  hobbies: ["Cooking", "Sports"],
+  addresses: [{ street: "Main Street" }, { street: "Second Street" }],
+});
+```
+
+---
+
+**Step 2 — Create and use multi-key index on primitive array**
+
+```js
+db.dummyContacts.createIndex({ hobbies: 1 });
+
+db.dummyContacts.explain("executionStats").find({ hobbies: "Sports" });
+```
+
+```js
+// Result: IXSCAN with isMultiKey: true
+"winningPlan": {
+  "stage": "FETCH",
+  "inputStage": {
+    "stage": "IXSCAN",
+    "keyPattern": { "hobbies": 1 },
+    "indexName": "hobbies_1",
+    "isMultiKey": true,                      // confirms multi-key index
+    "multiKeyPaths": { "hobbies": ["hobbies"] }
+  }
+}
+```
+
+---
+
+**Step 3 — Index on array of objects: whole document vs. nested field**
+
+```js
+db.dummyContacts.createIndex({ addresses: 1 });
+
+// Dot-notation query — does NOT use index (index holds whole objects, not sub-fields)
+db.dummyContacts
+  .explain("executionStats")
+  .find({ "addresses.street": "Main Street" });
+```
+
+```js
+// Result: COLLSCAN — the index stores full address objects, not individual sub-fields
+"winningPlan": {
+  "stage": "COLLSCAN"          // falls back to collection scan
+}
+```
+
+```js
+// Whole-document match — DOES use the index
+db.dummyContacts.explain("executionStats").find({
+  addresses: { street: "Main Street" },
+});
+```
+
+```js
+// Result: IXSCAN — whole embedded document matched against index entry
+"winningPlan": {
+  "stage": "FETCH",
+  "inputStage": {
+    "stage": "IXSCAN",
+    "keyPattern": { "addresses": 1 },
+    "indexName": "addresses_1"
+  }
+}
+```
+
+---
+
+**Step 4 — Index on nested field path inside array of objects**
+
+```js
+// Index directly on the nested field path using dot notation
+db.dummyContacts.createIndex({ "addresses.street": 1 });
+
+// Now dot-notation queries use the index
+db.dummyContacts
+  .explain("executionStats")
+  .find({ "addresses.street": "Main Street" });
+```
+
+```js
+// Result: IXSCAN on nested path, isMultiKey: true
+"winningPlan": {
+  "stage": "FETCH",
+  "inputStage": {
+    "stage": "IXSCAN",
+    "keyPattern": { "addresses.street": 1 },
+    "indexName": "addresses.street_1",
+    "isMultiKey": true,
+    "multiKeyPaths": { "addresses.street": ["addresses"] }
+  }
+}
+```
+
+---
+
+**Step 5 — Compound index: one array field is allowed**
+
+```js
+// Allowed — one array field (hobbies) + one non-array field (name)
+db.dummyContacts.createIndex({ name: 1, hobbies: 1 });
+// creates index: name_1_hobbies_1
+```
+
+```js
+// Not allowed — two array fields in one compound index
+db.dummyContacts.createIndex({ addresses: 1, hobbies: 1 });
+```
+
+```js
+// Error: cannot index parallel arrays
+// "caused by :: cannot index parallel arrays [hobbies] [addresses]"
+```
+
+> **Why parallel arrays are forbidden:** MongoDB would need to store the Cartesian product of both arrays. With 2 addresses x 5 hobbies = 10 index entries per document — growing exponentially with array sizes. You can have multiple separate multi-key indexes on the same collection, but a single compound index can only include **one** array field.
+
+
+### Understanding `text` Index
+
+A **text index** is a special multi-key index that tokenizes a text field into individual keywords, removes stop words (e.g. "is", "the", "a"), and stems words (strips prefixes/suffixes). It enables fast full-text keyword search — far more performant than regex.
+
+**Key Characteristics**
+
+| Feature | Details |
+|---|---|
+| Index type | Special multi-key index on a string field |
+| Storage | Field value is split into stemmed keywords; stop words discarded |
+| Syntax | `createIndex({ field: "text" })` — use the string `"text"`, not `1` or `-1` |
+| One per collection | Only **one** text index allowed per collection (can span multiple fields) |
+| Case sensitivity | Case-insensitive by default |
+| Query operator | `$text: { $search: "..." }` — no need to specify the field name |
+
+**Search Modes**
+
+| Query | Behaviour |
+|---|---|
+| `$search: "awesome"` | Find docs containing the word *awesome* |
+| `$search: "red book"` | Find docs containing *red* **or** *book* (OR logic) |
+| `$search: '"awesome book"'` | Find docs containing the exact phrase *awesome book* (wrap in escaped quotes) |
+
+---
+
+**Step 1 — Setup: insert products and create text index**
+
+```js
+db.product.insertMany([
+  { title: "A Book",     description: "This is an awesome book written by a young artist" },
+  { title: "A T-Shirt",  description: "This T-Shirt is in red and it's pretty awesome" }
+]);
+
+// "text" keyword — NOT 1 or -1
+db.product.createIndex({ description: "text" });
+```
+
+---
+
+**Step 2 — Keyword OR search (both words treated independently)**
+
+```js
+db.product.find({ $text: { $search: "red book" } });
+```
+
+```js
+// Result: both documents returned — one has "book", the other has "red"
+[
+  { title: "A Book",    description: "This is an awesome book written by a young artist" },
+  { title: "A T-Shirt", description: "This T-Shirt is in red and it's pretty awesome" }
+]
+```
+
+---
+
+**Step 3 — Exact phrase search (wrap phrase in escaped double quotes)**
+
+```js
+db.product.find({ $text: { $search: '"red book"' } });
+// Result: [] — no document contains the exact phrase "red book"
+
+db.product.find({ $text: { $search: '"awesome book"' } });
+```
+
+```js
+// Result: only the Book document — exact phrase "awesome book" matches
+[
+  { title: "A Book", description: "This is an awesome book written by a young artist" }
+]
+```
+
+> **Why no field name in `$text`?** MongoDB only allows one text index per collection. The `$text` operator automatically searches that single index — you don't specify which field.
+
+---
+
+### Text Indexes and Sorting
+
+When searching text, MongoDB internally calculates a **relevance score** for each result. You can project and sort by this score to return the best matches first.
+
+| Construct | Purpose |
+|---|---|
+| `{ score: { $meta: "textScore" } }` | Add relevance score to projected output |
+| `.sort({ score: { $meta: "textScore" } })` | Sort results by relevance (highest first) |
+
+> Higher score = more keyword matches in the document.
+
+---
+
+**Example — Sort results by relevance score**
+
+```js
+db.product.find(
+  { $text: { $search: "awesome t-shirt" } },
+  { score: { $meta: "textScore" } }   // project the score field
+).sort(
+  { score: { $meta: "textScore" } }   // sort by score descending
+);
+```
+
+```js
+// Result: T-Shirt scores higher (matches both "awesome" AND "t-shirt")
+[
+  {
+    title: "A T-shirt",
+    description: "This T-shirt is in red and it's pretty awesome",
+    score: 1.8    // higher — two keyword matches
+  },
+  {
+    title: "A Book",
+    description: "This is an awesome book written by a young artist",
+    score: 0.6    // lower — only one keyword match
+  }
+]
+```
+
+---
+
+### Creating Combined Text Indexes
+
+Only **one** text index is allowed per collection. To search across multiple fields, **merge** them into a single text index.
+
+| Action | Command |
+|---|---|
+| Create combined index | `createIndex({ title: "text", description: "text" })` |
+| Drop existing text index by name | `dropIndex("<index_name>")` |
+| Get index name | `getIndexes()` |
+
+> You **cannot** add a second separate text index — MongoDB returns "An equivalent index already exists". Drop the existing one and recreate with both fields combined.
+
+---
+
+**Step 1 — Try (and fail) to add a second text index**
+
+```js
+db.product.createIndex({ title: "text" });
+// Error: An equivalent index already exists with a different name and options.
+// Only one text index is permitted per collection.
+```
+
+---
+
+**Step 2 — Drop existing text index and recreate as combined**
+
+```js
+// Get name of existing text index
+db.product.getIndexes();
+// → name: "description_text"
+
+db.product.dropIndex("description_text");
+
+// Create combined index covering both fields
+db.product.createIndex({ title: "text", description: "text" });
+```
+
+---
+
+**Step 3 — Search now covers both title and description**
+
+```js
+db.product.insertOne({ title: "A Ship", description: "Floating perfectly!" });
+
+// "ship" only appears in the title — still found via the combined index
+db.product.find({ $text: { $search: "ship" } });
+```
+
+```js
+// Result: found via title field in the combined index
+[
+  { title: "A Ship", description: "Floating perfectly!" }
+]
+```
+
+---
+
+### Using Text Index to Exclude Words
+
+Prefix a search term with `-` (minus) to **exclude** documents containing that word.
+
+| Query | Behaviour |
+|---|---|
+| `$search: "awesome"` | Find docs with *awesome* |
+| `$search: "awesome -t-shirt"` | Find docs with *awesome* but NOT *t-shirt* |
+
+---
+
+**Example — Exclude a keyword**
+
+```js
+// Without exclusion — both products returned
+db.product.find({ $text: { $search: "awesome" } });
+```
+
+```js
+[
+  { title: "A T-shirt", description: "This T-shirt is in red and it's pretty awesome" },
+  { title: "A Book",    description: "This is an awesome book written by a young artist" }
+]
+```
+
+```js
+// With exclusion — t-shirt documents filtered out
+db.product.find({ $text: { $search: "awesome -t-shirt" } });
+```
+
+```js
+// Result: only the Book — "t-shirt" excluded
+[
+  { title: "A Book", description: "This is an awesome book written by a young artist" }
+]
+```
+
+---
+
+### Setting Default Language and Using Weights
+
+When creating a text index you can configure two important options:
+
+**`default_language`** — controls how words are stemmed and which stop words are removed. Defaults to `"english"`. Set it to match the actual language of your data.
+
+**`weights`** — assign relative importance to each field in a combined text index. Affects the relevance score used for sorting.
+
+| Option | Default | Effect |
+|---|---|---|
+| `default_language` | `"english"` | Determines stemming rules and stop words |
+| `weights: { field: N }` | `1` for all fields | Higher weight → higher score contribution |
+| `$caseSensitive: true` | `false` | Enable case-sensitive text search |
+
+---
+
+**Step 1 — Create a text index with language and weights**
+
+```js
+db.product.createIndex(
+  { title: "text", description: "text" },
+  {
+    default_language: "english",
+    weights: { title: 1, description: 10 }  // description weighs 10x more than title
+  }
+);
+```
+
+---
+
+**Step 2 — Search with score projection (weights affect score)**
+
+```js
+db.product.find(
+  { $text: { $search: "red" } },
+  { score: { $meta: "textScore" } }
+);
+```
+
+```js
+// Result: score is higher because "description" has weight 10
+[
+  {
+    title: "A T-shirt",
+    description: "This T-shirt is in red and it's pretty awesome",
+    score: 6    // boosted by description weight of 10
+  }
+]
+```
+
+---
+
+**Step 3 — Case-sensitive search**
+
+```js
+// Default: case-insensitive — "Red" and "red" are equivalent
+db.product.find(
+  { $text: { $search: "Red", $caseSensitive: true } },
+  { score: { $meta: "textScore" } }
+);
+// Result: [] — "Red" (capital R) not found (document stores "red" lowercase in index)
+```
+
+---
+
+**Step 4 — Inspect the index to verify weights**
+
+```js
+db.product.getIndexes();
+```
+
+```js
+[
+  { key: { _id: 1 }, name: "_id_" },
+  {
+    key: { _fts: "text", _ftsx: 1 },
+    name: "title_text_description_text",
+    weights: { description: 10, title: 1 },
+    default_language: "english",
+    textIndexVersion: 3
+  }
+]
+```
+
+> **Weights are for scoring, not filtering.** They influence the relevance sort order but do not change which documents are returned.
+
+---
+
+### Building Indexes
+
+MongoDB supports two modes for index creation. The correct choice depends on whether the collection is in active use.
+
+**Foreground vs Background**
+
+| Mode | Speed | Collection locked? | Use case |
+|---|---|---|---|
+| Foreground (default) | Faster | Yes — reads & writes blocked during creation | Development / small collections |
+| Background (`{ background: true }`) | Slower | No — collection remains accessible | Production databases |
+
+> In newer MongoDB versions (4.2+) all index builds are performed without fully blocking the collection, but `background: true` was the way to achieve this in older versions and remains good practice to know.
+
+---
+
+**Step 1 — Load test data (1 million documents)**
+
+```js
+// credit-rating.js inserts 1,000,000 documents into db.ratings
+// Each document: { personId: N, age: N, score: N }
+db.ratings.find().count();   // → 1000000
+```
+
+---
+
+**Step 2 — Foreground index creation (blocks collection)**
+
+```js
+db.ratings.createIndex({ age: 1 });
+// Collection is LOCKED during creation — other queries are deferred until done
+```
+
+---
+
+**Step 3 — Query with index vs without index**
+
+```js
+// With index
+db.ratings.explain("executionStats").find({ age: { $gt: 80 } });
+```
+
+```js
+"executionStats": {
+  "nReturned": 99761,
+  "executionTimeMillis": 208,   // 208ms with index
+  "totalKeysExamined": 99761,
+  "totalDocsExamined": 99761
+}
+```
+
+```js
+// Drop index and re-run same query
+db.ratings.dropIndex({ age: 1 });
+db.ratings.explain("executionStats").find({ age: { $gt: 80 } });
+```
+
+```js
+"executionStats": {
+  "nReturned": 99761,
+  "executionTimeMillis": 506,   // 506ms without index — 2.4x slower
+  "totalKeysExamined": 0,
+  "totalDocsExamined": 1000000  // full collection scan
+}
+```
+
+---
+
+**Step 4 — Background index creation (non-blocking)**
+
+```js
+// background: true — collection stays accessible during index build
+db.ratings.createIndex({ age: 1 }, { background: true });
+// Reads and writes proceed normally while the index is being built
+```
+
+> **When to use background:** Always prefer `{ background: true }` when adding indexes on production collections. Foreground mode is twice as fast but locks the entire collection, blocking all application reads and writes until the build completes.

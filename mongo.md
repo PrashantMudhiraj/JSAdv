@@ -1,5 +1,7 @@
 # MongoDB
 
+---
+
 ## Table of Contents
 
 - [JSON(BSON) Data Format](#jsonbson-data-format)
@@ -35,7 +37,7 @@
 - [Removing Elements from Arrays](#removing-elements-from-arrays)
 - [The `$addToSet` Operator](#the-addtoset-operator)
 - [Update Operations Module Summary](#update-operations-module-summary)
-- [Delete Operations](#delete-operations)
+- [Delete Operations](#delete-operations-deep-dive)
 - [Indexes](#indexes)
   - [Why Indexes?](#why-indexes)
   - [Adding a Single Field Index](#adding-a-single-field-index)
@@ -97,10 +99,12 @@ MongoDB offers a comprehensive ecosystem of tools and services:
 ### MongoDB Database Options
 
 1. **Self-Managed/Enterprise**
+
    - Install and manage on your own servers
    - **CloudManager/OpsManager**: Tools for monitoring and automating database operations
 
 2. **Atlas (Cloud)**
+
    - Fully managed cloud database service (DBaaS - Database as a Service)
    - Available on AWS, Azure, and Google Cloud
    - Automatic backups, scaling, and monitoring
@@ -154,7 +158,8 @@ MongoDB Server
 
 **Explanation:**
 
-1. **Memory Storage**
+1. **Memory Storage\*\*\*\***
+
    - Data is read into RAM for fast access
    - Write operations first go to memory
    - Extremely fast but volatile (lost on restart)
@@ -180,7 +185,7 @@ CRUD stands for **Create**, **Read**, **Update**, and **Delete** - the four basi
 
 Use these methods to insert new documents into a collection:
 
-#### `insertOne(data, options)`
+#### _`insertOne(data, options)`_
 
 Inserts a single document into a collection.
 
@@ -188,7 +193,7 @@ Inserts a single document into a collection.
 db.users.insertOne({ name: "John", age: 30 });
 ```
 
-#### `insertMany(data, options)`
+#### _`insertMany(data, options)`_
 
 Inserts multiple documents at once.
 
@@ -205,7 +210,7 @@ db.users.insertMany([
 
 Retrieve documents from a collection using these methods:
 
-#### `find(filter, options)`
+#### _`find(filter, options)`_
 
 Returns all documents that match the filter criteria.
 
@@ -214,13 +219,13 @@ Returns all documents that match the filter criteria.
 - To get all documents: use `.toArray()` or `.forEach()`
 - Cursors are efficient for large datasets (they load data in batches)
 
-#### `findOne(filter, options)`
+#### _`findOne(filter, options)`_
 
 Returns the first document that matches the filter.
 
 ---
 
-#### Query Examples
+#### _Query Examples_
 
 **Comparison Operators:**
 
@@ -271,25 +276,25 @@ db.flightData.find({ "status.details.responsible": "Prashant" });
 
 Modify existing documents in a collection:
 
-#### `updateOne(filter, data, options)`
+#### _`updateOne(filter, data, options)`_
 
 Updates the first document that matches the filter.
 
-#### `updateMany(filter, data, options)`
+#### _`updateMany(filter, data, options)`_
 
 Updates all documents that match the filter.
 
-#### `replaceOne(filter, data, options)`
+#### _`replaceOne(filter, data, options)`_
 
 Replaces an entire document with new data.
 
-#### `update(filter, data, options)` _(Legacy - Avoid)_
+#### _`update(filter, data, options)` *(Legacy - Avoid)*_
 
 Older method that overrides complete data; use `updateOne` or `updateMany` instead.
 
 ---
 
-#### Update Examples
+#### _Update Examples_
 
 **Update Operators:**
 
@@ -302,14 +307,14 @@ db.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
 
 db.flightData.updateMany(
   {}, // empty filter = match all
-  { $set: { marker: "delete" } },
+  { $set: { marker: "delete" } }
 );
 
 // Update an array field
 
 db.passengers.updateOne(
   { name: "Albert Twostone" },
-  { $set: { hobbies: ["Sports", "Cooking"] } },
+  { $set: { hobbies: ["Sports", "Cooking"] } }
 );
 ```
 
@@ -327,7 +332,7 @@ db.passengers.updateOne(
 
 Remove documents from a collection:
 
-#### `deleteOne(filter, options)`
+#### _`deleteOne(filter, options)`_
 
 Deletes the first document that matches the filter.
 
@@ -335,7 +340,7 @@ Deletes the first document that matches the filter.
 db.users.deleteOne({ name: "John" });
 ```
 
-#### `deleteMany(filter, options)`
+#### _`deleteMany(filter, options)`_
 
 Deletes all documents that match the filter.
 
@@ -505,6 +510,24 @@ db.companies.insertOne({
 
 MongoDB offers two main approaches to model relationships between data:
 
+```mermaid
+flowchart LR
+    subgraph EMB ["Option 1 — Embedded"]
+        direction TB
+        DOC["users collection<br/>─────────────────<br/>_id: 1<br/>name: 'Max'<br/>address: {<br/>  street: '2nd St',<br/>  city: 'NYC'<br/>}"]
+    end
+
+    subgraph REF ["Option 2 — Referenced"]
+        direction LR
+        U["users<br/>──────────<br/>_id: 1<br/>name: 'Max'<br/>addressId: 101"]
+        A["addresses<br/>──────────────<br/>_id: 101<br/>street: '2nd St'<br/>city: 'NYC'"]
+        U -->|"references"| A
+    end
+
+    EMB -->|"One query — all data"| X(" ")
+    REF -->|"Two queries — data is split"| X
+```
+
 ### 1. Nested/Embedded Documents
 
 **Approach:** Store related data directly within the parent document.
@@ -597,6 +620,22 @@ MongoDB offers two main approaches to model relationships between data:
 
 **Use Case:** User profile with address (always accessed together)
 
+```mermaid
+flowchart TD
+    subgraph DOC ["Single Document — users collection"]
+        direction TB
+        F1["_id: ObjectId('u1')"]
+        F2["name: 'Max'"]
+        F3["age: 29"]
+        subgraph ADDR ["address  (embedded sub-document)"]
+            direction LR
+            A1["street: '2nd St'"] --- A2["city: 'NYC'"]
+        end
+    end
+    style ADDR fill:#d4edda,color:#000
+    style DOC fill:#cce5ff,color:#000
+```
+
 ```js
 {
   userName: 'max',
@@ -624,6 +663,19 @@ MongoDB offers two main approaches to model relationships between data:
 ### One-to-One Relation - Referenced
 
 **Use Case:** Person owns one car; car belongs to one person
+
+```mermaid
+flowchart LR
+    subgraph PC ["persons collection"]
+        P["_id: ObjectId('abc123')<br/>name: 'Max'<br/>age: 29"]
+    end
+    subgraph CC ["cars collection"]
+        C["_id: ObjectId('xyz789')<br/>model: 'BMW'<br/>price: 40000<br/>owner: ObjectId('abc123')"]
+    end
+    C -->|"owner points to _id"| P
+    style P fill:#d4edda,color:#000
+    style C fill:#fff3cd,color:#000
+```
 
 **Example:**
 
@@ -680,6 +732,21 @@ db.cars.findOne()
 
 **Use Case:** One question thread has many answers; each answer belongs to only that thread.
 
+```mermaid
+flowchart TD
+    subgraph THREAD ["Single Document — questionThreads collection"]
+        direction TB
+        Q["creator: 'Max'</br>question: 'How does that all work?'"]
+        subgraph ARR ["answers  (embedded array)"]
+            direction LR
+            A1["[0] text: 'Like That'"] --- A2["[1] text: 'Thanks'"]
+        end
+        Q --> ARR
+    end
+    style ARR fill:#d4edda,color:#000
+    style THREAD fill:#cce5ff,color:#000
+```
+
 ```js
 support>
 db.questionThreads.insertOne({
@@ -728,6 +795,22 @@ db.questionThreads.find()
 ### One-to-Many Referenced
 
 **Use Case:** One city has many citizens; each citizen belongs to one city.
+
+```mermaid
+flowchart LR
+    subgraph CITIES ["cities collection"]
+        NYC["_id: ObjectId('c1')<br/>name: 'New York City'"]
+    end
+    subgraph CITIZENS ["citizens collection"]
+        P1["_id: ObjectId('p1')<br/>name: 'Prashant'<br/>cityId: ObjectId('c1')"]
+        P2["_id: ObjectId('p2')<br/>name: 'XYZ'<br/>cityId: ObjectId('c1')"]
+    end
+    P1 -->|"cityId → _id"| NYC
+    P2 -->|"cityId → _id"| NYC
+    style NYC fill:#d4edda,color:#000
+    style P1 fill:#fff3cd,color:#000
+    style P2 fill:#fff3cd,color:#000
+```
 
 ```js
 // Cities Collection
@@ -806,6 +889,26 @@ db.citizens.find({ cityId: cityId })`
 ### Many-to-Many Embedded
 
 **Use Case:** Customers can order multiple products; products can be ordered by multiple customers.
+
+```mermaid
+flowchart LR
+    subgraph PROD ["products collection (source of truth)"]
+        BOOK["_id: ObjectId('b1')<br/>title: 'A Book'<br/>price: 12.99"]
+    end
+    subgraph CUST ["customers collection"]
+        subgraph CDOC ["Customer Document"]
+            direction TB
+            CI["name: 'Prashant', age: 29"]
+            subgraph ORD ["orders (embedded array — snapshot)"]
+                O1["title: 'A Book'<br/>price: 12.99<br/>quantity: 2"]
+            end
+        end
+    end
+    BOOK -. "copied at order time (price may change later)" .-> O1
+    style BOOK fill:#d4edda,color:#000
+    style ORD fill:#fff3cd,color:#000
+    style CDOC fill:#cce5ff,color:#000
+```
 
 ```js
 // Products Collection
@@ -889,6 +992,28 @@ db.customers.find()
 
 **Use Case:** Students can enroll in multiple courses; courses can have multiple students.
 
+```mermaid
+flowchart LR
+    subgraph SC ["students collection"]
+        S1["Alice<br/>courseIds: [c1, c2]"]
+        S2["Bob<br/>courseIds: [c1, c3]"]
+    end
+    subgraph CC ["courses collection"]
+        C1["MongoDB Basics<br/>studentIds: [s1, s2]"]
+        C2["Advanced Queries<br/>studentIds: [s1]"]
+        C3["Data Modeling<br/>studentIds: [s2]"]
+    end
+    S1 -->|"enrolled"| C1
+    S1 -->|"enrolled"| C2
+    S2 -->|"enrolled"| C1
+    S2 -->|"enrolled"| C3
+    style S1 fill:#cce5ff,color:#000
+    style S2 fill:#cce5ff,color:#000
+    style C1 fill:#d4edda,color:#000
+    style C2 fill:#d4edda,color:#000
+    style C3 fill:#d4edda,color:#000
+```
+
 ```js
 // Students Collection
 [
@@ -949,11 +1074,61 @@ db.customers.find()
 - **Embed** when you have "contains" relationships (car has engine)
 - **Reference** when you have "references" relationships (author references books)
 
+### Decision Flowchart
+
+```mermaid
+flowchart TD
+    A["Do you always fetch parent + related data together?"] -->|Yes| B
+    A -->|No — queried separately| REF
+
+    B["Is the related data small and bounded?"] -->|Yes| C
+    B -->|No — could grow large| REF
+
+    C["Will the document stay under 16 MB?"] -->|Yes| D
+    C -->|No| REF
+
+    D["Is a data snapshot OK? e.g. order price at purchase time"] -->|Yes| EMB
+    D -->|No — need live/current data| REF
+
+    EMB["Use EMBEDDED"]
+    REF["Use REFERENCED"]
+
+    style EMB fill:#27ae60,color:#fff
+    style REF fill:#2980b9,color:#fff
+```
+
 ---
 
 ## Joining with $lookup
 
 The `$lookup` aggregation stage performs a **left outer join** between collections, allowing you to combine referenced data into a single result document.
+
+```mermaid
+flowchart TD
+    subgraph IN ["Input — citizens collection"]
+        C1["{ name: 'Prashant', cityId: ObjectId('c1') }"]
+        C2["{ name: 'XYZ',      cityId: ObjectId('c1') }"]
+    end
+
+    LK["$lookup stage<br/>─────────────────────<br/>from:         'cities'<br/>localField:   'cityId'<br/>foreignField: '_id'<br/>as:           'cityDetails'"]
+
+    subgraph FK ["Foreign — cities collection"]
+        CITY["{ _id: ObjectId('c1'), name: 'New York City' }"]
+    end
+
+    subgraph OUT ["Output — merged result"]
+        R1["{ name: 'Prashant',<br/>  cityId: ObjectId('c1'),<br/>  cityDetails: [{ name: 'New York City' }] }"]
+    end
+
+    IN --> LK
+    FK -->|"matched by _id"| LK
+    LK --> OUT
+
+    style LK fill:#fff3cd,color:#000
+    style IN fill:#cce5ff,color:#000
+    style FK fill:#d4edda,color:#000
+    style OUT fill:#f8d7da,color:#000
+```
 
 ### How $lookup Works
 
@@ -1498,7 +1673,7 @@ MongoDB provides powerful command-line tools for server administration and datab
 
 The `mongod` process is the core database server that handles data requests, manages data access, and performs background operations.
 
-#### Getting Help
+#### _Getting Help_
 
 ```bash
 mongod --help
@@ -1508,7 +1683,7 @@ Lists all available server options and configurations.
 
 ---
 
-#### Essential Server Options
+#### _Essential Server Options_
 
 **1. Database and Log Paths**
 
@@ -1519,8 +1694,7 @@ mongod --dbpath <path-to-data> --logpath <path-to-log-file>
 **Example:**
 
 ```bash
-mongod --dbpath /data/
- --logpath /var/log/mongodb/mongod.log
+mongod --dbpath /data/ --logpath /var/log/mongodb/mongod.log
 ```
 
 **Explanation:**
@@ -1593,7 +1767,7 @@ net:
 
 The MongoDB shell (`mongosh` or legacy `mongo`) connects to MongoDB servers and allows interactive queries.
 
-#### Common Shell Options
+#### _Common Shell Options_
 
 **1. No Database Connection (`--nodb`)**
 
@@ -1674,7 +1848,7 @@ MongoDB provides multiple methods for inserting documents into collections.
 
 ### Creating Documents - Methods Overview
 
-#### 1. `insertOne(document, options)`
+#### _1. `insertOne(document, options)`_
 
 Inserts a single document into a collection.
 
@@ -1709,7 +1883,7 @@ db.users.insertOne({
 
 ---
 
-#### 2. `insertMany(documents, options)`
+#### _2. `insertMany(documents, options)`_
 
 Inserts multiple documents in a single operation.
 
@@ -1754,7 +1928,7 @@ db.users.insertMany([
 
 ---
 
-#### 3. `insert()` _(Deprecated - Avoid)_
+#### _3. `insert()` *(Deprecated - Avoid)*_
 
 **Legacy method** that works for both single and multiple documents.
 
@@ -1774,7 +1948,7 @@ db.collectionName.insert([{...}, {...}])      // Multiple
 
 ---
 
-#### 4. `mongoimport` Command-Line Tool
+#### _4. `mongoimport` Command-Line Tool_
 
 Import data from JSON, CSV, or TSV files into MongoDB.
 
@@ -1819,7 +1993,7 @@ mongoimport -d sales -c products --type csv --headerline --file products.csv
 
 When using `insertMany()`, you can control what happens when an error occurs during bulk insert.
 
-#### Default Behavior: Ordered Inserts
+#### _Default Behavior: Ordered Inserts_
 
 By default, `insertMany()` is **ordered** - it inserts documents sequentially and stops at the first error.
 
@@ -1890,7 +2064,7 @@ hobbies >
 
 ---
 
-#### Unordered Inserts
+#### _Unordered Inserts_
 
 Set `ordered: false` to continue inserting even after errors.
 
@@ -1951,7 +2125,7 @@ hobbies >
 
 ---
 
-#### Comparison Table
+#### _Comparison Table_
 
 | Aspect              | Ordered (`true`)    | Unordered (`false`)   |
 | ------------------- | ------------------- | --------------------- |
@@ -1964,7 +2138,7 @@ hobbies >
 
 ---
 
-#### When to Use Each
+#### _When to Use Each_
 
 **Use Ordered Inserts When:**
 
@@ -2001,12 +2175,12 @@ try {
 
 **Write Concern** controls the level of acknowledgment requested from MongoDB for write operations. It determines how "confident" you can be that data is safely stored.
 
-#### How MongoDB Writes Data
+#### _How MongoDB Writes Data_
 
 ```
 Client (Shell/Driver)
   ↓
-  insertOne()
+insertOne()
   ↓
 MongoDB Server (mongod)
   ↓
@@ -2027,7 +2201,195 @@ Data Files (Disk) ← Permanent storage
 
 ---
 
-#### Write Concern Options
+#### _Storage Engine, Memory, Journal & Data Files_
+
+MongoDB does not write directly to disk on every operation — that would be far too slow. Instead, the **WiredTiger storage engine** manages a layered pipeline between your write command and permanent storage.
+
+---
+
+**Architecture Diagram**
+
+```mermaid
+flowchart TD
+    A([Client / Application]) -->|"insertOne / updateOne / deleteOne"| B[mongod Process]
+
+    subgraph SE["WiredTiger Storage Engine"]
+        direction TB
+
+        subgraph MEM["MEMORY  RAM - volatile"]
+            C["WiredTiger Cache</br>~50% of available RAM</br>Fast - lost on crash"]
+        end
+
+        subgraph DSK["DISK - durable"]
+            D["Journal  WAL</br>Sequential append-only log</br>Survives crash"]
+            E["Data Files  .wt</br>Actual persistent storage</br>Written every 60s checkpoint"]
+        end
+
+        B --> C
+        C -->|"Every 100ms</br>or j:true = immediate"| D
+        C -->|"Checkpoint every 60s"| E
+
+        R["Crash Recovery</br>On restart: replay journal</br>rebuilds dirty cache pages"]
+        D -.-> R
+        R -.-> C
+    end
+
+    C -->|"w:1 ack - Memory only"| ACK2(["Ack: w:1</br>fast, not crash-safe"])
+    D -->|"j:true ack - written to Disk"| ACK1(["Ack: j:true</br>crash-safe"])
+
+    style C fill:#fff3cd,stroke:#ffc107,color:#000
+    style D fill:#d1ecf1,stroke:#17a2b8,color:#000
+    style E fill:#d4edda,stroke:#28a745,color:#000
+    style R fill:#f8d7da,stroke:#dc3545,color:#000
+    style MEM fill:#fffde7,stroke:#ffc107,color:#333
+    style DSK fill:#e8f5e9,stroke:#28a745,color:#333
+    style SE fill:#f8f9fa,stroke:#6c757d
+```
+
+---
+
+**1. Storage Engine — WiredTiger**
+
+WiredTiger is MongoDB's default storage engine (since v3.2). It sits between your application and the raw disk, managing everything about how data is stored, retrieved, and recovered.
+
+| Responsibility   | Details                                                            |
+| ---------------- | ------------------------------------------------------------------ |
+| Cache management | Allocates ~50% of RAM (min 1 GB) as an in-memory page cache        |
+| Compression      | Snappy compression on data files by default; zlib/zstd optional    |
+| Encryption       | Supports at-rest encryption (Enterprise only)                      |
+| Concurrency      | Document-level locking — multiple writes can happen simultaneously |
+| Checkpointing    | Periodically flushes dirty cache pages to data files (every 60s)   |
+| Crash recovery   | Replays the journal on startup to recover any uncommitted changes  |
+
+---
+
+**2. Memory (WiredTiger Cache)**
+
+Every write operation lands in RAM first — this is the WiredTiger in-memory cache.
+
+| Aspect               | Details                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| Default size         | `max(50% of RAM − 1 GB, 256 MB)`                                          |
+| Speed                | Nanosecond access — extremely fast                                        |
+| Durability           | **Volatile** — lost on power loss or crash                                |
+| Dirty pages          | Modified pages are flagged "dirty" until flushed to journal or data files |
+| Acknowledgment point | `w: 1` (default write concern) confirms once data reaches here            |
+
+> When `{ w: 1, j: false }` (the default), MongoDB acknowledges your write as soon as it hits RAM. If the server crashes in the next 100ms before the journal is written, that write is **lost**.
+
+---
+
+**3. Journal (Write-Ahead Log — WAL)**
+
+The journal is a sequential, append-only log file on disk. It is the **safety net** between memory and data files.
+
+| Aspect               | Details                                                             |
+| -------------------- | ------------------------------------------------------------------- |
+| Location             | `mongodb-data/journal/` directory                                   |
+| Write frequency      | Every **100ms** automatically, OR immediately when `j: true`        |
+| Format               | Sequential binary log — each entry records the exact change         |
+| Purpose              | Enables crash recovery — MongoDB replays journal on restart         |
+| Size                 | Each journal file is max 100 MB; old files deleted after checkpoint |
+| Acknowledgment point | `j: true` confirms once data is written here (on disk, durable)     |
+
+**What a journal entry contains:**
+
+```
+[Timestamp]  [Operation]  [Namespace]       [Change]
+2026-03-01   INSERT       mydb.orders       { _id: ObjectId(...), amount: 500 }
+2026-03-01   UPDATE       mydb.orders       { _id: ..., $set: { status: "paid" } }
+2026-03-01   DELETE       mydb.users        { _id: ObjectId(...) }
+```
+
+**Journal crash recovery example:**
+
+```
+Scenario:
+  T=0:00  — insertOne({ order: "A" })  → written to RAM ✅, journal ✅, data file ❌
+  T=0:01  — insertOne({ order: "B" })  → written to RAM ✅, journal ✅, data file ❌
+  T=0:02  — SERVER CRASHES (power loss)
+  T=0:03  — MongoDB restarts
+
+Recovery:
+  MongoDB reads journal file → finds 2 uncommitted entries
+  Replays both inserts into WiredTiger cache
+  Next checkpoint flushes them to data files
+  Result: Both documents survive ✅
+```
+
+Without the journal (`--nojournal` flag), both writes above would be **permanently lost** after the crash.
+
+---
+
+**4. Data Files (.wt files)**
+
+Data files are the final, permanent home for your data on disk.
+
+| Aspect                  | Details                                                           |
+| ----------------------- | ----------------------------------------------------------------- |
+| Location                | `mongodb-data/collection-*.wt`, `index-*.wt`                      |
+| Write frequency         | Every **60 seconds** (checkpoint)                                 |
+| Format                  | WiredTiger B-tree format, compressed                              |
+| Contents                | One `.wt` file per collection, one per index                      |
+| Relationship to journal | Journal entries are removed once data is safely checkpointed here |
+
+**Checkpoint process:**
+
+```
+Every 60 seconds:
+  1. WiredTiger identifies all dirty (modified) cache pages
+  2. Writes them atomically to .wt data files
+  3. Updates the checkpoint record (WiredTiger.turtle file)
+  4. Removes journal entries that are now safely on disk
+  5. Cache pages marked clean
+```
+
+---
+
+**Full Write Lifecycle — Concrete Example**
+
+```js
+// You run:
+db.orders.insertOne({ _id: 1, item: "laptop", amount: 1200 });
+```
+
+```
+Step 1 — mongod receives the write command
+
+Step 2 — WiredTiger writes to cache (RAM)
+         Page for "orders" collection marked dirty
+         Duration: ~microseconds
+
+Step 3 — Journal entry appended to disk  ← happens within 100ms
+         Entry: INSERT orders { _id:1, item:"laptop", amount:1200 }
+         Duration: ~1–5ms (disk write)
+
+Step 4 — Acknowledgment sent to client
+         { acknowledged: true, insertedId: 1 }
+         (with j:true, ack waits for step 3; with j:false, ack after step 2)
+
+Step 5 — Checkpoint (every 60s)
+         Dirty cache page flushed to collection-X.wt data file
+         Journal entry for this insert is now deleted
+
+Step 6 — Data is permanently on disk ✅
+```
+
+---
+
+**What Happens on a Crash — Three Scenarios**
+
+| Crash timing                | Journal status    | Data files  | Recovery outcome                            |
+| --------------------------- | ----------------- | ----------- | ------------------------------------------- |
+| After step 2, before step 3 | Not yet written   | Not updated | **Write lost** — journal has no record      |
+| After step 3, before step 5 | Written           | Not updated | **Recovered** — journal replayed on restart |
+| After step 5                | Written + deleted | Updated     | **Safe** — data already in data files       |
+
+> This is why `j: true` is important for critical data — it guarantees the write reached the journal (step 3) before acknowledging, making it recoverable in all crash scenarios.
+
+---
+
+#### _Write Concern Options_
 
 **Syntax:**
 
@@ -2049,7 +2411,7 @@ db.collection.insertOne(
 
 ---
 
-#### The `w` Option (Write Acknowledgment)
+#### _The `w` Option (Write Acknowledgment)_
 
 **`w: 0` - No Acknowledgment (Fire and Forget)**
 
@@ -2106,7 +2468,7 @@ db.persons.insertOne(
 ```js
 db.persons.insertOne(
   { name: "Sara", age: 35 },
-  { writeConcern: { w: "majority" } },
+  { writeConcern: { w: "majority" } }
 );
 ```
 
@@ -2119,7 +2481,7 @@ db.persons.insertOne(
 
 ---
 
-#### The `j` Option (Journal Acknowledgment)
+#### _The `j` Option (Journal Acknowledgment)_
 
 **`j: false` or `undefined` - Memory Only**
 
@@ -2170,7 +2532,7 @@ db.persons.insertOne(
 
 ---
 
-#### The `wtimeout` Option
+#### _The `wtimeout` Option_
 
 Sets a time limit for write concern acknowledgment.
 
@@ -2202,14 +2564,14 @@ db.persons.insertOne(
 
 db.persons.insertOne(
   { name: "Test" },
-  { writeConcern: { w: "majority", wtimeout: 100 } },
+  { writeConcern: { w: "majority", wtimeout: 100 } }
 );
 // Error: waiting for replication timed out
 ```
 
 ---
 
-#### Write Concern Levels Comparison
+#### _Write Concern Levels Comparison_
 
 | Configuration                | Speed   | Durability | Use Case                      |
 | ---------------------------- | ------- | ---------- | ----------------------------- |
@@ -2221,7 +2583,7 @@ db.persons.insertOne(
 
 ---
 
-#### Choosing the Right Write Concern
+#### _Choosing the Right Write Concern_
 
 **Use `{ w: 0 }` for:**
 
@@ -2257,7 +2619,7 @@ db.persons.insertOne(
 
 ---
 
-#### Performance vs Durability Trade-off
+#### _Performance vs Durability Trade-off_
 
 ```
 Performance ←→ Durability
@@ -2284,7 +2646,7 @@ Performance ←→ Durability
 
 **Atomicity** ensures that database operations are "all-or-nothing" - they either complete entirely or have no effect at all.
 
-#### What is Atomicity?
+#### _What is Atomicity?_
 
 ```
 Transaction States:
@@ -2302,7 +2664,7 @@ Transaction States:
 
 ---
 
-#### MongoDB's Atomicity Guarantee
+#### _MongoDB's Atomicity Guarantee_
 
 **MongoDB CRUD operations are atomic at the DOCUMENT level** (including embedded documents).
 
@@ -2319,7 +2681,7 @@ db.users.updateOne(
     $set: { name: "John Doe" },
     $inc: { loginCount: 1 },
     $push: { loginHistory: new Date() },
-  },
+  }
 );
 ```
 
@@ -2347,7 +2709,7 @@ db.accounts.updateOne({ _id: "B" }, { $inc: { balance: +100 } }); // Operation 2
 
 ---
 
-#### Document-Level Atomicity Examples
+#### _Document-Level Atomicity Examples_
 
 **Example 1: Insert with Embedded Documents**
 
@@ -2389,7 +2751,7 @@ db.users.updateOne(
       },
     },
     $inc: { version: 1 },
-  },
+  }
 );
 ```
 
@@ -2412,7 +2774,7 @@ db.blogs.updateOne(
       "comments.$.editedAt": new Date(),
     },
     $inc: { "comments.$.editCount": 1 },
-  },
+  }
 );
 ```
 
@@ -2423,7 +2785,7 @@ db.blogs.updateOne(
 
 ---
 
-#### Multi-Document Transactions (MongoDB 4.0+)
+#### _Multi-Document Transactions (MongoDB 4.0+)_
 
 For operations spanning **multiple documents**, use transactions:
 
@@ -2462,7 +2824,7 @@ try {
 
 ---
 
-#### Atomicity Best Practices
+#### _Atomicity Best Practices_
 
 **1. Design for Single-Document Atomicity**
 
@@ -2494,7 +2856,7 @@ session.commitTransaction();
 
 db.products.updateOne(
   { _id: "product123" },
-  { $inc: { quantity: -1 } }, // Atomic decrement
+  { $inc: { quantity: -1 } } // Atomic decrement
 );
 ```
 
@@ -2512,7 +2874,7 @@ try {
 
 ---
 
-#### Atomicity Summary
+#### _Atomicity Summary_
 
 | Scope                  | Atomicity                            | Example                                     |
 | ---------------------- | ------------------------------------ | ------------------------------------------- |
@@ -2545,23 +2907,21 @@ mongoimport [options] <file>
 
 ### Common Options
 
-| Option | Description | Example |
-| ------ | ----------- | ------- |
-
-| `-d, --
-` | Database name | `-d movieData` |
-| `-c, --collection` | Collection name | `-c movies` |
-| `--drop` | Drop collection before importing | `--drop` |
-| `--jsonArray` | Import a JSON array (file contains `[{...}, ...]`) | `--jsonArray` |
-| `--file` | Input file path | `--file data.json` |
-| `--type` | File type: json, csv, tsv | `--type csv` |
-| `--headerline` | Use first line as field names (CSV/TSV) | `--headerline` |
-| `--mode` | Import mode: insert, upsert, merge | `--mode upsert` |
-| `--uri` | MongoDB connection string | `--uri mongodb://...` |
-| `--host` | MongoDB host | `--host localhost:27017` |
-| `--ignoreBlanks` | Ignore blank fields in CSV/TSV | `--ignoreBlanks` |
-| `--stopOnError` | Stop on first error | `--stopOnError` |
-| `--maintainInsertionOrder` | Process documents in order | `--maintainInsertionOrder` |
+| Option                     | Description                                        | Example                    |
+| -------------------------- | -------------------------------------------------- | -------------------------- |
+| `-d, --database`           | Database name                                      | `-d movieData`             |
+| `-c, --collection`         | Collection name                                    | `-c movies`                |
+| `--drop`                   | Drop collection before importing                   | `--drop`                   |
+| `--jsonArray`              | Import a JSON array (file contains `[{...}, ...]`) | `--jsonArray`              |
+| `--file`                   | Input file path                                    | `--file data.json`         |
+| `--type`                   | File type: json, csv, tsv                          | `--type csv`               |
+| `--headerline`             | Use first line as field names (CSV/TSV)            | `--headerline`             |
+| `--mode`                   | Import mode: insert, upsert, merge                 | `--mode upsert`            |
+| `--uri`                    | MongoDB connection string                          | `--uri mongodb://...`      |
+| `--host`                   | MongoDB host                                       | `--host localhost:27017`   |
+| `--ignoreBlanks`           | Ignore blank fields in CSV/TSV                     | `--ignoreBlanks`           |
+| `--stopOnError`            | Stop on first error                                | `--stopOnError`            |
+| `--maintainInsertionOrder` | Process documents in order                         | `--maintainInsertionOrder` |
 
 ---
 
@@ -3026,10 +3386,8 @@ db.collectionName.method(filter, options);
 **Query Structure Breakdown:**
 
 ```js
-
-.                        // Access current database
-  mycollection.            // Access this collection
-  find()                   // Apply this method
+db.mycollection // Access current database // Access this collection
+  .find(); // Apply this method
 ```
 
 **Filter Examples:**
@@ -3064,32 +3422,26 @@ MongoDB provides three main categories of operators:
 - **Projection Operators**: Control which fields to show (e.g., show only name and email)
 - **Update Operators**: Modify document content (e.g., increment a counter)
 
----
-
-#### Query Selectors
+#### _Query Selectors_
 
 Query selectors allow you to filter documents based on specific criteria.
 
-#### Comparison Operators
+#### _Comparison Operators_
 
 Used to compare field values against specified values.
 
-#### Complete Comparison Operators Reference
+| Operator | Meaning                    | Example                           |
+| -------- | -------------------------- | --------------------------------- |
+| `$eq`    | Equal                      | `{ age: { $eq: 30 } }`            |
+| `$ne`    | Not equal                  | `{ age: { $ne: 30 } }`            |
+| `$gt`    | Greater than               | `{ age: { $gt: 30 } }`            |
+| `$gte`   | Greater than or equal      | `{ age: { $gte: 30 } }`           |
+| `$lt`    | Less than                  | `{ age: { $lt: 30 } }`            |
+| `$lte`   | Less than or equal         | `{ age: { $lte: 30 } }`           |
+| `$in`    | Matches any value in array | `{ status: { $in: ["A","B"] } }`  |
+| `$nin`   | Matches no value in array  | `{ status: { $nin: ["A","B"] } }` |
 
-| Operator | Meaning               | Example                           | Description                |
-| -------- | --------------------- | --------------------------------- | -------------------------- |
-| `$eq`    | Equal                 | `{ runtime: { $eq: 60 } }`        | Exactly equals             |
-| `$ne`    | Not Equal             | `{ runtime: { $ne: 60 } }`        | Does not equal             |
-| `$gt`    | Greater Than          | `{ runtime: { $gt: 60 } }`        | Strictly greater           |
-| `$gte`   | Greater Than or Equal | `{ runtime: { $gte: 60 } }`       | Greater or equal           |
-| `$lt`    | Less Than             | `{ runtime: { $lt: 60 } }`        | Strictly less              |
-| `$lte`   | Less Than or Equal    | `{ runtime: { $lte: 60 } }`       | Less or equal              |
-| `$in`    | In Array              | `{ runtime: { $in: [30, 42] } }`  | Matches any value in array |
-| `$nin`   | Not In Array          | `{ runtime: { $nin: [30, 42] } }` | Matches no value in array  |
-
----
-
-#### Comparison Operators Examples
+#### _Comparison Operators Examples_
 
 > **Note:** These examples query the `movies` collection imported from `tv-shows.json` (240 documents). Below is a representative sample of that data to help you understand the queries.
 
@@ -3285,7 +3637,7 @@ db.movies.find({ genres: { $nin: ["Anime", "Drama"] } });
 
 ---
 
-#### Example Query Result
+#### _Example Query Result_
 
 **Query:**
 
@@ -3358,24 +3710,24 @@ db.movies.find({ runtime: { $ne: 60 } }).limit(1);
 
 ---
 
-#### Other Query Selector Categories
+#### _Other Query Selector Categories_
 
 MongoDB provides additional query selector types for advanced filtering:
 
-#### Evaluation Operators
+#### _Evaluation Operators_
 
 Evaluate expressions and perform text searches.
 
-**Common Evaluation Operators:**
+| Operator      | Meaning                                | Example                                      |
+| ------------- | -------------------------------------- | -------------------------------------------- |
+| `$regex`      | Pattern match                          | `{ name: { $regex: /^Max/ } }`               |
+| `$text`       | Full-text search (requires text index) | `{ $text: { $search: "awesome" } }`          |
+| `$expr`       | Compare two fields in same doc         | `{ $expr: { $gt: ["$volume", "$target"] } }` |
+| `$where`      | JavaScript expression                  | `{ $where: "this.age > 30" }`                |
+| `$mod`        | Modulo                                 | `{ age: { $mod: [4, 0] } }`                  |
+| `$jsonSchema` | Validate against JSON Schema           | `{ $jsonSchema: { required: ["name"] } }`    |
 
-- `$regex` - Pattern matching
-- `$text` - Full-text search
-- `$where` - JavaScript expressions
-- `$expr` - Aggregation expressions in queries
-- `$mod` - Modulo operation
-- `$jsonSchema` - Validate documents against JSON Schema
-
-**Example:**
+**Examples:**
 
 ```js
 // Find movies with names starting with "The"
@@ -3455,20 +3807,22 @@ financialData >
       ],
     },
   })[{ _id: ObjectId("699c7e7a9c0ae94b759e3c09"), volume: 89, target: 80 }];
+
+financialData > db.sales.find({ $where: "this.volume == 89" });
 ```
 
 ---
 
-#### Logical Operators
+#### _Logical Operators_
 
 Combine multiple query conditions.
 
-**Logical Operators:**
-
-- `$and` - All conditions must be true
-- `$or` - At least one condition must be true
-- `$not` - Inverts the effect of a query
-- `$nor` - None of the conditions can be true
+| Operator | Meaning                         | Example                                                 |
+| -------- | ------------------------------- | ------------------------------------------------------- |
+| `$and`   | All conditions must be true     | `{ $and: [{ age: { $gt: 20 } }, { active: true }] }`    |
+| `$or`    | At least one condition is true  | `{ $or: [{ age: { $lt: 18 } }, { age: { $gt: 65 } }] }` |
+| `$nor`   | None of the conditions are true | `{ $nor: [{ age: { $gt: 9 } }, { age: { $lt: 5 } }] }`  |
+| `$not`   | Inverts the condition           | `{ age: { $not: { $gt: 30 } } }`                        |
 
 **Examples:**
 
@@ -3516,15 +3870,15 @@ db.movies.find({ runtime: { $not: { $eq: 50 } } });
 
 ---
 
-#### Array Operators
+#### _Array Operators_
 
 Query array fields with advanced conditions.
 
-**Array Operators:**
-
-- `$all` - Array contains all specified elements
-- `$elemMatch` - At least one array element matches all conditions
-- `$size` - Array has specific number of elements
+| Operator     | Meaning                                     | Example                                             |
+| ------------ | ------------------------------------------- | --------------------------------------------------- |
+| `$all`       | Array contains all specified values         | `{ tags: { $all: ["red","blue"] } }`                |
+| `$size`      | Array has exact length                      | `{ tags: { $size: 3 } }`                            |
+| `$elemMatch` | At least one element matches all conditions | `{ scores: { $elemMatch: { $gt: 80, $lt: 100 } } }` |
 
 **Examples:**
 
@@ -3651,14 +4005,14 @@ db.users.find({ "hobbies.title": "Sports" });
 
 ---
 
-#### Element Operators
+#### _Element Operators_
 
 Query based on field existence and type.
 
-**Element Operators:**
-
-- `$exists` - Field exists or not
-- `$type` - Field is of specific BSON type
+| Operator  | Meaning                 | Example                        |
+| --------- | ----------------------- | ------------------------------ |
+| `$exists` | Field exists (or not)   | `{ phone: { $exists: true } }` |
+| `$type`   | Field matches BSON type | `{ age: { $type: "number" } }` |
 
 **Examples:**
 
@@ -3781,7 +4135,7 @@ users>
 
 ---
 
-#### Geospatial Operators
+#### _Geospatial Operators_
 
 Query location-based data.
 
@@ -3813,7 +4167,7 @@ db.locations.find({
 
 When you execute a `find()` query, MongoDB doesn't immediately return all documents. Instead, it returns a **cursor** - a pointer to the result set that allows you to iterate through documents efficiently.
 
-#### What is a Cursor?
+#### _What is a Cursor?_
 
 **Key Characteristics:**
 
@@ -3836,7 +4190,7 @@ Process → ... ✅
 
 ---
 
-#### Cursor Methods
+#### _Cursor Methods_
 
 ##### `cursor.next()`
 
@@ -3964,7 +4318,7 @@ cursor.hasNext(); // false
 
 ---
 
-#### Creating New Cursors
+#### _Creating New Cursors_
 
 Once a cursor is exhausted, you need to create a new one:
 
@@ -3987,7 +4341,7 @@ newCursor.hasNext(); // true - ready to use
 
 The `sort()` method orders query results by one or more fields.
 
-#### Sort Syntax
+#### _Sort Syntax_
 
 ```js
 db.collection.find().sort({ field: 1 }); // Ascending
@@ -4001,7 +4355,7 @@ db.collection.find().sort({ field: -1 }); // Descending
 
 ---
 
-#### Single Field Sorting
+#### _Single Field Sorting_
 
 > **Input Data:** These examples use the `movies` collection (240 TV shows). Below is a representative subset matching the output shown:
 >
@@ -4070,26 +4424,42 @@ db.movies.find().sort({ "rating.average": -1 });
 
 ---
 
-#### Multi-Field Sorting
+#### _Multi-Field Sorting_
 
 Sort by multiple fields with priority order.
 
 **Input Data:**
 
-````js
+```js
 db.movies.insertMany([
-  { name: "Movie A", rating: { average: 7.5 }, runtime: 120,  genres: ["Drama"] },
-  { name: "Movie B", rating: { average: 7.5 }, runtime: 90,   genres: ["Drama"] },
-  { name: "Movie C", rating: { average: 7.5 }, runtime: 60,   genres: ["Drama"] },
-  { name: "Movie D", rating: { average: 8.0 }, runtime: 45,   genres: ["Comedy"] },
-  { name: "Movie E", rating: { average: 8.2 }, runtime: 150,  genres: ["Thriller"] }
+  {
+    name: "Movie A",
+    rating: { average: 7.5 },
+    runtime: 120,
+    genres: ["Drama"],
+  },
+  { name: "Movie B", rating: { average: 7.5 }, runtime: 90, genres: ["Drama"] },
+  { name: "Movie C", rating: { average: 7.5 }, runtime: 60, genres: ["Drama"] },
+  {
+    name: "Movie D",
+    rating: { average: 8.0 },
+    runtime: 45,
+    genres: ["Comedy"],
+  },
+  {
+    name: "Movie E",
+    rating: { average: 8.2 },
+    runtime: 150,
+    genres: ["Thriller"],
+  },
 ]);
+```
 
 **Example:**
 
 ```js
 db.movies.find().sort({ "rating.average": 1, runtime: -1 });
-````
+```
 
 **How it works:**
 
@@ -4121,7 +4491,7 @@ db.movies.find().sort({ "rating.average": 1, runtime: -1 });
 
 Control which subset of results to retrieve - essential for pagination.
 
-#### The `.count()` Method
+#### _The `.count()` Method_
 
 Returns the total number of matching documents.
 
@@ -4136,7 +4506,7 @@ db.movies.find().sort({ "rating.average": 1, runtime: -1 }).count();
 
 ---
 
-#### The `.skip()` Method
+#### _The `.skip()` Method_
 
 Skips the specified number of documents from the beginning.
 
@@ -4176,7 +4546,7 @@ db.movies.find().sort({ "rating.average": 1, runtime: -1 }).skip(100).count();
 
 ---
 
-#### The `.limit()` Method
+#### _The `.limit()` Method_
 
 Limits the number of documents returned.
 
@@ -4226,7 +4596,7 @@ db.movies
 
 ---
 
-#### Pagination Implementation
+#### _Pagination Implementation_
 
 **Pagination Formula:**
 
@@ -4263,7 +4633,7 @@ db.movies
 
 ---
 
-#### Method Chaining Order
+#### _Method Chaining Order_
 
 **Best Practice Order:\*\***
 
@@ -4286,7 +4656,7 @@ db.collection
 
 ---
 
-#### Cursor Methods Summary
+#### _Cursor Methods Summary_
 
 | Method       | Purpose                    | Example                      | Returns      |
 | ------------ | -------------------------- | ---------------------------- | ------------ |
@@ -4303,7 +4673,7 @@ db.collection
 
 ---
 
-#### Performance Considerations
+#### _Performance Considerations_
 
 **Efficient Pagination:\*\***
 
@@ -4341,7 +4711,7 @@ db.movies.find({ _id: { $gt: lastSeenId } }).limit(10);
 
 ---
 
-#### Practical Examples
+#### _Practical Examples_
 
 **Example 1: Top 10 Highest Rated Movies**
 
@@ -4388,7 +4758,7 @@ print(`Total pages: ${totalPages}`);
 
 ---
 
-#### Best Practices
+#### _Best Practices_
 
 **1. Always Sort Before Pagination**
 
@@ -4444,7 +4814,7 @@ Reduces network bandwidth and improves performance.
 
 Projection operators control which fields are returned and how array fields are presented.
 
-#### Projection Operators Overview
+#### _Projection Operators Overview_
 
 | Operator     | Description                                  | Example                             |
 | ------------ | -------------------------------------------- | ----------------------------------- |
@@ -4455,7 +4825,7 @@ Projection operators control which fields are returned and how array fields are 
 
 ---
 
-#### Projection Operator Examples
+#### _Projection Operator Examples_
 
 **`$` - Positional Operator**
 
@@ -4512,7 +4882,7 @@ db.posts.find(
     comments: {
       $elemMatch: { score: { $gt: 5 } },
     },
-  },
+  }
 );
 ```
 
@@ -4573,7 +4943,7 @@ db.movies
     {
       name: 1,
       score: { $meta: "textScore" },
-    },
+    }
   )
   .sort({ score: { $meta: "textScore" } });
 ```
@@ -4586,7 +4956,7 @@ db.movies
 
 ---
 
-#### Summary
+#### _Summary_
 
 **Query Selectors** help you find the right documents:
 
@@ -4687,7 +5057,7 @@ db.collection.updateOne({ filter }, { $set: { field: value } });
 
 ---
 
-#### `$set` with updateOne()
+#### _`$set` with updateOne()_
 
 ```js
 users> db.users.updateOne({_id : ObjectId('699d1a86704ebd0e15ed4433')} , { $set : {phone : "3830297039" , age : 26}})
@@ -4722,14 +5092,14 @@ users> db.users.updateOne(
 
 ---
 
-#### `$set` with updateMany()
+#### _`$set` with updateMany()_
 
 **Example: Update Multiple Documents**
 
 ```js
 db.users.updateMany(
   { "hobbies.title": "Sports" },
-  { $set: { isSporty: true } },
+  { $set: { isSporty: true } }
 );
 ```
 
@@ -4828,7 +5198,7 @@ db.users.updateOne(
     $inc: {
       age: 2, // Increment age by 2
     },
-  },
+  }
 );
 ```
 
@@ -4858,7 +5228,7 @@ db.users.updateOne(
     $set: {
       isSporty: false, // Set isSporty field
     },
-  },
+  }
 );
 ```
 
@@ -4931,7 +5301,7 @@ These operators provide specialized numeric update operations.
 
 ---
 
-#### `$min` - Update Only if Smaller
+#### _`$min` - Update Only if Smaller_
 
 **Purpose:** Updates the field value only if the specified value is **less than** the current value.
 
@@ -4960,7 +5330,7 @@ db.users.updateOne({ name: "Chris" }, { $min: { age: 30 } });
 
 ---
 
-#### `$max` - Update Only if Larger
+#### _`$max` - Update Only if Larger_
 
 **Purpose:** Updates the field value only if the specified value is **greater than** the current value.
 
@@ -4989,7 +5359,7 @@ db.users.updateOne({ name: "Chris" }, { $max: { age: 30 } });
 
 ---
 
-#### `$mul` - Multiply Value
+#### _`$mul` - Multiply Value_
 
 **Purpose:** Multiplies the field value by a specified number.
 
@@ -5004,7 +5374,7 @@ db.collection.updateOne({ filter }, { $mul: { field: multiplier } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $mul: { age: 1.1 } }, // Multiply age by 1.1 (10% increase)
+  { $mul: { age: 1.1 } } // Multiply age by 1.1 (10% increase)
 );
 ```
 
@@ -5079,7 +5449,7 @@ db.users.find({ name: "Chris" });
 ```js
 db.collection.updateMany(
   { filter },
-  { $unset: { field: "" } }, // Value doesn't matter (use "" or 1)
+  { $unset: { field: "" } } // Value doesn't matter (use "" or 1)
 );
 ```
 
@@ -5144,7 +5514,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   { isSporty: true },
-  { $unset: { phone: "" } }, // Remove 'phone' field
+  { $unset: { phone: "" } } // Remove 'phone' field
 );
 ```
 
@@ -5195,7 +5565,7 @@ db.users.updateMany(
 ```js
 db.collection.updateMany(
   { filter },
-  { $rename: { oldFieldName: "newFieldName" } },
+  { $rename: { oldFieldName: "newFieldName" } }
 );
 ```
 
@@ -5213,7 +5583,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   {}, // Empty filter = all documents
-  { $rename: { age: "totalAge" } },
+  { $rename: { age: "totalAge" } }
 );
 ```
 
@@ -5258,7 +5628,7 @@ db.users.updateMany(
 ```js
 db.users.updateMany(
   {},
-  { $rename: { "address.zipCode": "address.postalCode" } },
+  { $rename: { "address.zipCode": "address.postalCode" } }
 );
 ```
 
@@ -5276,7 +5646,7 @@ db.users.updateMany(
 db.collection.updateOne(
   { filter },
   { updateOperators },
-  { upsert: true }, // Enable upsert
+  { upsert: true } // Enable upsert
 );
 ```
 
@@ -5298,7 +5668,7 @@ db.users.updateOne(
       isSporty: true,
     },
   },
-  { upsert: true }, // If not found, insert
+  { upsert: true } // If not found, insert
 );
 ```
 
@@ -5380,7 +5750,7 @@ db.users.updateOne(
 db.pageViews.updateOne(
   { page: "/home" },
   { $inc: { views: 1 } },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -5393,7 +5763,7 @@ db.pageViews.updateOne(
 db.settings.updateOne(
   { userId: "user123" },
   { $set: { theme: "dark", language: "en" } },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -5409,7 +5779,7 @@ db.sessions.updateOne(
     $set: { lastActive: new Date() },
     $inc: { requestCount: 1 },
   },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -5422,7 +5792,7 @@ db.sessions.updateOne(
 db.inventory.updateOne(
   { sku: "LAPTOP-001" },
   { $set: { quantity: 50, price: 999 } },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -5445,7 +5815,7 @@ db.users.updateOne(
     $inc: { loginCount: 1 },
     $setOnInsert: { createdAt: new Date() }, // Only on insert
   },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -5547,7 +5917,7 @@ db.users.find({
 ```js
 db.collection.updateMany(
   { "array.field": value }, // Filter
-  { $set: { "array.$.newField": value } }, // $ = matched element
+  { $set: { "array.$.newField": value } } // $ = matched element
 );
 ```
 
@@ -5569,7 +5939,7 @@ db.users.updateMany(
     $set: {
       "hobbies.$.highFrequency": true, // $ = first matched hobby
     },
-  },
+  }
 );
 ```
 
@@ -5668,7 +6038,7 @@ After update with `$`:
 ```js
 db.collection.updateMany(
   { filter },
-  { $set: { "array.$[].field": value } }, // $[] = all elements
+  { $set: { "array.$[].field": value } } // $[] = all elements
 );
 ```
 
@@ -5722,7 +6092,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateMany(
   { totalAge: { $gt: 30 } },
-  { $inc: { "hobbies.frequency": -1 } }, // ERROR!
+  { $inc: { "hobbies.frequency": -1 } } // ERROR!
 );
 // Error: Cannot create field frequency in element hobbies
 ```
@@ -5740,7 +6110,7 @@ db.users.updateMany(
     $inc: {
       "hobbies.$[].frequency": -1, // $[] = all hobbies
     },
-  },
+  }
 );
 ```
 
@@ -5821,7 +6191,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateOne(
   { name: "Alex", "hobbies.frequency": { $gte: 3 } },
-  { $set: { "hobbies.$.popular": true } },
+  { $set: { "hobbies.$.popular": true } }
 );
 
 // Result:
@@ -5863,7 +6233,7 @@ db.users.updateOne({ name: "Alex" }, { $inc: { "hobbies.$[].frequency": 1 } });
 // Add field to all items
 db.products.updateOne(
   { _id: productId },
-  { $set: { "reviews.$[].verified": false } },
+  { $set: { "reviews.$[].verified": false } }
 );
 ```
 
@@ -5891,7 +6261,7 @@ db.posts.updateMany({}, { $unset: { "comments.$[].tempFlag": "" } });
 // Update nested field in all array elements
 db.users.updateOne(
   { name: "Alex" },
-  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } },
+  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } }
 );
 ```
 
@@ -5906,7 +6276,7 @@ db.users.updateOne(
 // Can't use dot notation after $[]
 db.blogs.updateOne(
   { _id: blogId },
-  { $set: { "tags.$[]": "updated" } }, // Replaces all tags with "updated"
+  { $set: { "tags.$[]": "updated" } } // Replaces all tags with "updated"
 );
 ```
 
@@ -5918,7 +6288,7 @@ db.users.updateOne(
   {
     $inc: { "hobbies.$[].frequency": 1 },
     $set: { lastModified: new Date() },
-  },
+  }
 );
 ```
 
@@ -5943,7 +6313,7 @@ db.users.updateOne(
 db.collection.updateMany(
   { documentFilter }, // Filter documents
   { $set: { "array.$[identifier].field": value } }, // Update matching array elements
-  { arrayFilters: [{ "identifier.field": condition }] }, // Filter array elements
+  { arrayFilters: [{ "identifier.field": condition }] } // Filter array elements
 );
 ```
 
@@ -6016,7 +6386,7 @@ db.users.find({ "hobbies.frequency": { $gt: 2 } });
 db.users.updateMany(
   { "hobbies.frequency": { $gt: 2 } }, // Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } }, // Array update
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // Array element filter
 );
 ```
 
@@ -6135,7 +6505,7 @@ db.users.find();
 db.users.updateMany(
   { totalAge: { $gt: 30 } }, // ← Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // ← Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // ← Array element filter
 );
 ```
 
@@ -6171,7 +6541,7 @@ db.posts.updateMany(
       { "comment.upvotes": { $gte: 10 } }, // Filter for comments
       { "tag.category": "tech" }, // Filter for tags
     ],
-  },
+  }
 );
 ```
 
@@ -6196,7 +6566,7 @@ db.posts.updateMany(
 db.products.updateMany(
   { category: "Electronics" },
   { $set: { "reviews.$[review].verified": true } },
-  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] },
+  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] }
 );
 ```
 
@@ -6209,7 +6579,7 @@ db.products.updateMany(
 db.orders.updateMany(
   { status: "pending" },
   { $mul: { "items.$[item].price": 0.9 } },
-  { arrayFilters: [{ "item.price": { $gt: 50 } }] },
+  { arrayFilters: [{ "item.price": { $gt: 50 } }] }
 );
 ```
 
@@ -6229,7 +6599,7 @@ db.posts.updateMany(
         "c.createdAt": { $lt: new Date("2025-01-01") },
       },
     ],
-  },
+  }
 );
 ```
 
@@ -6278,7 +6648,7 @@ db.users.find({
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[h].goodFrequency": true } },
-  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] },
+  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] }
 );
 ```
 
@@ -6308,7 +6678,7 @@ db.collection.updateOne(
         $position: N,
       },
     },
-  },
+  }
 );
 ```
 
@@ -6332,7 +6702,7 @@ db.collection.updateOne(
 ```js
 db.users.updateOne(
   { name: "Maria" },
-  { $push: { hobbies: { title: "Sports", frequency: 2 } } },
+  { $push: { hobbies: { title: "Sports", frequency: 2 } } }
 );
 ```
 
@@ -6385,7 +6755,7 @@ db.users.updateOne(
         ],
       },
     },
-  },
+  }
 );
 ```
 
@@ -6429,7 +6799,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // Sort by frequency descending
       },
     },
-  },
+  }
 );
 ```
 
@@ -6492,7 +6862,7 @@ db.users.updateOne(
         $sort: { frequency: -1 },
       },
     },
-  },
+  }
 );
 
 // Array remains sorted even with duplicates
@@ -6540,7 +6910,7 @@ db.users.updateOne(
         $slice: 3, // Keep only top 3
       },
     },
-  },
+  }
 );
 ```
 
@@ -6595,7 +6965,7 @@ db.users.updateOne(
         $position: 0, // Insert at start
       },
     },
-  },
+  }
 );
 
 // Result: New hobby is first in array
@@ -6622,7 +6992,7 @@ db.products.updateOne(
         $position: 0, // Insert at beginning
       },
     },
-  },
+  }
 );
 ```
 
@@ -6663,7 +7033,7 @@ db.products.updateOne(
 ```js
 db.collection.updateOne(
   { documentFilter },
-  { $pull: { arrayField: condition } },
+  { $pull: { arrayField: condition } }
 );
 ```
 
@@ -6703,7 +7073,7 @@ db.users.updateOne(
         title: "Good food", // Remove by exact match
       },
     },
-  },
+  }
 );
 ```
 
@@ -6746,7 +7116,7 @@ db.users.updateOne(
         frequency: { $lte: 1 }, // Remove if frequency ≤ 1
       },
     },
-  },
+  }
 );
 ```
 
@@ -6803,7 +7173,7 @@ db.collection.updateOne({ filter }, { $pop: { arrayField: value } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: 1 } }, // 1 = remove last
+  { $pop: { hobbies: 1 } } // 1 = remove last
 );
 ```
 
@@ -6838,7 +7208,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: -1 } }, // -1 = remove first
+  { $pop: { hobbies: -1 } } // -1 = remove first
 );
 
 // Result: "Sports" would be removed
@@ -6864,7 +7234,7 @@ db.users.updateOne(
 // Remove all hobbies with low frequency
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
 );
 // Removes: All matching elements (could be 0, 1, or many)
 ```
@@ -6917,7 +7287,7 @@ db.users.updateMany(
         createdAt: { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
     },
-  },
+  }
 );
 ```
 
@@ -6937,7 +7307,7 @@ db.players.updateOne(
         $slice: 5, // Keep top 5
       },
     },
-  },
+  }
 );
 ```
 
@@ -6990,7 +7360,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  },
+  }
 );
 ```
 
@@ -7031,7 +7401,7 @@ db.users.updateOne(
     $push: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  },
+  }
 );
 // Run again...
 // Run again...
@@ -7055,7 +7425,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  },
+  }
 );
 // Run again...
 // Run again...
@@ -7086,7 +7456,7 @@ db.users.updateOne(
         ],
       },
     },
-  },
+  }
 );
 ```
 
@@ -7150,7 +7520,7 @@ db.posts.updateOne({ _id: postId }, { $addToSet: { tags: "mongodb" } });
 ```js
 db.articles.updateOne(
   { _id: articleId },
-  { $addToSet: { tags: "javascript" } },
+  { $addToSet: { tags: "javascript" } }
 );
 // Prevents duplicate tags
 ```
@@ -7167,7 +7537,7 @@ db.users.updateOne({ username: "alice" }, { $addToSet: { followers: "bob" } });
 ```js
 db.users.updateOne(
   { userId: "user123" },
-  { $addToSet: { viewedProducts: productId } },
+  { $addToSet: { viewedProducts: productId } }
 );
 // Track unique views only
 ```
@@ -7177,7 +7547,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { email: "admin@example.com" },
-  { $addToSet: { roles: "moderator" } },
+  { $addToSet: { roles: "moderator" } }
 );
 // Can't assign same role twice
 ```
@@ -7199,7 +7569,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // ❌ Error!
       },
     },
-  },
+  }
 );
 ```
 
@@ -7283,7 +7653,7 @@ Need to add to array?
 db.collection.updateOne(
   { filter }, // 1st argument: Query selector (which documents?)
   { update }, // 2nd argument: Update operators (what changes?)
-  { options }, // 3rd argument: Options (upsert, arrayFilters, etc.)
+  { options } // 3rd argument: Options (upsert, arrayFilters, etc.)
 );
 ```
 
@@ -7325,7 +7695,7 @@ db.collection.updateOne(
 // Update first match
 db.users.updateOne(
   { "hobbies.title": "Sports" },
-  { $set: { "hobbies.$.frequency": 5 } },
+  { $set: { "hobbies.$.frequency": 5 } }
 );
 
 // Update all elements
@@ -7335,7 +7705,7 @@ db.users.updateOne({ name: "Maria" }, { $inc: { "hobbies.$[].frequency": 1 } });
 db.users.updateOne(
   { name: "Maria" },
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] },
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }
 );
 ```
 
@@ -7364,13 +7734,13 @@ db.users.updateOne(
         $slice: 5,
       },
     },
-  },
+  }
 );
 
 // Pull by condition
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
 );
 
 // Pop last element
@@ -7390,7 +7760,7 @@ db.users.updateOne({ name: "Maria" }, { $addToSet: { tags: "featured" } });
 db.users.updateOne(
   { username: "alice" },
   { $set: { lastLogin: new Date() } },
-  { upsert: true }, // Insert if not found
+  { upsert: true } // Insert if not found
 );
 ```
 
@@ -7400,7 +7770,7 @@ db.users.updateOne(
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[hobby].active": true } },
-  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] },
+  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] }
 );
 ```
 
@@ -7420,7 +7790,7 @@ db.users.replaceOne(
     hobbies: [],
     active: true,
     // All other fields removed
-  },
+  }
 );
 ```
 
@@ -7483,7 +7853,7 @@ Need to modify documents?
 
 ---
 
-## Delete Operations
+## Delete Operations Deep Dive
 
 ### Overview
 
@@ -7507,7 +7877,7 @@ MongoDB provides several methods to delete documents and collections:
 ```js
 db.collection.deleteOne(
   { filter }, // Required: Query selector
-  { writeConcern }, // Optional: Write concern settings
+  { writeConcern } // Optional: Write concern settings
 );
 ```
 
@@ -7605,7 +7975,7 @@ db.users.deleteOne({
 ```js
 db.collection.deleteMany(
   { filter }, // Required: Query selector
-  { writeConcern }, // Optional: Write concern settings
+  { writeConcern } // Optional: Write concern settings
 );
 ```
 
@@ -7831,7 +8201,7 @@ false; // Collection doesn't exist (no error)
 ```js
 db.users.deleteOne(
   { name: "Chris" },
-  { writeConcern: { w: "majority", wtimeout: 5000 } },
+  { writeConcern: { w: "majority", wtimeout: 5000 } }
 );
 ```
 
@@ -8178,7 +8548,7 @@ db.contacts.explain("executionStats").find({ "dob.age": { $gt: 60 } });
 
 ---
 
-#### How `createIndex()` Works Internally
+#### _How `createIndex()` Works Internally_
 
 The index is a **sorted list** of field values with pointers back to the original documents. MongoDB only stores the indexed value + a reference, not the full document.
 
@@ -8491,7 +8861,7 @@ A partial index indexes **only documents that match a given filter** (`partialFi
 // Create partial index: only store dob.age entries where gender = "male"
 db.contacts.createIndex(
   { "dob.age": 1 },
-  { partialFilterExpression: { gender: "male" } },
+  { partialFilterExpression: { gender: "male" } }
 );
 ```
 
@@ -8544,11 +8914,11 @@ db.contacts.explain("executionStats").find({
 // Only ages > 60 are stored — useful app that almost never queries younger ages
 db.contacts.createIndex(
   { "dob.age": 1 },
-  { partialFilterExpression: { "dob.age": { $gt: 60 } } },
+  { partialFilterExpression: { "dob.age": { $gt: 60 } } }
 );
 ```
 
-#### Partial Index + Unique Constraint
+#### _Partial Index + Unique Constraint_
 
 **Problem: Unique index on an optional field**
 
@@ -8603,7 +8973,7 @@ db.users.createIndex(
   {
     unique: true,
     partialFilterExpression: { email: { $exists: true } },
-  },
+  }
 );
 ```
 
@@ -8718,7 +9088,7 @@ Understanding how MongoDB executes your queries is essential for index optimizat
 
 ---
 
-#### Understanding Covered Queries
+#### _Understanding Covered Queries_
 
 A **covered query** is one that can be answered entirely from the index — MongoDB never touches the actual collection documents. This is the most efficient query possible.
 
@@ -8775,7 +9145,7 @@ db.customers.explain("executionStats").find({ name: "Max" });
 ```js
 db.customers.explain("executionStats").find(
   { name: "Max" },
-  { _id: 0, name: 1 }, // only return indexed field, exclude _id
+  { _id: 0, name: 1 } // only return indexed field, exclude _id
 );
 ```
 
@@ -8793,7 +9163,7 @@ db.customers.explain("executionStats").find(
 
 ---
 
-#### How MongoDB Rejects a Plan
+#### _How MongoDB Rejects a Plan_
 
 When multiple indexes could satisfy a query, MongoDB uses a **plan racing** mechanism to select the most efficient one.
 
@@ -8859,7 +9229,7 @@ db.customers.explain("allPlansExecution").find({ name: "Max", age: 30 });
 
 ---
 
-#### Using Multi Key Index
+#### _Using Multi Key Index_
 
 A **multi-key index** is an index on an **array field**. MongoDB detects the array automatically and stores each element as a separate entry in the index — no special syntax needed.
 
@@ -9006,29 +9376,28 @@ db.dummyContacts.createIndex({ addresses: 1, hobbies: 1 });
 
 > **Why parallel arrays are forbidden:** MongoDB would need to store the Cartesian product of both arrays. With 2 addresses x 5 hobbies = 10 index entries per document — growing exponentially with array sizes. You can have multiple separate multi-key indexes on the same collection, but a single compound index can only include **one** array field.
 
-
 ### Understanding `text` Index
 
 A **text index** is a special multi-key index that tokenizes a text field into individual keywords, removes stop words (e.g. "is", "the", "a"), and stems words (strips prefixes/suffixes). It enables fast full-text keyword search — far more performant than regex.
 
 **Key Characteristics**
 
-| Feature | Details |
-|---|---|
-| Index type | Special multi-key index on a string field |
-| Storage | Field value is split into stemmed keywords; stop words discarded |
-| Syntax | `createIndex({ field: "text" })` — use the string `"text"`, not `1` or `-1` |
-| One per collection | Only **one** text index allowed per collection (can span multiple fields) |
-| Case sensitivity | Case-insensitive by default |
-| Query operator | `$text: { $search: "..." }` — no need to specify the field name |
+| Feature            | Details                                                                     |
+| ------------------ | --------------------------------------------------------------------------- |
+| Index type         | Special multi-key index on a string field                                   |
+| Storage            | Field value is split into stemmed keywords; stop words discarded            |
+| Syntax             | `createIndex({ field: "text" })` — use the string `"text"`, not `1` or `-1` |
+| One per collection | Only **one** text index allowed per collection (can span multiple fields)   |
+| Case sensitivity   | Case-insensitive by default                                                 |
+| Query operator     | `$text: { $search: "..." }` — no need to specify the field name             |
 
 **Search Modes**
 
-| Query | Behaviour |
-|---|---|
-| `$search: "awesome"` | Find docs containing the word *awesome* |
-| `$search: "red book"` | Find docs containing *red* **or** *book* (OR logic) |
-| `$search: '"awesome book"'` | Find docs containing the exact phrase *awesome book* (wrap in escaped quotes) |
+| Query                       | Behaviour                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `$search: "awesome"`        | Find docs containing the word _awesome_                                       |
+| `$search: "red book"`       | Find docs containing _red_ **or** _book_ (OR logic)                           |
+| `$search: '"awesome book"'` | Find docs containing the exact phrase _awesome book_ (wrap in escaped quotes) |
 
 ---
 
@@ -9036,8 +9405,14 @@ A **text index** is a special multi-key index that tokenizes a text field into i
 
 ```js
 db.product.insertMany([
-  { title: "A Book",     description: "This is an awesome book written by a young artist" },
-  { title: "A T-Shirt",  description: "This T-Shirt is in red and it's pretty awesome" }
+  {
+    title: "A Book",
+    description: "This is an awesome book written by a young artist",
+  },
+  {
+    title: "A T-Shirt",
+    description: "This T-Shirt is in red and it's pretty awesome",
+  },
 ]);
 
 // "text" keyword — NOT 1 or -1
@@ -9055,9 +9430,15 @@ db.product.find({ $text: { $search: "red book" } });
 ```js
 // Result: both documents returned — one has "book", the other has "red"
 [
-  { title: "A Book",    description: "This is an awesome book written by a young artist" },
-  { title: "A T-Shirt", description: "This T-Shirt is in red and it's pretty awesome" }
-]
+  {
+    title: "A Book",
+    description: "This is an awesome book written by a young artist",
+  },
+  {
+    title: "A T-Shirt",
+    description: "This T-Shirt is in red and it's pretty awesome",
+  },
+];
 ```
 
 ---
@@ -9074,8 +9455,11 @@ db.product.find({ $text: { $search: '"awesome book"' } });
 ```js
 // Result: only the Book document — exact phrase "awesome book" matches
 [
-  { title: "A Book", description: "This is an awesome book written by a young artist" }
-]
+  {
+    title: "A Book",
+    description: "This is an awesome book written by a young artist",
+  },
+];
 ```
 
 > **Why no field name in `$text`?** MongoDB only allows one text index per collection. The `$text` operator automatically searches that single index — you don't specify which field.
@@ -9086,9 +9470,9 @@ db.product.find({ $text: { $search: '"awesome book"' } });
 
 When searching text, MongoDB internally calculates a **relevance score** for each result. You can project and sort by this score to return the best matches first.
 
-| Construct | Purpose |
-|---|---|
-| `{ score: { $meta: "textScore" } }` | Add relevance score to projected output |
+| Construct                                  | Purpose                                   |
+| ------------------------------------------ | ----------------------------------------- |
+| `{ score: { $meta: "textScore" } }`        | Add relevance score to projected output   |
 | `.sort({ score: { $meta: "textScore" } })` | Sort results by relevance (highest first) |
 
 > Higher score = more keyword matches in the document.
@@ -9098,12 +9482,14 @@ When searching text, MongoDB internally calculates a **relevance score** for eac
 **Example — Sort results by relevance score**
 
 ```js
-db.product.find(
-  { $text: { $search: "awesome t-shirt" } },
-  { score: { $meta: "textScore" } }   // project the score field
-).sort(
-  { score: { $meta: "textScore" } }   // sort by score descending
-);
+db.product
+  .find(
+    { $text: { $search: "awesome t-shirt" } },
+    { score: { $meta: "textScore" } } // project the score field
+  )
+  .sort(
+    { score: { $meta: "textScore" } } // sort by score descending
+  );
 ```
 
 ```js
@@ -9112,14 +9498,14 @@ db.product.find(
   {
     title: "A T-shirt",
     description: "This T-shirt is in red and it's pretty awesome",
-    score: 1.8    // higher — two keyword matches
+    score: 1.8, // higher — two keyword matches
   },
   {
     title: "A Book",
     description: "This is an awesome book written by a young artist",
-    score: 0.6    // lower — only one keyword match
-  }
-]
+    score: 0.6, // lower — only one keyword match
+  },
+];
 ```
 
 ---
@@ -9128,11 +9514,11 @@ db.product.find(
 
 Only **one** text index is allowed per collection. To search across multiple fields, **merge** them into a single text index.
 
-| Action | Command |
-|---|---|
-| Create combined index | `createIndex({ title: "text", description: "text" })` |
-| Drop existing text index by name | `dropIndex("<index_name>")` |
-| Get index name | `getIndexes()` |
+| Action                           | Command                                               |
+| -------------------------------- | ----------------------------------------------------- |
+| Create combined index            | `createIndex({ title: "text", description: "text" })` |
+| Drop existing text index by name | `dropIndex("<index_name>")`                           |
+| Get index name                   | `getIndexes()`                                        |
 
 > You **cannot** add a second separate text index — MongoDB returns "An equivalent index already exists". Drop the existing one and recreate with both fields combined.
 
@@ -9174,9 +9560,7 @@ db.product.find({ $text: { $search: "ship" } });
 
 ```js
 // Result: found via title field in the combined index
-[
-  { title: "A Ship", description: "Floating perfectly!" }
-]
+[{ title: "A Ship", description: "Floating perfectly!" }];
 ```
 
 ---
@@ -9185,10 +9569,10 @@ db.product.find({ $text: { $search: "ship" } });
 
 Prefix a search term with `-` (minus) to **exclude** documents containing that word.
 
-| Query | Behaviour |
-|---|---|
-| `$search: "awesome"` | Find docs with *awesome* |
-| `$search: "awesome -t-shirt"` | Find docs with *awesome* but NOT *t-shirt* |
+| Query                         | Behaviour                                  |
+| ----------------------------- | ------------------------------------------ |
+| `$search: "awesome"`          | Find docs with _awesome_                   |
+| `$search: "awesome -t-shirt"` | Find docs with _awesome_ but NOT _t-shirt_ |
 
 ---
 
@@ -9201,9 +9585,15 @@ db.product.find({ $text: { $search: "awesome" } });
 
 ```js
 [
-  { title: "A T-shirt", description: "This T-shirt is in red and it's pretty awesome" },
-  { title: "A Book",    description: "This is an awesome book written by a young artist" }
-]
+  {
+    title: "A T-shirt",
+    description: "This T-shirt is in red and it's pretty awesome",
+  },
+  {
+    title: "A Book",
+    description: "This is an awesome book written by a young artist",
+  },
+];
 ```
 
 ```js
@@ -9214,8 +9604,11 @@ db.product.find({ $text: { $search: "awesome -t-shirt" } });
 ```js
 // Result: only the Book — "t-shirt" excluded
 [
-  { title: "A Book", description: "This is an awesome book written by a young artist" }
-]
+  {
+    title: "A Book",
+    description: "This is an awesome book written by a young artist",
+  },
+];
 ```
 
 ---
@@ -9228,11 +9621,11 @@ When creating a text index you can configure two important options:
 
 **`weights`** — assign relative importance to each field in a combined text index. Affects the relevance score used for sorting.
 
-| Option | Default | Effect |
-|---|---|---|
-| `default_language` | `"english"` | Determines stemming rules and stop words |
+| Option                  | Default            | Effect                                    |
+| ----------------------- | ------------------ | ----------------------------------------- |
+| `default_language`      | `"english"`        | Determines stemming rules and stop words  |
 | `weights: { field: N }` | `1` for all fields | Higher weight → higher score contribution |
-| `$caseSensitive: true` | `false` | Enable case-sensitive text search |
+| `$caseSensitive: true`  | `false`            | Enable case-sensitive text search         |
 
 ---
 
@@ -9243,7 +9636,7 @@ db.product.createIndex(
   { title: "text", description: "text" },
   {
     default_language: "english",
-    weights: { title: 1, description: 10 }  // description weighs 10x more than title
+    weights: { title: 1, description: 10 }, // description weighs 10x more than title
   }
 );
 ```
@@ -9265,9 +9658,9 @@ db.product.find(
   {
     title: "A T-shirt",
     description: "This T-shirt is in red and it's pretty awesome",
-    score: 6    // boosted by description weight of 10
-  }
-]
+    score: 6, // boosted by description weight of 10
+  },
+];
 ```
 
 ---
@@ -9299,9 +9692,9 @@ db.product.getIndexes();
     name: "title_text_description_text",
     weights: { description: 10, title: 1 },
     default_language: "english",
-    textIndexVersion: 3
-  }
-]
+    textIndexVersion: 3,
+  },
+];
 ```
 
 > **Weights are for scoring, not filtering.** They influence the relevance sort order but do not change which documents are returned.
@@ -9314,10 +9707,10 @@ MongoDB supports two modes for index creation. The correct choice depends on whe
 
 **Foreground vs Background**
 
-| Mode | Speed | Collection locked? | Use case |
-|---|---|---|---|
-| Foreground (default) | Faster | Yes — reads & writes blocked during creation | Development / small collections |
-| Background (`{ background: true }`) | Slower | No — collection remains accessible | Production databases |
+| Mode                                | Speed  | Collection locked?                           | Use case                        |
+| ----------------------------------- | ------ | -------------------------------------------- | ------------------------------- |
+| Foreground (default)                | Faster | Yes — reads & writes blocked during creation | Development / small collections |
+| Background (`{ background: true }`) | Slower | No — collection remains accessible           | Production databases            |
 
 > In newer MongoDB versions (4.2+) all index builds are performed without fully blocking the collection, but `background: true` was the way to achieve this in older versions and remains good practice to know.
 
@@ -9328,7 +9721,7 @@ MongoDB supports two modes for index creation. The correct choice depends on whe
 ```js
 // credit-rating.js inserts 1,000,000 documents into db.ratings
 // Each document: { personId: N, age: N, score: N }
-db.ratings.find().count();   // → 1000000
+db.ratings.find().count(); // → 1000000
 ```
 
 ---

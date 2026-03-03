@@ -1,6 +1,5 @@
 # MongoDB
 
----
 
 ## Table of Contents
 
@@ -67,7 +66,7 @@
   - [Finding Places Inside a Certain Area](#finding-places-inside-a-certain-area)
   - [Finding out if a User is Inside a Specific Area](#finding-out-if-a-user-is-inside-a-specific-area)
   - [Finding Places within certain Radius](#finding-places-within-certain-radius)
-  - [Summary](#summary-1)
+  - [Geospatial Data — Summary](#geospatial-data--summary)
 
 ---
 
@@ -81,6 +80,8 @@
 - **Why BSON?** It's more efficient for storage and faster to traverse than plain JSON
 - MongoDB drivers automatically convert JSON to BSON when you insert data
 - BSON supports additional data types not available in JSON (e.g., Date, ObjectId, Binary data)
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -98,6 +99,8 @@ MongoDB is fundamentally different from traditional relational databases:
 - Faster queries (less joins needed)
 - Easy to scale horizontally
 - Simpler to evolve your data model over time
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -135,6 +138,8 @@ Serverless platform for building applications:
 - **Database Triggers**: Execute functions automatically when data changes
 - **Real-Time Sync**: Synchronize data across devices in real-time
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Shell vs Drivers
@@ -150,6 +155,8 @@ Serverless platform for building applications:
 - Libraries for programming languages (Node.js, Python, Java, C#, etc.)
 - Allow applications to interact with MongoDB
 - Provide native language APIs for database operations
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -180,6 +187,8 @@ MongoDB Server
 - Frequently accessed data is kept in memory for performance
 - Changes are written to memory first, then periodically flushed to disk
 - This hybrid approach balances speed with data durability
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -362,6 +371,8 @@ db.users.deleteMany({});
 
 **⚠️ Warning:** Be careful with `deleteMany({})` - it deletes everything!
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Projection
@@ -409,6 +420,8 @@ db.users.find({}, { password: 0, secret: 0 }); // Everything except password and
 
 db.products.find({}, { title: 1, price: 1, _id: 0 });
 ```
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -477,6 +490,8 @@ db.users.find({ hobbies: "Reading" }); // Matches if array contains "Reading"
 db.users.find({ "tags.category": "premium" });
 ```
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Data Schemas and Data Modelling
@@ -509,6 +524,8 @@ db.companies.insertOne({
 - `Array`: tags
 - `Date`: foundingDate
 - `Timestamp`: insertedAt
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -617,6 +634,8 @@ flowchart LR
 - Requires multiple queries (or $lookup aggregation)
 - Slower read performance
 - No atomic updates across documents
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -1061,6 +1080,8 @@ flowchart LR
 - Need to query relationships from both directions
 - Want to avoid data duplication
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Choosing Between Embedded vs Referenced
@@ -1102,6 +1123,8 @@ flowchart TD
     style EMB fill:#27ae60,color:#fff
     style REF fill:#2980b9,color:#fff
 ```
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -1296,6 +1319,8 @@ db.citizens.aggregate([
 - Can be slower than embedded documents
 - Index the `foreignField` for better performance
 - Consider embedding if you always need joined data
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -1669,6 +1694,8 @@ db.users.createIndex({ email: 1 }, { unique: true });
 
 **Remember:** MongoDB's strength is flexibility - use validation to enforce critical rules while maintaining the agility of a schema-less database.
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Exploring The Shell & The Server
@@ -1845,6 +1872,8 @@ mongosh --host localhost --port 27018 --quiet
 ```
 
 Connects to MongoDB on localhost:27018 in quiet mode.
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -2899,6 +2928,8 @@ try {
 - **Use transactions** when multi-document atomicity is required
 - **Understand the guarantee**: Each CRUD operation on a single document is atomic, including all embedded subdocuments
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Importing Data with mongoimport
@@ -3337,7 +3368,7 @@ tail -f import.log
 
 ---
 
-### Summary
+### mongoimport — Summary
 
 **mongoimport** is the go-to tool for:
 
@@ -3365,6 +3396,8 @@ mongoimport file.json -d dbname -c collection --drop
 # Upsert mode
 mongoimport file.json -d dbname -c collection --mode upsert
 ```
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -4987,6 +5020,8 @@ db.movies
 3. Use projection to reduce data transfer
 4. Test queries with `.explain()` for performance insights
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Update Operations Deep Dive
@@ -5046,6 +5081,8 @@ Update operations allow you to modify existing documents in MongoDB collections 
 > | Manuel | 32    | (added later) | 2             |
 > | Anna   | null  | (added later) | 2             |
 > | Chris  | 26→29 | (added later) | 2→3           |
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -5638,6 +5675,8 @@ db.users.updateMany(
 );
 ```
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Upsert - Update or Insert
@@ -5830,6 +5869,8 @@ db.users.updateOne(
 - Sets fields only when inserting (upsert creates new doc)
 - Ignored when updating existing doc
 - Useful for timestamps, defaults
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -6658,6 +6699,8 @@ db.users.updateMany(
 );
 ```
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Adding Elements to Arrays
@@ -7026,6 +7069,8 @@ db.products.updateOne(
 3. Combine modifiers for powerful array management
 4. Consider performance with large arrays
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Removing Elements from Arrays
@@ -7316,6 +7361,8 @@ db.players.updateOne(
   },
 );
 ```
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -7625,7 +7672,7 @@ Need to add to array?
 
 ---
 
-### Summary
+### $addToSet — Summary
 
 | Feature                | `$addToSet` | `$push`         |
 | ---------------------- | ----------- | --------------- |
@@ -7635,6 +7682,8 @@ Need to add to array?
 | Works with `$slice`    | ❌ No       | ✅ Yes          |
 | Works with `$position` | ❌ No       | ✅ Yes          |
 | Use case               | Unique sets | Lists/sequences |
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -7856,6 +7905,8 @@ Need to modify documents?
   └─ Document might not exist?
       └─ Add { upsert: true }
 ```
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -8395,7 +8446,7 @@ Need to delete?
 
 ---
 
-### Summary
+### Delete Operations — Summary
 
 | Method           | Deletes         | Returns        | Speed     | Indexes | Collection |
 | ---------------- | --------------- | -------------- | --------- | ------- | ---------- |
@@ -8412,6 +8463,8 @@ Need to delete?
 - `drop()` is faster than `deleteMany({})` for clearing collections
 - All delete operations are **irreversible** - no undo!
 - `deletedCount: 0` is not an error - just no matches
+
+> [⬆ Back to Index](#table-of-contents)
 
 ---
 
@@ -9784,6 +9837,8 @@ db.ratings.createIndex({ age: 1 }, { background: true });
 
 > **When to use background:** Always prefer `{ background: true }` when adding indexes on production collections. Foreground mode is twice as fast but locks the entire collection, blocking all application reads and writes until the build completes.
 
+> [⬆ Back to Index](#table-of-contents)
+
 ---
 
 ## Geospatial Data
@@ -10118,7 +10173,7 @@ awesomePlaces>
 | Use when | You need sorted proximity results | You need all points in a radius, order doesn't matter |
 
 
-### Summary
+### Geospatial Data — Summary
 
 | Topic | Key Takeaway |
 |---|---|
@@ -10130,4 +10185,6 @@ awesomePlaces>
 | `$geoWithin` | Finds points inside a shape (Polygon or `$centerSphere` circle); unsorted; index optional |
 | `$geoIntersects` | Finds areas that share any point with the query; great for "which area is this user in?" |
 | GeoJSON in queries | All three operators accept GeoJSON objects — same format as stored data |
+
+> [⬆ Back to Index](#table-of-contents)
 

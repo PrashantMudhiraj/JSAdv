@@ -80,7 +80,23 @@
   - [$group vs $project](#group-vs-project)
   - [Pushing Elements into Newly Created Arrays](#pushing-elements-into-newly-created-arrays)
   - [Using Projection with Arrays](#using-projection-with-arrays)
+  - [Using the $filter Operator](#using-the-filter-operator)
+  - [Applying Multiple Operations to Arrays](#applying-multiple-operations-to-arrays)
+  - [Understanding $bucket](#understanding-bucket)
+  - [Diving into Additional Stages](#diving-into-additional-stages)
+  - [Writing Pipeline Results into a New Collection](#writing-pipeline-results-into-a-new-collection)
+  - [Working with the $geoNear Stage](#working-with-the-geonear-stage)
   - [Understanding the Aggregation Framework — Summary](#understanding-the-aggregation-framework--summary)
+- [Working with Numeric Data](#working-with-numeric-data)
+  - [Number Types](#number-types)
+  - [Understanding Programming Language Defaults](#understanding-programming-language-defaults)
+  - [Working with int32](#working-with-int32)
+  - [Working with int64](#working-with-int64)
+  - [Doing Math with Floats int32 and int64](#doing-math-with-floats-int32-and-int64)
+  - [What's Wrong with Normal Doubles?](#whats-wrong-with-normal-doubles)
+  - [Working with Decimal 128bit](#working-with-decimal-128bit)
+  - [Model Monetary Data](#model-monetary-data)
+  - [Working with Numeric Data — Summary](#working-with-numeric-data--summary)
 
 ---
 
@@ -94,6 +110,28 @@
 - **Why BSON?** It's more efficient for storage and faster to traverse than plain JSON
 - MongoDB drivers automatically convert JSON to BSON when you insert data
 - BSON supports additional data types not available in JSON (e.g., Date, ObjectId, Binary data)
+
+```mermaid
+flowchart LR
+    subgraph YOUR_APP ["Your Application"]
+        J["JSON object<br/>{ name: 'Max', age: 29,<br/>  dob: new Date() }"]
+    end
+
+    subgraph DRIVER ["MongoDB Driver (auto-converts)"]
+        D["Serialises to BSON<br/>+ adds extra types"]
+    end
+
+    subgraph MONGODB ["MongoDB Storage"]
+        B["BSON binary<br/>String · Int · Double<br/>ObjectId · Date · Bool<br/>Binary · Timestamp · ..."]
+    end
+
+    J -->|"insert / update"| D --> B
+    B -->|"find / query"| D -->|"deserialise"| J
+
+    style YOUR_APP fill:#cce5ff,color:#000
+    style DRIVER fill:#fff3cd,color:#000
+    style MONGODB fill:#d4edda,color:#000
+```
 
 > [⬆ Back to Index](#table-of-contents)
 
@@ -125,12 +163,10 @@ MongoDB offers a comprehensive ecosystem of tools and services:
 ### MongoDB Database Options
 
 1. **Self-Managed/Enterprise**
-
    - Install and manage on your own servers
    - **CloudManager/OpsManager**: Tools for monitoring and automating database operations
 
 2. **Atlas (Cloud)**
-
    - Fully managed cloud database service (DBaaS - Database as a Service)
    - Available on AWS, Azure, and Google Cloud
    - Automatic backups, scaling, and monitoring
@@ -154,6 +190,34 @@ Serverless platform for building applications:
 - **Database Triggers**: Execute functions automatically when data changes
 - **Real-Time Sync**: Synchronize data across devices in real-time
 
+```mermaid
+flowchart TD
+    subgraph DB ["MongoDB Database"]
+        SE["Self-Managed / Enterprise<br/>(your own servers)"]
+        AT["Atlas — Cloud DBaaS<br/>(AWS / Azure / GCP)"]
+        MO["Mobile — Realm<br/>(offline-first)"]
+    end
+
+    subgraph TOOLS ["Tools"]
+        CP["Compass (GUI)"]
+        BI["BI Connectors"]
+        CH["Charts"]
+    end
+
+    subgraph STITCH ["Stitch / Realm (Serverless)"]
+        FN["Functions"]
+        TR["Triggers"]
+        SY["Real-Time Sync"]
+    end
+
+    DB --- TOOLS
+    DB --- STITCH
+
+    style DB fill:#cce5ff,color:#000
+    style TOOLS fill:#d4edda,color:#000
+    style STITCH fill:#fff3cd,color:#000
+```
+
 > [⬆ Back to Index](#table-of-contents)
 
 ---
@@ -172,6 +236,29 @@ Serverless platform for building applications:
 - Allow applications to interact with MongoDB
 - Provide native language APIs for database operations
 
+```mermaid
+flowchart LR
+    subgraph SHELL ["MongoDB Shell (mongosh)"]
+        SH["Interactive JS REPL<br/>for admins & learning<br/>runs queries directly"]
+    end
+
+    subgraph DRIVERS ["Language Drivers"]
+        direction TB
+        N["Node.js"] --- PY["Python"]
+        J["Java"]   --- CS["C#"]
+        G["Go"]     --- PH["PHP"]
+    end
+
+    DB[("MongoDB Server")]
+
+    SHELL  -->|"direct connection"| DB
+    DRIVERS -->|"native language API"| DB
+
+    style SHELL fill:#fff3cd,color:#000
+    style DRIVERS fill:#cce5ff,color:#000
+    style DB fill:#d4edda,color:#000
+```
+
 > [⬆ Back to Index](#table-of-contents)
 
 ---
@@ -180,16 +267,30 @@ Serverless platform for building applications:
 
 MongoDB uses a storage engine to manage how data is stored and accessed:
 
-```
-MongoDB Server
-  ├── Storage Engine → Memory (Fast Read/Write)
-  └── Storage Engine → Database Files (Persistent Storage)
+```mermaid
+flowchart TD
+    APP(["Application / Shell"]) -->|"read / write"| MS
+
+    subgraph MS ["MongoDB Server"]
+        direction TB
+        SE["Storage Engine<br/>(WiredTiger default)"]
+        SE --> MEM["Memory (RAM)<br/>Fast but volatile<br/>Lost on crash"]
+        SE --> JOUR["Journal (WAL)<br/>Crash-recovery log<br/>Flushed every ~100ms"]
+        SE --> DISK["Data Files (.wt)<br/>Permanent storage<br/>Flushed every ~60s"]
+        MEM -.->|"periodic checkpoint"| DISK
+        JOUR -.->|"replayed on restart"| DISK
+    end
+
+    style APP fill:#cce5ff,color:#000
+    style MEM fill:#fff3cd,color:#000
+    style JOUR fill:#ffe0b2,color:#000
+    style DISK fill:#d4edda,color:#000
+    style SE fill:#f8f9fa,color:#000
 ```
 
 **Explanation:**
 
 1. **Memory Storage\*\*\*\***
-
    - Data is read into RAM for fast access
    - Write operations first go to memory
    - Extremely fast but volatile (lost on restart)
@@ -212,6 +313,40 @@ MongoDB Server
 ## Document & CRUD Basics
 
 CRUD stands for **Create**, **Read**, **Update**, and **Delete** - the four basic operations for managing data.
+
+```mermaid
+flowchart LR
+    subgraph C ["Create"]
+        C1["insertOne()"]
+        C2["insertMany()"]
+    end
+    subgraph R ["Read"]
+        R1["find()"]
+        R2["findOne()"]
+    end
+    subgraph U ["Update"]
+        U1["updateOne()"]
+        U2["updateMany()"]
+        U3["replaceOne()"]
+    end
+    subgraph D ["Delete"]
+        D1["deleteOne()"]
+        D2["deleteMany()"]
+    end
+
+    DB[("MongoDB<br/>Collection")]
+
+    C -->|"insert docs"| DB
+    R -->|"query docs"| DB
+    U -->|"modify docs"| DB
+    D -->|"remove docs"| DB
+
+    style C fill:#d4edda,color:#000
+    style R fill:#cce5ff,color:#000
+    style U fill:#fff3cd,color:#000
+    style D fill:#f8d7da,color:#000
+    style DB fill:#e2e3e5,color:#000
+```
 
 ### Create Operations
 
@@ -339,14 +474,14 @@ db.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
 
 db.flightData.updateMany(
   {}, // empty filter = match all
-  { $set: { marker: "delete" } }
+  { $set: { marker: "delete" } },
 );
 
 // Update an array field
 
 db.passengers.updateOne(
   { name: "Albert Twostone" },
-  { $set: { hobbies: ["Sports", "Cooking"] } }
+  { $set: { hobbies: ["Sports", "Cooking"] } },
 );
 ```
 
@@ -395,6 +530,32 @@ db.users.deleteMany({});
 ## Projection
 
 **Projection** allows you to retrieve only specific fields from documents, reducing network bandwidth and improving performance.
+
+```mermaid
+flowchart LR
+    subgraph DOC ["Document in DB"]
+        direction TB
+        F1["_id: 1"]
+        F2["name: 'Alice'"]
+        F3["age: 25"]
+        F4["password: 'abc'"]
+        F5["address: {...}"]
+    end
+
+    PROJ["Projection<br/>{ name: 1, age: 1, _id: 0 }"]
+
+    subgraph RES ["Result Returned"]
+        direction TB
+        R1["name: 'Alice'"]
+        R2["age: 25"]
+    end
+
+    DOC --> PROJ --> RES
+
+    style DOC fill:#cce5ff,color:#000
+    style PROJ fill:#fff3cd,color:#000
+    style RES fill:#d4edda,color:#000
+```
 
 **Syntax:**
 
@@ -1345,6 +1506,33 @@ db.citizens.aggregate([
 
 MongoDB allows you to enforce **data validation rules** on collections to ensure documents meet specific requirements.
 
+```mermaid
+flowchart TD
+    OP(["Insert / Update operation"]) --> LEVEL
+
+    LEVEL{"Validation Level?"}
+    LEVEL -->|"strict  (all docs)"| VALIDATE
+    LEVEL -->|"moderate (only valid docs)"| VALIDATE
+    LEVEL -->|"no schema set"| PASS
+
+    VALIDATE{"Does doc pass schema?"}
+    VALIDATE -->|"Yes"| PASS
+    VALIDATE -->|"No"| ACTION
+
+    ACTION{"Validation Action?"}
+    ACTION -->|"error (default)"| REJECT
+    ACTION -->|"warn"| LOG
+
+    PASS["Document saved"]
+    REJECT["Operation rejected<br/>(MongoServerError)"]
+    LOG["Document saved<br/>+ warning logged"]
+
+    style PASS fill:#d4edda,color:#000
+    style REJECT fill:#f8d7da,color:#000
+    style LOG fill:#fff3cd,color:#000
+    style OP fill:#cce5ff,color:#000
+```
+
 ### Validation Levels
 
 Controls **which documents** get validated:
@@ -2045,7 +2233,30 @@ mongoimport -d sales -c products --type csv --headerline --file products.csv
 
 When using `insertMany()`, you can control what happens when an error occurs during bulk insert.
 
-#### _Default Behavior: Ordered Inserts_
+```mermaid
+flowchart TD
+    subgraph ORD ["ordered: true  (default)"]
+        direction TB
+        O1["Insert doc[0] sports"] --> O1R["OK"]
+        O1R --> O2["Insert doc[1] sports"] --> O2R["ERROR: duplicate key"]
+        O2R --> O3["doc[2] hiking"] --> O3R["SKIPPED — never attempted"]
+        style O2R fill:#f8d7da,color:#000
+        style O3R fill:#e2e3e5,color:#000
+    end
+
+    subgraph UNORD ["ordered: false"]
+        direction TB
+        U1["Insert doc[0] sports"] --> U1R["ERROR: duplicate"]
+        U1R --> U2["Insert doc[1] hiking"] --> U2R["OK — inserted"]
+        U2R --> U3["Insert doc[2] yoga"] --> U3R["ERROR: duplicate"]
+        style U1R fill:#f8d7da,color:#000
+        style U2R fill:#d4edda,color:#000
+        style U3R fill:#f8d7da,color:#000
+    end
+
+    style ORD fill:#fff3cd,color:#000
+    style UNORD fill:#cce5ff,color:#000
+```
 
 By default, `insertMany()` is **ordered** - it inserts documents sequentially and stops at the first error.
 
@@ -2520,7 +2731,7 @@ db.persons.insertOne(
 ```js
 db.persons.insertOne(
   { name: "Sara", age: 35 },
-  { writeConcern: { w: "majority" } }
+  { writeConcern: { w: "majority" } },
 );
 ```
 
@@ -2616,7 +2827,7 @@ db.persons.insertOne(
 
 db.persons.insertOne(
   { name: "Test" },
-  { writeConcern: { w: "majority", wtimeout: 100 } }
+  { writeConcern: { w: "majority", wtimeout: 100 } },
 );
 // Error: waiting for replication timed out
 ```
@@ -2733,7 +2944,7 @@ db.users.updateOne(
     $set: { name: "John Doe" },
     $inc: { loginCount: 1 },
     $push: { loginHistory: new Date() },
-  }
+  },
 );
 ```
 
@@ -2803,7 +3014,7 @@ db.users.updateOne(
       },
     },
     $inc: { version: 1 },
-  }
+  },
 );
 ```
 
@@ -2826,7 +3037,7 @@ db.blogs.updateOne(
       "comments.$.editedAt": new Date(),
     },
     $inc: { "comments.$.editCount": 1 },
-  }
+  },
 );
 ```
 
@@ -2908,7 +3119,7 @@ session.commitTransaction();
 
 db.products.updateOne(
   { _id: "product123" },
-  { $inc: { quantity: -1 } } // Atomic decrement
+  { $inc: { quantity: -1 } }, // Atomic decrement
 );
 ```
 
@@ -4938,7 +5149,7 @@ db.posts.find(
     comments: {
       $elemMatch: { score: { $gt: 5 } },
     },
-  }
+  },
 );
 ```
 
@@ -4999,7 +5210,7 @@ db.movies
     {
       name: 1,
       score: { $meta: "textScore" },
-    }
+    },
   )
   .sort({ score: { $meta: "textScore" } });
 ```
@@ -5159,7 +5370,7 @@ users> db.users.updateOne(
 ```js
 db.users.updateMany(
   { "hobbies.title": "Sports" },
-  { $set: { isSporty: true } }
+  { $set: { isSporty: true } },
 );
 ```
 
@@ -5258,7 +5469,7 @@ db.users.updateOne(
     $inc: {
       age: 2, // Increment age by 2
     },
-  }
+  },
 );
 ```
 
@@ -5288,7 +5499,7 @@ db.users.updateOne(
     $set: {
       isSporty: false, // Set isSporty field
     },
-  }
+  },
 );
 ```
 
@@ -5434,7 +5645,7 @@ db.collection.updateOne({ filter }, { $mul: { field: multiplier } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $mul: { age: 1.1 } } // Multiply age by 1.1 (10% increase)
+  { $mul: { age: 1.1 } }, // Multiply age by 1.1 (10% increase)
 );
 ```
 
@@ -5509,7 +5720,7 @@ db.users.find({ name: "Chris" });
 ```js
 db.collection.updateMany(
   { filter },
-  { $unset: { field: "" } } // Value doesn't matter (use "" or 1)
+  { $unset: { field: "" } }, // Value doesn't matter (use "" or 1)
 );
 ```
 
@@ -5574,7 +5785,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   { isSporty: true },
-  { $unset: { phone: "" } } // Remove 'phone' field
+  { $unset: { phone: "" } }, // Remove 'phone' field
 );
 ```
 
@@ -5625,7 +5836,7 @@ db.users.updateMany(
 ```js
 db.collection.updateMany(
   { filter },
-  { $rename: { oldFieldName: "newFieldName" } }
+  { $rename: { oldFieldName: "newFieldName" } },
 );
 ```
 
@@ -5643,7 +5854,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   {}, // Empty filter = all documents
-  { $rename: { age: "totalAge" } }
+  { $rename: { age: "totalAge" } },
 );
 ```
 
@@ -5688,7 +5899,7 @@ db.users.updateMany(
 ```js
 db.users.updateMany(
   {},
-  { $rename: { "address.zipCode": "address.postalCode" } }
+  { $rename: { "address.zipCode": "address.postalCode" } },
 );
 ```
 
@@ -5708,11 +5919,26 @@ db.users.updateMany(
 db.collection.updateOne(
   { filter },
   { updateOperators },
-  { upsert: true } // Enable upsert
+  { upsert: true }, // Enable upsert
 );
 ```
 
 **Default Behavior:** `upsert: false` (only update existing documents)
+
+```mermaid
+flowchart TD
+    START(["updateOne(filter, update, { upsert: true })"]) --> FIND
+    FIND{"Document matching<br/>filter found?"}
+    FIND -->|"Yes"| UPDATE["Update existing document"]
+    FIND -->|"No"| INSERT["Insert new document<br/>(filter fields + $set fields)"]
+    UPDATE --> ACK1["{matchedCount: 1,<br/>modifiedCount: 1,<br/>upsertedCount: 0 }"]
+    INSERT --> ACK2["{matchedCount: 0,<br/>modifiedCount: 0,<br/>upsertedCount: 1,<br/>insertedId: ObjectId(...) }"]
+    style UPDATE fill:#d4edda,color:#000
+    style INSERT fill:#cce5ff,color:#000
+    style ACK1 fill:#d4edda,color:#000
+    style ACK2 fill:#cce5ff,color:#000
+    style START fill:#fff3cd,color:#000
+```
 
 ---
 
@@ -5730,7 +5956,7 @@ db.users.updateOne(
       isSporty: true,
     },
   },
-  { upsert: true } // If not found, insert
+  { upsert: true }, // If not found, insert
 );
 ```
 
@@ -5812,7 +6038,7 @@ db.users.updateOne(
 db.pageViews.updateOne(
   { page: "/home" },
   { $inc: { views: 1 } },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5825,7 +6051,7 @@ db.pageViews.updateOne(
 db.settings.updateOne(
   { userId: "user123" },
   { $set: { theme: "dark", language: "en" } },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5841,7 +6067,7 @@ db.sessions.updateOne(
     $set: { lastActive: new Date() },
     $inc: { requestCount: 1 },
   },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5854,7 +6080,7 @@ db.sessions.updateOne(
 db.inventory.updateOne(
   { sku: "LAPTOP-001" },
   { $set: { quantity: 50, price: 999 } },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5877,7 +6103,7 @@ db.users.updateOne(
     $inc: { loginCount: 1 },
     $setOnInsert: { createdAt: new Date() }, // Only on insert
   },
-  { upsert: true }
+  { upsert: true },
 );
 ```
 
@@ -5981,7 +6207,7 @@ db.users.find({
 ```js
 db.collection.updateMany(
   { "array.field": value }, // Filter
-  { $set: { "array.$.newField": value } } // $ = matched element
+  { $set: { "array.$.newField": value } }, // $ = matched element
 );
 ```
 
@@ -6003,7 +6229,7 @@ db.users.updateMany(
     $set: {
       "hobbies.$.highFrequency": true, // $ = first matched hobby
     },
-  }
+  },
 );
 ```
 
@@ -6102,7 +6328,7 @@ After update with `$`:
 ```js
 db.collection.updateMany(
   { filter },
-  { $set: { "array.$[].field": value } } // $[] = all elements
+  { $set: { "array.$[].field": value } }, // $[] = all elements
 );
 ```
 
@@ -6156,7 +6382,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateMany(
   { totalAge: { $gt: 30 } },
-  { $inc: { "hobbies.frequency": -1 } } // ERROR!
+  { $inc: { "hobbies.frequency": -1 } }, // ERROR!
 );
 // Error: Cannot create field frequency in element hobbies
 ```
@@ -6174,7 +6400,7 @@ db.users.updateMany(
     $inc: {
       "hobbies.$[].frequency": -1, // $[] = all hobbies
     },
-  }
+  },
 );
 ```
 
@@ -6255,7 +6481,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateOne(
   { name: "Alex", "hobbies.frequency": { $gte: 3 } },
-  { $set: { "hobbies.$.popular": true } }
+  { $set: { "hobbies.$.popular": true } },
 );
 
 // Result:
@@ -6297,7 +6523,7 @@ db.users.updateOne({ name: "Alex" }, { $inc: { "hobbies.$[].frequency": 1 } });
 // Add field to all items
 db.products.updateOne(
   { _id: productId },
-  { $set: { "reviews.$[].verified": false } }
+  { $set: { "reviews.$[].verified": false } },
 );
 ```
 
@@ -6325,7 +6551,7 @@ db.posts.updateMany({}, { $unset: { "comments.$[].tempFlag": "" } });
 // Update nested field in all array elements
 db.users.updateOne(
   { name: "Alex" },
-  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } }
+  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } },
 );
 ```
 
@@ -6340,7 +6566,7 @@ db.users.updateOne(
 // Can't use dot notation after $[]
 db.blogs.updateOne(
   { _id: blogId },
-  { $set: { "tags.$[]": "updated" } } // Replaces all tags with "updated"
+  { $set: { "tags.$[]": "updated" } }, // Replaces all tags with "updated"
 );
 ```
 
@@ -6352,7 +6578,7 @@ db.users.updateOne(
   {
     $inc: { "hobbies.$[].frequency": 1 },
     $set: { lastModified: new Date() },
-  }
+  },
 );
 ```
 
@@ -6377,7 +6603,7 @@ db.users.updateOne(
 db.collection.updateMany(
   { documentFilter }, // Filter documents
   { $set: { "array.$[identifier].field": value } }, // Update matching array elements
-  { arrayFilters: [{ "identifier.field": condition }] } // Filter array elements
+  { arrayFilters: [{ "identifier.field": condition }] }, // Filter array elements
 );
 ```
 
@@ -6450,7 +6676,7 @@ db.users.find({ "hobbies.frequency": { $gt: 2 } });
 db.users.updateMany(
   { "hobbies.frequency": { $gt: 2 } }, // Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } }, // Array update
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // Array element filter
 );
 ```
 
@@ -6569,7 +6795,7 @@ db.users.find();
 db.users.updateMany(
   { totalAge: { $gt: 30 } }, // ← Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // ← Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // ← Array element filter
 );
 ```
 
@@ -6605,7 +6831,7 @@ db.posts.updateMany(
       { "comment.upvotes": { $gte: 10 } }, // Filter for comments
       { "tag.category": "tech" }, // Filter for tags
     ],
-  }
+  },
 );
 ```
 
@@ -6630,7 +6856,7 @@ db.posts.updateMany(
 db.products.updateMany(
   { category: "Electronics" },
   { $set: { "reviews.$[review].verified": true } },
-  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] }
+  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] },
 );
 ```
 
@@ -6643,7 +6869,7 @@ db.products.updateMany(
 db.orders.updateMany(
   { status: "pending" },
   { $mul: { "items.$[item].price": 0.9 } },
-  { arrayFilters: [{ "item.price": { $gt: 50 } }] }
+  { arrayFilters: [{ "item.price": { $gt: 50 } }] },
 );
 ```
 
@@ -6663,7 +6889,7 @@ db.posts.updateMany(
         "c.createdAt": { $lt: new Date("2025-01-01") },
       },
     ],
-  }
+  },
 );
 ```
 
@@ -6712,7 +6938,7 @@ db.users.find({
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[h].goodFrequency": true } },
-  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] }
+  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] },
 );
 ```
 
@@ -6744,7 +6970,7 @@ db.collection.updateOne(
         $position: N,
       },
     },
-  }
+  },
 );
 ```
 
@@ -6768,7 +6994,7 @@ db.collection.updateOne(
 ```js
 db.users.updateOne(
   { name: "Maria" },
-  { $push: { hobbies: { title: "Sports", frequency: 2 } } }
+  { $push: { hobbies: { title: "Sports", frequency: 2 } } },
 );
 ```
 
@@ -6821,7 +7047,7 @@ db.users.updateOne(
         ],
       },
     },
-  }
+  },
 );
 ```
 
@@ -6865,7 +7091,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // Sort by frequency descending
       },
     },
-  }
+  },
 );
 ```
 
@@ -6928,7 +7154,7 @@ db.users.updateOne(
         $sort: { frequency: -1 },
       },
     },
-  }
+  },
 );
 
 // Array remains sorted even with duplicates
@@ -6976,7 +7202,7 @@ db.users.updateOne(
         $slice: 3, // Keep only top 3
       },
     },
-  }
+  },
 );
 ```
 
@@ -7031,7 +7257,7 @@ db.users.updateOne(
         $position: 0, // Insert at start
       },
     },
-  }
+  },
 );
 
 // Result: New hobby is first in array
@@ -7058,7 +7284,7 @@ db.products.updateOne(
         $position: 0, // Insert at beginning
       },
     },
-  }
+  },
 );
 ```
 
@@ -7101,7 +7327,7 @@ db.products.updateOne(
 ```js
 db.collection.updateOne(
   { documentFilter },
-  { $pull: { arrayField: condition } }
+  { $pull: { arrayField: condition } },
 );
 ```
 
@@ -7141,7 +7367,7 @@ db.users.updateOne(
         title: "Good food", // Remove by exact match
       },
     },
-  }
+  },
 );
 ```
 
@@ -7184,7 +7410,7 @@ db.users.updateOne(
         frequency: { $lte: 1 }, // Remove if frequency ≤ 1
       },
     },
-  }
+  },
 );
 ```
 
@@ -7241,7 +7467,7 @@ db.collection.updateOne({ filter }, { $pop: { arrayField: value } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: 1 } } // 1 = remove last
+  { $pop: { hobbies: 1 } }, // 1 = remove last
 );
 ```
 
@@ -7276,7 +7502,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: -1 } } // -1 = remove first
+  { $pop: { hobbies: -1 } }, // -1 = remove first
 );
 
 // Result: "Sports" would be removed
@@ -7302,7 +7528,7 @@ db.users.updateOne(
 // Remove all hobbies with low frequency
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
 );
 // Removes: All matching elements (could be 0, 1, or many)
 ```
@@ -7355,7 +7581,7 @@ db.users.updateMany(
         createdAt: { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
     },
-  }
+  },
 );
 ```
 
@@ -7375,7 +7601,7 @@ db.players.updateOne(
         $slice: 5, // Keep top 5
       },
     },
-  }
+  },
 );
 ```
 
@@ -7430,7 +7656,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  }
+  },
 );
 ```
 
@@ -7471,7 +7697,7 @@ db.users.updateOne(
     $push: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  }
+  },
 );
 // Run again...
 // Run again...
@@ -7495,7 +7721,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  }
+  },
 );
 // Run again...
 // Run again...
@@ -7526,7 +7752,7 @@ db.users.updateOne(
         ],
       },
     },
-  }
+  },
 );
 ```
 
@@ -7590,7 +7816,7 @@ db.posts.updateOne({ _id: postId }, { $addToSet: { tags: "mongodb" } });
 ```js
 db.articles.updateOne(
   { _id: articleId },
-  { $addToSet: { tags: "javascript" } }
+  { $addToSet: { tags: "javascript" } },
 );
 // Prevents duplicate tags
 ```
@@ -7607,7 +7833,7 @@ db.users.updateOne({ username: "alice" }, { $addToSet: { followers: "bob" } });
 ```js
 db.users.updateOne(
   { userId: "user123" },
-  { $addToSet: { viewedProducts: productId } }
+  { $addToSet: { viewedProducts: productId } },
 );
 // Track unique views only
 ```
@@ -7617,7 +7843,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { email: "admin@example.com" },
-  { $addToSet: { roles: "moderator" } }
+  { $addToSet: { roles: "moderator" } },
 );
 // Can't assign same role twice
 ```
@@ -7639,7 +7865,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // ❌ Error!
       },
     },
-  }
+  },
 );
 ```
 
@@ -7725,7 +7951,7 @@ Need to add to array?
 db.collection.updateOne(
   { filter }, // 1st argument: Query selector (which documents?)
   { update }, // 2nd argument: Update operators (what changes?)
-  { options } // 3rd argument: Options (upsert, arrayFilters, etc.)
+  { options }, // 3rd argument: Options (upsert, arrayFilters, etc.)
 );
 ```
 
@@ -7767,7 +7993,7 @@ db.collection.updateOne(
 // Update first match
 db.users.updateOne(
   { "hobbies.title": "Sports" },
-  { $set: { "hobbies.$.frequency": 5 } }
+  { $set: { "hobbies.$.frequency": 5 } },
 );
 
 // Update all elements
@@ -7777,7 +8003,7 @@ db.users.updateOne({ name: "Maria" }, { $inc: { "hobbies.$[].frequency": 1 } });
 db.users.updateOne(
   { name: "Maria" },
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] },
 );
 ```
 
@@ -7806,13 +8032,13 @@ db.users.updateOne(
         $slice: 5,
       },
     },
-  }
+  },
 );
 
 // Pull by condition
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
 );
 
 // Pop last element
@@ -7832,7 +8058,7 @@ db.users.updateOne({ name: "Maria" }, { $addToSet: { tags: "featured" } });
 db.users.updateOne(
   { username: "alice" },
   { $set: { lastLogin: new Date() } },
-  { upsert: true } // Insert if not found
+  { upsert: true }, // Insert if not found
 );
 ```
 
@@ -7842,7 +8068,7 @@ db.users.updateOne(
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[hobby].active": true } },
-  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] }
+  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] },
 );
 ```
 
@@ -7862,7 +8088,7 @@ db.users.replaceOne(
     hobbies: [],
     active: true,
     // All other fields removed
-  }
+  },
 );
 ```
 
@@ -7951,7 +8177,7 @@ MongoDB provides several methods to delete documents and collections:
 ```js
 db.collection.deleteOne(
   { filter }, // Required: Query selector
-  { writeConcern } // Optional: Write concern settings
+  { writeConcern }, // Optional: Write concern settings
 );
 ```
 
@@ -8049,7 +8275,7 @@ db.users.deleteOne({
 ```js
 db.collection.deleteMany(
   { filter }, // Required: Query selector
-  { writeConcern } // Optional: Write concern settings
+  { writeConcern }, // Optional: Write concern settings
 );
 ```
 
@@ -8275,7 +8501,7 @@ false; // Collection doesn't exist (no error)
 ```js
 db.users.deleteOne(
   { name: "Chris" },
-  { writeConcern: { w: "majority", wtimeout: 5000 } }
+  { writeConcern: { w: "majority", wtimeout: 5000 } },
 );
 ```
 
@@ -8516,6 +8742,28 @@ An index is an **additional data structure** maintained alongside a collection. 
 - Too many indexes can hurt write performance more than they help read performance
 
 > **Rule of Thumb:** Index fields used in frequent, selective queries. Don't index everything.
+
+```mermaid
+flowchart LR
+    subgraph NO_IDX ["Without Index (COLLSCAN)"]
+        direction TB
+        Q1["find({ age: { $gt: 30 } })"] --> S1
+        S1["Scan doc 1"] --> S2["Scan doc 2"] --> S3["Scan doc 3"] --> SN["... scan all 5000 docs"]
+        style SN fill:#f8d7da,color:#000
+    end
+
+    subgraph WITH_IDX ["With Index (IXSCAN)"]
+        direction TB
+        Q2["find({ age: { $gt: 30 } })"] --> IDX
+        IDX["Index on 'age'<br/>(sorted B-tree)"]
+        IDX -->|"jump to age > 30"| MATCH["Return only matching docs"]
+        style IDX fill:#fff3cd,color:#000
+        style MATCH fill:#d4edda,color:#000
+    end
+
+    style NO_IDX fill:#f8d7da,color:#000
+    style WITH_IDX fill:#d4edda,color:#000
+```
 
 ### Adding a Single Field Index
 
@@ -8937,7 +9185,7 @@ A partial index indexes **only documents that match a given filter** (`partialFi
 // Create partial index: only store dob.age entries where gender = "male"
 db.contacts.createIndex(
   { "dob.age": 1 },
-  { partialFilterExpression: { gender: "male" } }
+  { partialFilterExpression: { gender: "male" } },
 );
 ```
 
@@ -8990,7 +9238,7 @@ db.contacts.explain("executionStats").find({
 // Only ages > 60 are stored — useful app that almost never queries younger ages
 db.contacts.createIndex(
   { "dob.age": 1 },
-  { partialFilterExpression: { "dob.age": { $gt: 60 } } }
+  { partialFilterExpression: { "dob.age": { $gt: 60 } } },
 );
 ```
 
@@ -9049,7 +9297,7 @@ db.users.createIndex(
   {
     unique: true,
     partialFilterExpression: { email: { $exists: true } },
-  }
+  },
 );
 ```
 
@@ -9221,7 +9469,7 @@ db.customers.explain("executionStats").find({ name: "Max" });
 ```js
 db.customers.explain("executionStats").find(
   { name: "Max" },
-  { _id: 0, name: 1 } // only return indexed field, exclude _id
+  { _id: 0, name: 1 }, // only return indexed field, exclude _id
 );
 ```
 
@@ -9561,10 +9809,10 @@ When searching text, MongoDB internally calculates a **relevance score** for eac
 db.product
   .find(
     { $text: { $search: "awesome t-shirt" } },
-    { score: { $meta: "textScore" } } // project the score field
+    { score: { $meta: "textScore" } }, // project the score field
   )
   .sort(
-    { score: { $meta: "textScore" } } // sort by score descending
+    { score: { $meta: "textScore" } }, // sort by score descending
   );
 ```
 
@@ -9713,7 +9961,7 @@ db.product.createIndex(
   {
     default_language: "english",
     weights: { title: 1, description: 10 }, // description weighs 10x more than title
-  }
+  },
 );
 ```
 
@@ -9724,7 +9972,7 @@ db.product.createIndex(
 ```js
 db.product.find(
   { $text: { $search: "red" } },
-  { score: { $meta: "textScore" } }
+  { score: { $meta: "textScore" } },
 );
 ```
 
@@ -9747,7 +9995,7 @@ db.product.find(
 // Default: case-insensitive — "Red" and "red" are equivalent
 db.product.find(
   { $text: { $search: "Red", $caseSensitive: true } },
-  { score: { $meta: "textScore" } }
+  { score: { $meta: "textScore" } },
 );
 // Result: [] — "Red" (capital R) not found (document stores "red" lowercase in index)
 ```
@@ -9870,6 +10118,33 @@ MongoDB supports **GeoJSON** objects for storing and querying location data. All
 | Index type       | `"2dsphere"` — required for `$near`; recommended for all geo queries                 |
 | Collections used | `awesomePlaces.places` (points), `awesomePlaces.areas` (polygons)                    |
 
+```mermaid
+flowchart TD
+    subgraph GeoJSON Types
+        PT["Point<br/>{ type: 'Point',<br/>coordinates: [lng, lat] }"]
+        PG["Polygon<br/>{ type: 'Polygon',<br/>coordinates: [[p1,p2,p3,p1]] }"]
+        LS["LineString<br/>{ type: 'LineString',<br/>coordinates: [[lng,lat],...] }"]
+    end
+
+    subgraph Query Operators
+        NEAR["$near<br/>Closest points first<br/>Requires 2dsphere index"]
+        WITHIN["$geoWithin<br/>Points inside a shape<br/>Index optional"]
+        INTERSECTS["$geoIntersects<br/>Areas that contain a point<br/>Reverse lookup"]
+    end
+
+    PT --> NEAR
+    PT --> WITHIN
+    PG --> WITHIN
+    PG --> INTERSECTS
+
+    style PT fill:#cce5ff,color:#000
+    style PG fill:#d4edda,color:#000
+    style LS fill:#fff3cd,color:#000
+    style NEAR fill:#f8d7da,color:#000
+    style WITHIN fill:#f8d7da,color:#000
+    style INTERSECTS fill:#f8d7da,color:#000
+```
+
 ---
 
 ### Adding GeoJSON Data
@@ -9930,6 +10205,19 @@ planner returned error :: caused by :: unable to find index for $geoNear query
 ### Adding a Geospatial Index
 
 Create a `2dsphere` index on the field storing GeoJSON data. Once added, `$near` queries work and results are **sorted by proximity**.
+
+```mermaid
+flowchart LR
+    Q["User Query<br/>{ $near: { $geometry:<br/>{ type: 'Point',<br/>coordinates: [lng, lat] } } }"]
+    Q --> IDX{2dsphere<br/>index exists?}
+    IDX -->|No| ERR["❌ Error:<br/>unable to find index<br/>for $geoNear query"]
+    IDX -->|Yes| RES["✅ Sorted Results<br/>Nearest place first<br/>→ 2nd nearest<br/>→ 3rd nearest..."]
+
+    style Q fill:#cce5ff,color:#000
+    style IDX fill:#fff3cd,color:#000
+    style ERR fill:#f8d7da,color:#000
+    style RES fill:#d4edda,color:#000
+```
 
 ```js
 awesomePlaces > db.places.createIndex({ location: "2dsphere" });
@@ -10038,6 +10326,29 @@ Use `$geoWithin` + `$geometry` with a **Polygon** to find all points that lie in
 
 > **Important:** A polygon must close by repeating the **first coordinate** as the last element.
 
+```mermaid
+flowchart TD
+    subgraph Polygon Area
+        P1["point1 [17.462, 78.335]"]
+        P2["point2 [17.413, 78.294]"]
+        P3["point3 [17.397, 78.348]"]
+        P4["point4 [17.438, 78.362]"]
+    end
+
+    Q["$geoWithin query<br/>{ $geometry: { type: 'Polygon',<br/>coordinates: [[p1,p2,p3,p4,p1]] } }"]
+    P1 & P2 & P3 & P4 --> Q
+    Q --> IN["✅ Points INSIDE polygon<br/>e.g. Kairos School<br/>e.g. Zero40 Brewing"]
+    Q --> OUT["❌ Points OUTSIDE polygon<br/>not returned"]
+
+    style P1 fill:#e2e3e5,color:#000
+    style P2 fill:#e2e3e5,color:#000
+    style P3 fill:#e2e3e5,color:#000
+    style P4 fill:#e2e3e5,color:#000
+    style Q fill:#cce5ff,color:#000
+    style IN fill:#d4edda,color:#000
+    style OUT fill:#f8d7da,color:#000
+```
+
 ```js
 awesomePlaces> const point1 = [17.462003287536497, 78.33543337385615]
 awesomePlaces> const point2 = [17.413232242478013, 78.29445905349466]
@@ -10075,6 +10386,27 @@ The **reverse** of `$geoWithin`: given a user's coordinates, find which stored a
 | ---------------- | -------------------------------------------------------------------------------------- |
 | `$geoIntersects` | Returns documents whose geometry shares any point with the query geometry              |
 | Use case         | "Which neighborhood is this user in?" — pass user's Point, find matching Polygon areas |
+
+```mermaid
+flowchart LR
+    subgraph areas collection
+        A1["IT City Polygon<br/>[p1,p2,p3,p4,p1]"]
+        A2["Other Area Polygon<br/>[q1,q2,q3,q4,q1]"]
+    end
+
+    USER["User's Point<br/>coordinates:<br/>[17.425, 78.343]"]
+    USER --> Q["$geoIntersects query<br/>{ $geometry: { type: 'Point',<br/>coordinates: [17.425, 78.343] } }"]
+    Q --> A1 & A2
+    A1 --> MATCH["✅ Match returned<br/>User is inside IT City"]
+    A2 --> NOMATCH["❌ No match<br/>User not in Other Area"]
+
+    style USER fill:#cce5ff,color:#000
+    style Q fill:#fff3cd,color:#000
+    style A1 fill:#e2e3e5,color:#000
+    style A2 fill:#e2e3e5,color:#000
+    style MATCH fill:#d4edda,color:#000
+    style NOMATCH fill:#f8d7da,color:#000
+```
 
 ```js
 awesomePlaces> db.areas.insertOne({ name : "IT City" , location : { type : "Polygon" , coordinates : [[ point1,point2,point3,point4,point1]]}})
@@ -10142,7 +10474,32 @@ Use `$geoWithin` + `$centerSphere` to find all points within a circular radius. 
 | `$geoWithin`    | Find points inside a shape (here: a circle)       |
 | `$centerSphere` | Define a circle by center + radius in **radians** |
 
-#### _$centerSphere Syntax_
+```mermaid
+flowchart TD
+    CENTER["Center Point<br/>[lng: 17.432, lat: 78.346]"]
+    R1["Radius = 1km<br/>1 / 6378.1 radians"]
+    R2["Radius = 2km<br/>2 / 6378.1 radians"]
+    R3["Radius = 3km<br/>3 / 6378.1 radians"]
+
+    CENTER --> R1
+    CENTER --> R2
+    CENTER --> R3
+
+    R1 --> res1["1 place found<br/>(closest only)"]
+    R2 --> res2["2 places found<br/>(wider circle)"]
+    R3 --> res3["3 places found<br/>(widest circle)"]
+
+    NOTE["⚠️ Results are NOT sorted<br/>by distance (unlike $near)"]
+
+    style CENTER fill:#cce5ff,color:#000
+    style R1 fill:#fff3cd,color:#000
+    style R2 fill:#fff3cd,color:#000
+    style R3 fill:#fff3cd,color:#000
+    style res1 fill:#d4edda,color:#000
+    style res2 fill:#d4edda,color:#000
+    style res3 fill:#d4edda,color:#000
+    style NOTE fill:#f8d7da,color:#000
+```
 
 ```js
 $centerSphere: [[longitude, latitude], radius_in_radians];
@@ -10239,6 +10596,27 @@ awesomePlaces>
 | **Key advantage** | Executes on the MongoDB server, can use indexes, avoids client-side processing      |
 | **Entry point**   | `db.<collection>.aggregate([stage1, stage2, ...])`                                  |
 
+```mermaid
+flowchart LR
+    COL[("persons<br/>collection")] --> M
+
+    M["$match<br/>Filter documents<br/>{ gender: 'female' }"]
+    M --> G
+    G["$group<br/>Group + compute<br/>{ _id: '$state', total: $sum: 1 }"]
+    G --> S
+    S["$sort<br/>Order results<br/>{ total: -1 }"]
+    S --> P
+    P["$project<br/>Shape output<br/>{ state: 1, total: 1 }"]
+    P --> OUT(["Final Result"])
+
+    style COL fill:#e2e3e5,color:#000
+    style M fill:#cce5ff,color:#000
+    style G fill:#fff3cd,color:#000
+    style S fill:#d4edda,color:#000
+    style P fill:#f8d7da,color:#000
+    style OUT fill:#e2e3e5,color:#000
+```
+
 ---
 
 ### What is the Aggregation Framework ?
@@ -10333,6 +10711,36 @@ db.persons.aggregate([{ $match: { gender: "female" } }]);
 | `$sum: 1`          | Counts documents in each group                                                                 |
 | Output volume      | **Reduced** — one document per unique `_id` value                                              |
 
+```mermaid
+flowchart LR
+    subgraph Input Documents
+        D1["{ gender:'female',<br/>location.state: 'texas' }"]
+        D2["{ gender:'female',<br/>location.state: 'texas' }"]
+        D3["{ gender:'female',<br/>location.state: 'alaska' }"]
+        D4["{ gender:'female',<br/>location.state: 'alaska' }"]
+        D5["{ gender:'female',<br/>location.state: 'alaska' }"]
+    end
+
+    G["$group<br/>_id: '$location.state'<br/>totalPersons: { $sum: 1 }"]
+
+    subgraph Grouped Output
+        R1["{ _id: 'texas', totalPersons: 2 }"]
+        R2["{ _id: 'alaska', totalPersons: 3 }"]
+    end
+
+    D1 & D2 & D3 & D4 & D5 --> G
+    G --> R1 & R2
+
+    style D1 fill:#cce5ff,color:#000
+    style D2 fill:#cce5ff,color:#000
+    style D3 fill:#d4edda,color:#000
+    style D4 fill:#d4edda,color:#000
+    style D5 fill:#d4edda,color:#000
+    style G fill:#fff3cd,color:#000
+    style R1 fill:#cce5ff,color:#000
+    style R2 fill:#d4edda,color:#000
+```
+
 #### _Group by a single field — count persons per state (females only)_
 
 ```js
@@ -10424,7 +10832,27 @@ db.persons.aggregate([
 | New/computed field | Assign an expression document (e.g. `{ $concat: [...] }`) |
 | Document volume    | **Unchanged** — same number of documents in and out       |
 
-#### _Basic projection — include fields, exclude `_id`_
+```mermaid
+flowchart LR
+    subgraph Input Document
+        IN["{ _id: ObjectId,<br/>name: { first:'john', last:'doe' },<br/>gender: 'male',<br/>email: 'j@x.com',<br/>age: 30,<br/>location: { city: ..., state: ... } }"]
+    end
+
+    P["$project<br/>_id: 0<br/>gender: 1<br/>fullName: { $concat: ['$name.first',' ','$name.last'] }"]
+
+    subgraph Output Document
+        OUT["{ gender: 'male',<br/>fullName: 'John Doe' }"]
+    end
+
+    IN --> P --> OUT
+
+    NOTE["Same number of<br/>documents — each<br/>one is reshaped"]
+
+    style IN fill:#cce5ff,color:#000
+    style P fill:#fff3cd,color:#000
+    style OUT fill:#d4edda,color:#000
+    style NOTE fill:#e2e3e5,color:#000
+```
 
 ```js
 db.persons.aggregate([
@@ -10836,6 +11264,37 @@ db.persons.aggregate([
 
 > Use `$project` to **shape individual documents**. Use `$group` to **aggregate across documents**.
 
+```mermaid
+flowchart TD
+    subgraph "$group — Many to One"
+        GIN1["Doc 1: state='texas'"]
+        GIN2["Doc 2: state='texas'"]
+        GIN3["Doc 3: state='alaska'"]
+        GSTAGE["$group<br/>_id: '$state'<br/>count: { $sum:1 }"]
+        GOUT1["{ _id:'texas', count:2 }"]
+        GOUT2["{ _id:'alaska', count:1 }"]
+        GIN1 & GIN2 & GIN3 --> GSTAGE
+        GSTAGE --> GOUT1 & GOUT2
+    end
+
+    subgraph "$project — One to One"
+        PIN1["Doc 1: { first:'john', last:'doe' }"]
+        PIN2["Doc 2: { first:'jane', last:'doe' }"]
+        PSTAGE["$project<br/>fullName: $concat<br/>_id: 0"]
+        POUT1["{ fullName: 'john doe' }"]
+        POUT2["{ fullName: 'jane doe' }"]
+        PIN1 --> PSTAGE --> POUT1
+        PIN2 --> PSTAGE --> POUT2
+    end
+
+    style GSTAGE fill:#fff3cd,color:#000
+    style PSTAGE fill:#fff3cd,color:#000
+    style GOUT1 fill:#d4edda,color:#000
+    style GOUT2 fill:#d4edda,color:#000
+    style POUT1 fill:#cce5ff,color:#000
+    style POUT2 fill:#cce5ff,color:#000
+```
+
 ---
 
 ### Pushing Elements into Newly Created Arrays
@@ -10906,8 +11365,23 @@ db.friends.aggregate([
 
 `$unwind` takes one document with an array field and outputs **one document per array element**, repeating all other fields.
 
-```js
-db.friends.aggregate([{ $unwind: "$hobbies" }]);
+```mermaid
+flowchart TD
+    IN["1 document<br/>{ name: 'Max',<br/>hobbies: ['Sports','Cooking'],<br/>age: 29 }"]
+    U["$unwind: '$hobbies'"]
+    OUT1["{ name: 'Max',<br/>hobbies: 'Sports',<br/>age: 29 }"]
+    OUT2["{ name: 'Max',<br/>hobbies: 'Cooking',<br/>age: 29 }"]
+
+    IN --> U
+    U --> OUT1 & OUT2
+
+    NOTE["1 document in →<br/>2 documents out<br/>(one per array element)"]
+
+    style IN fill:#cce5ff,color:#000
+    style U fill:#fff3cd,color:#000
+    style OUT1 fill:#d4edda,color:#000
+    style OUT2 fill:#d4edda,color:#000
+    style NOTE fill:#e2e3e5,color:#000
 ```
 
 **Output (partial):**
@@ -11007,26 +11481,1239 @@ db.friends.aggregate([
 
 ---
 
+### Using the $filter Operator
+
+#### _Concept — filter array elements in `$project`_
+
+`$filter` keeps only the elements from an array that satisfy a condition, **without changing the number of documents** (it works inside `$project`, not `$group`).
+
+| `$filter` property | Description                                                        |
+| ------------------ | ------------------------------------------------------------------ |
+| `input`            | The array to filter (`"$fieldName"`)                               |
+| `as`               | Local variable name for each element (referenced as `"$$varName"`) |
+| `cond`             | Expression that must be truthy for an element to be kept           |
+
+> Use `$$` (double dollar) to reference the local `as` variable inside `cond`. A single `$` would look for a collection field named after the variable.
+
+#### _Example — keep only exam scores > 60_
+
+```js
+db.friends.aggregate([
+  {
+    $project: {
+      _id: 0,
+      examScores: {
+        $filter: {
+          input: "$examScores",
+          as: "sc",
+          cond: { $gt: ["$$sc.score", 60] }, // $$sc = current element
+        },
+      },
+    },
+  },
+]);
+```
+
+**Output:**
+
+```js
+[
+  {
+    examScores: [
+      { difficulty: 6, score: 62.1 },
+      { difficulty: 3, score: 88.5 },
+    ],
+  },
+  { examScores: [{ difficulty: 2, score: 74.3 }] },
+  {
+    examScores: [
+      { difficulty: 3, score: 75.1 },
+      { difficulty: 6, score: 61.5 },
+    ],
+  },
+];
+```
+
+> `$gt` inside `$filter`'s `cond` takes an array `[value, threshold]` — different from the document syntax `{ $gt: threshold }` used in `$match`/`find()`.
+
+---
+
+### Applying Multiple Operations to Arrays
+
+#### _Goal — find the highest exam score per person_
+
+This demonstrates **combining multiple stages** to process arrays:
+
+| Step | Stage                           | Purpose                              |
+| ---- | ------------------------------- | ------------------------------------ |
+| 1    | `$unwind: "$examScores"`        | Flatten array → one doc per score    |
+| 2    | `$project`                      | Extract `score` as a top-level field |
+| 3    | `$sort: { score: -1 }`          | Highest scores first                 |
+| 4    | `$group` with `$max` / `$first` | One doc per person, pick max score   |
+| 5    | `$sort: { maxScore: -1 }`       | Order results descending             |
+
+```js
+db.friends.aggregate([
+  { $unwind: "$examScores" },
+  { $project: { _id: 1, name: 1, age: 1, score: "$examScores.score" } },
+  { $sort: { score: -1 } },
+  {
+    $group: {
+      _id: "$_id",
+      name: { $first: "$name" }, // same value in every group doc — take first
+      maxScore: { $max: "$score" },
+    },
+  },
+  { $sort: { maxScore: -1 } },
+]);
+```
+
+**Output:**
+
+```js
+[
+  { _id: ObjectId("...458"), name: "Max", maxScore: 88.5 },
+  { _id: ObjectId("...45a"), name: "Maria", maxScore: 75.1 },
+  { _id: ObjectId("...459"), name: "Manu", maxScore: 74.3 },
+];
+```
+
+**Intermediate step (after `$unwind` + `$project` + `$sort`) — verifying the sort:**
+
+```js
+db.friends.aggregate([
+  { $unwind: "$examScores" },
+  { $project: { _id: 0, name: 1, age: 1, score: "$examScores.score" } },
+  { $sort: { score: -1 } },
+]);
+// → 9 flat documents, sorted highest score first
+// [ { name:'Max', age:29, score:88.5 }, { name:'Maria', age:29, score:75.1 }, ... ]
+```
+
+| Accumulator | Use in `$group`                                                     |
+| ----------- | ------------------------------------------------------------------- |
+| `$max`      | Largest value across grouped documents                              |
+| `$min`      | Smallest value                                                      |
+| `$first`    | Value from the first document in the group (useful after a `$sort`) |
+| `$last`     | Value from the last document in the group                           |
+
+---
+
+### Understanding $bucket
+
+#### _Concept — categorise data into ranges_
+
+`$bucket` groups documents into **user-defined range buckets** and computes summary statistics per bucket — useful for understanding data distribution.
+
+| `$bucket` property | Description                                                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `groupBy`          | Field expression to bucket on (e.g. `"$dob.age"`)                                                                                                                                 |
+| `boundaries`       | Array of boundary values — must be in ascending order. Each boundary is the inclusive lower bound of a bucket; the last boundary is the exclusive upper bound of the final bucket |
+| `default`          | (Optional) Bucket name for values that don't fall in any boundary range                                                                                                           |
+| `output`           | Accumulator expressions for each bucket — same syntax as `$group`                                                                                                                 |
+
+```mermaid
+flowchart TD
+    DOCS["All documents<br/>with age field"]
+    B["$bucket<br/>groupBy: '$dob.age'<br/>boundaries: [0, 18, 30, 40, 50, 60, 120]"]
+    DOCS --> B
+
+    B --> B1["Bucket: 18–29<br/>_id: 18<br/>numPersons: 868<br/>avgAge: 25.1"]
+    B --> B2["Bucket: 30–39<br/>_id: 30<br/>numPersons: 910<br/>avgAge: 34.5"]
+    B --> B3["Bucket: 40–49<br/>_id: 40<br/>numPersons: 918<br/>avgAge: 44.4"]
+    B --> B4["Bucket: 50–59<br/>_id: 50<br/>numPersons: 976<br/>avgAge: 54.5"]
+    B --> B5["Bucket: 60–119<br/>_id: 60<br/>numPersons: 1328<br/>avgAge: 66.6"]
+
+    style DOCS fill:#cce5ff,color:#000
+    style B fill:#fff3cd,color:#000
+    style B1 fill:#d4edda,color:#000
+    style B2 fill:#d4edda,color:#000
+    style B3 fill:#d4edda,color:#000
+    style B4 fill:#d4edda,color:#000
+    style B5 fill:#d4edda,color:#000
+```
+
+```js
+db.persons.aggregate([
+  {
+    $bucket: {
+      groupBy: "$dob.age",
+      boundaries: [0, 18, 30, 40, 50, 60, 120],
+      output: {
+        averageAge: { $avg: "$dob.age" },
+        numPersons: { $sum: 1 },
+      },
+    },
+  },
+]);
+```
+
+**Output:**
+
+```js
+[
+  { _id: 18, averageAge: 25.1, numPersons: 868 },
+  { _id: 30, averageAge: 34.52, numPersons: 910 },
+  { _id: 40, averageAge: 44.42, numPersons: 918 },
+  { _id: 50, averageAge: 54.53, numPersons: 976 },
+  { _id: 60, averageAge: 66.56, numPersons: 1328 },
+];
+```
+
+> `_id` in the output is the **lower boundary** of that bucket.
+
+#### _`$bucketAuto` — automatic equal-distribution bucketing_
+
+```js
+db.persons.aggregate([
+  {
+    $bucketAuto: {
+      groupBy: "$dob.age",
+      buckets: 5,
+      output: {
+        averageAge: { $avg: "$dob.age" },
+        numPersons: { $sum: 1 },
+      },
+    },
+  },
+]);
+```
+
+**Output:**
+
+```js
+[
+  { _id: { min: 21, max: 32 }, averageAge: 26.0, numPersons: 1042 },
+  { _id: { min: 32, max: 43 }, averageAge: 36.98, numPersons: 1010 },
+  { _id: { min: 43, max: 54 }, averageAge: 47.99, numPersons: 1033 },
+  { _id: { min: 54, max: 65 }, averageAge: 58.99, numPersons: 1064 },
+  { _id: { min: 65, max: 74 }, averageAge: 69.12, numPersons: 851 },
+];
+```
+
+|              | `$bucket`                           | `$bucketAuto`                         |
+| ------------ | ----------------------------------- | ------------------------------------- |
+| Boundaries   | You define them                     | MongoDB derives them automatically    |
+| Distribution | Uneven (depends on your boundaries) | Attempts equal distribution           |
+| `_id` output | Lower boundary value                | `{ min, max }` object                 |
+| Use when     | You know meaningful category ranges | You want a quick feel for data spread |
+
+---
+
+### Diving into Additional Stages
+
+#### _`$limit` and `$skip` — pagination_
+
+`$limit` and `$skip` are aggregation stages equivalent to the cursor methods on `find()`. **Order matters** — they are applied exactly where you place them in the pipeline.
+
+```js
+// Top 10 oldest persons
+db.persons.aggregate([
+  {
+    $project: {
+      _id: 0,
+      name: { $concat: ["$name.first", " ", "$name.last"] },
+      birthdate: { $toDate: "$dob.date" },
+    },
+  },
+  { $sort: { birthdate: 1 } }, // oldest first (lowest date = oldest)
+  { $limit: 10 },
+]);
+```
+
+**Output (first 10):**
+
+```js
+[
+  { name: "victoria hale", birthdate: ISODate("1944-09-07T15:52:50.000Z") },
+  { name: "عباس یاسمی", birthdate: ISODate("1944-09-12T07:49:20.000Z") },
+  // ...8 more
+];
+```
+
+```js
+// Page 2 — next 10 (skip must come BEFORE limit)
+db.persons.aggregate([
+  {
+    $project: {
+      _id: 0,
+      name: { $concat: ["$name.first", " ", "$name.last"] },
+      birthdate: { $toDate: "$dob.date" },
+    },
+  },
+  { $sort: { birthdate: 1 } },
+  { $skip: 10 }, // ← must be before $limit
+  { $limit: 10 },
+]);
+```
+
+#### _Stage ordering rules_
+
+| Rule                            | Explanation                                                                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `$skip` before `$limit`         | If `$limit` comes first, the remaining documents after `$limit` are gone — `$skip` would skip within those already-limited results |
+| `$sort` before `$skip`/`$limit` | Sort must precede pagination or you paginate an unsorted set                                                                       |
+| `$match` as early as possible   | Filters data before expensive transforms; also enables index use                                                                   |
+| `$match` before `$project`      | Fields you want to match on must exist in the current stage's documents — projecting them away first means you can't match on them |
+
+```js
+// Correct — $match early, then project, sort, paginate
+db.persons.aggregate([
+  { $match: { gender: "male" } }, // filter first
+  {
+    $project: {
+      _id: 0,
+      name: { $concat: ["$name.first", " ", "$name.last"] },
+      birthdate: { $toDate: "$dob.date" },
+    },
+  },
+  { $sort: { birthdate: 1 } },
+  { $skip: 10 },
+  { $limit: 10 },
+]);
+```
+
+**Output (10 oldest males, page 2):**
+
+```js
+[
+  { name: "pierre boyer", birthdate: ISODate("1945-01-01T22:35:55.000Z") },
+  { name: "emile noel", birthdate: ISODate("1945-01-10T03:05:21.000Z") },
+  // ...8 more
+];
+```
+
+> MongoDB applies some automatic pipeline optimisations behind the scenes (e.g. pushing `$match` earlier), but you should still write pipelines with the correct logical order.
+
+---
+
+### Writing Pipeline Results into a New Collection
+
+#### _`$out` — persist pipeline output as a collection_
+
+`$out` is a terminal pipeline stage that **writes the result documents into a named collection** instead of returning them to the client. If the collection exists it is replaced; if not it is created.
+
+```js
+db.persons.aggregate([
+  {
+    $project: {
+      _id: 0,
+      name: 1,
+      email: 1,
+      birthdate: { $toDate: "$dob.date" },
+      age: "$dob.age",
+      location: {
+        type: "Point",
+        coordinates: [
+          {
+            $convert: {
+              input: "$location.coordinates.longitude",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+          {
+            $convert: {
+              input: "$location.coordinates.latitude",
+              to: "double",
+              onError: 0,
+              onNull: 0,
+            },
+          },
+        ],
+      },
+    },
+  },
+  {
+    $project: {
+      gender: 1,
+      email: 1,
+      location: 1,
+      birthdate: 1,
+      age: 1,
+      fullName: {
+        $concat: [
+          { $toUpper: { $substrCP: ["$name.first", 0, 1] } },
+          {
+            $substrCP: [
+              "$name.first",
+              1,
+              { $subtract: [{ $strLenCP: "$name.first" }, 1] },
+            ],
+          },
+          " ",
+          "$name.last",
+        ],
+      },
+    },
+  },
+  { $out: "transformedPersons" }, // ← write to new collection
+]);
+```
+
+```js
+show collections
+// → transformedPersons now exists
+
+db.transformedPersons.findOne()
+// {
+//   _id: ObjectId('...'),
+//   location: { type: 'Point', coordinates: [ -70.2264, 76.4507 ] },
+//   email: 'zachary.lo@example.com',
+//   birthdate: ISODate('1988-10-17T03:45:04.000Z'),
+//   age: 29,
+//   fullName: 'Zachary lo'
+// }
+```
+
+| `$out` behaviour    | Detail                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| Position            | Must be the **last** stage in the pipeline                                                    |
+| Existing collection | **Replaces** it entirely                                                                      |
+| New collection      | Creates it on the fly                                                                         |
+| No cursor returned  | The aggregation returns nothing to the client                                                 |
+| Use case            | Pre-compute transformed views, cache expensive pipeline results, prepare data for geo queries |
+
+---
+
+### Working with the $geoNear Stage
+
+#### _Concept_
+
+`$geoNear` is an aggregation stage that finds documents near a given point, ordered by distance. It **must be the first stage** in the pipeline (it needs direct collection access to use the geospatial index).
+
+| `$geoNear` property | Description                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| `near`              | GeoJSON Point `{ type: "Point", coordinates: [lng, lat] }` — your reference location |
+| `maxDistance`       | Maximum distance in **metres**                                                       |
+| `distanceField`     | Name of the new field added to each result containing the calculated distance        |
+| `num` / `limit`     | Maximum number of results (more efficient than a separate `$limit` stage)            |
+| `query`             | Extra filter document (applied on the collection before distance calculation)        |
+
+#### _Setup — create a 2dsphere index on the transformed collection_
+
+```js
+db.transformedPersons.createIndex({ location: "2dsphere" });
+```
+
+#### _Find persons within 1,000 km, age > 30_
+
+```js
+db.transformedPersons.aggregate([
+  {
+    $geoNear: {
+      near: {
+        type: "Point",
+        coordinates: [-71.24, 75.47], // reference point [lng, lat]
+      },
+      maxDistance: 1000000, // 1,000 km in metres
+      num: 10,
+      query: { age: { $gt: 30 } },
+      distanceField: "distance", // new field added to each result
+    },
+  },
+]);
+```
+
+| Rule                | Detail                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| First stage only    | `$geoNear` must be the first pipeline stage — later stages don't have direct collection access |
+| Index required      | A `2dsphere` (or `2d`) index must exist on the field referenced in `near`                      |
+| `query` vs `$match` | Use `query` inside `$geoNear` rather than a separate early `$match` — it's more efficient      |
+| Distance units      | Always **metres** for `2dsphere` indexes                                                       |
+
+---
+
 ### Understanding the Aggregation Framework — Summary
 
-| Stage / Operator             | Type        | Purpose                                                                                                 |
-| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `$match`                     | Stage       | Filter documents — same syntax as `find()`. Place early to use indexes.                                 |
-| `$project`                   | Stage       | One-to-one transform: include/exclude/rename/compute fields                                             |
-| `$group`                     | Stage       | Many-to-one: merge documents, compute aggregates (`$sum`, `$avg`, `$min`, `$max`, `$push`, `$addToSet`) |
-| `$sort`                      | Stage       | Sort on any field, including fields derived from prior stages                                           |
-| `$unwind`                    | Stage       | Expand array field into one document per element                                                        |
-| `$convert`                   | Operator    | Convert field value to another BSON type; supports `onError`/`onNull`                                   |
-| `$toDate` / `$toDouble` etc. | Operator    | Shortcut conversion operators (no custom fallback)                                                      |
-| `$isoWeekYear`               | Operator    | Extract ISO year from a `date` field                                                                    |
-| `$concat`                    | Operator    | Concatenate strings                                                                                     |
-| `$toUpper` / `$toLower`      | Operator    | Case conversion                                                                                         |
-| `$substrCP`                  | Operator    | Extract substring by code point                                                                         |
-| `$strLenCP`                  | Operator    | String length by code point                                                                             |
-| `$subtract`                  | Operator    | Subtract two numbers                                                                                    |
-| `$push`                      | Accumulator | Append values to group array (duplicates kept)                                                          |
-| `$addToSet`                  | Accumulator | Append unique values to group array                                                                     |
-| `$slice`                     | Operator    | Extract first/last/ranged subset of array                                                               |
-| `$size`                      | Operator    | Count elements in an array                                                                              |
+| Stage / Operator             | Type        | Purpose                                                                                                                            |
+| ---------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `$match`                     | Stage       | Filter documents — same syntax as `find()`. Place early to use indexes.                                                            |
+| `$project`                   | Stage       | One-to-one transform: include/exclude/rename/compute fields                                                                        |
+| `$group`                     | Stage       | Many-to-one: merge documents, compute aggregates (`$sum`, `$avg`, `$min`, `$max`, `$push`, `$addToSet`, `$first`, `$last`, `$max`) |
+| `$sort`                      | Stage       | Sort on any field, including fields derived from prior stages                                                                      |
+| `$unwind`                    | Stage       | Expand array field into one document per element                                                                                   |
+| `$limit`                     | Stage       | Keep only the first N documents — place after `$sort`                                                                              |
+| `$skip`                      | Stage       | Skip the first N documents — place before `$limit` for pagination                                                                  |
+| `$bucket`                    | Stage       | Group into user-defined range buckets with summary stats                                                                           |
+| `$bucketAuto`                | Stage       | Auto-derive equal-distribution buckets                                                                                             |
+| `$out`                       | Stage       | Write pipeline results to a collection (must be last stage)                                                                        |
+| `$geoNear`                   | Stage       | Find documents near a point by distance (must be first stage)                                                                      |
+| `$convert`                   | Operator    | Convert field to a BSON type; supports `onError`/`onNull`                                                                          |
+| `$toDate` / `$toDouble` etc. | Operator    | Shortcut conversion operators                                                                                                      |
+| `$isoWeekYear`               | Operator    | Extract ISO year from a `date` field                                                                                               |
+| `$concat`                    | Operator    | Concatenate strings                                                                                                                |
+| `$toUpper` / `$toLower`      | Operator    | Case conversion                                                                                                                    |
+| `$substrCP`                  | Operator    | Extract substring by code point                                                                                                    |
+| `$strLenCP`                  | Operator    | String length by code point                                                                                                        |
+| `$subtract`                  | Operator    | Subtract two numbers                                                                                                               |
+| `$filter`                    | Operator    | Filter array elements by condition (inside `$project`)                                                                             |
+| `$push`                      | Accumulator | Append values to group array (duplicates kept)                                                                                     |
+| `$addToSet`                  | Accumulator | Append unique values to group array                                                                                                |
+| `$first` / `$last`           | Accumulator | First/last value in group (useful after `$sort`)                                                                                   |
+| `$max` / `$min`              | Accumulator | Max/min value across grouped documents                                                                                             |
+| `$avg`                       | Accumulator | Average value across grouped documents                                                                                             |
+| `$slice`                     | Operator    | Extract first/last/range subset of array                                                                                           |
+| `$size`                      | Operator    | Count elements in an array                                                                                                         |
+
+**Key pipeline design rules:**
+
+- `$match` and `$sort` early to use indexes and minimise data volume
+- `$skip` before `$limit` for pagination
+- `$geoNear` must be first; `$out` must be last
+- MongoDB auto-optimises some stage orders, but write explicit correct pipelines
 
 > [⬆ Back to Index](#table-of-contents)
+
+---
+
+## Working with Numeric Data
+
+MongoDB supports multiple numeric types for efficient storage and precise calculations. The type you choose affects storage size, query behaviour, and arithmetic precision.
+
+---
+
+### Number Types
+
+MongoDB has four numeric types:
+
+| Type | Shell Constructor | Bits | Integer Only | Decimal Precision |
+|---|---|---|---|---|
+| **int32** | `NumberInt("val")` | 32 | ✅ | N/A (integers only) |
+| **int64 / long** | `NumberLong("val")` | 64 | ✅ | N/A (integers only) |
+| **double (float64)** | plain number e.g. `1.5` | 64 | ❌ | Approximated (IEEE 754) |
+| **Decimal128** | `NumberDecimal("val")` | 128 | ❌ | Exact up to 34 significant digits |
+
+**Ranges:**
+
+| Type | Min | Max |
+|---|---|---|
+| int32 | -2,147,483,648 | 2,147,483,647 |
+| int64 | -9,223,372,036,854,775,808 | 9,223,372,036,854,775,807 |
+| double | Very large range | Decimal values approximated |
+| Decimal128 | Smaller integer range | Decimal values exact (≤ 34 sig. digits) |
+
+**When to use each:**
+
+| Type | Use case |
+|---|---|
+| `int32` | Normal integers within ±2.1 billion (e.g., age, count, quantity) |
+| `int64` | Large integers exceeding int32 range (e.g., company valuations) |
+| `double` | Prices/floats where 2 decimal place display precision is sufficient |
+| `Decimal128` | Financial or scientific calculations requiring exact decimal precision |
+
+**Shell constructor rules:**
+- `NumberInt("val")` → int32
+- `NumberLong("val")` → int64
+- Plain number (e.g. `1`, `0.3`) → double 64-bit (Shell/JavaScript default)
+- `NumberDecimal("val")` → Decimal128
+
+> **Always pass large values as strings** to `NumberInt`, `NumberLong`, and `NumberDecimal` — this prevents JavaScript's own numeric precision limits from corrupting the value before it reaches MongoDB.
+
+**MongoDB Shell is JavaScript-based:** JavaScript treats all numbers as 64-bit floats. Without a constructor, any number — including an integer like `1` — is stored as a double.
+
+---
+
+### Understanding Programming Language Defaults
+
+The MongoDB Shell is implemented in JavaScript. JavaScript **does not differentiate** between integers and floating-point numbers — every number is a 64-bit double by default.
+
+```js
+db.numtest.insertOne({ a: 1 });
+// Stored as float64 (double) — NOT int32, even though the value is a whole number
+```
+
+This is a Shell/JavaScript constraint, **not a MongoDB constraint**. Other language drivers behave differently:
+
+| Language | Integer type | Float type | Stored in MongoDB as |
+|---|---|---|---|
+| **JavaScript / Shell** | No integer type | float64 for all numbers | double (64-bit) |
+| **Python** | `int` (arbitrary precision) | `float` (float64) | `int` → int32/int64; `float` → double |
+| **Java** | `int` (32-bit) / `long` (64-bit) | `double` (64-bit) | Matches Java types directly |
+
+**Practical rule:**
+- In the Shell (JavaScript): always use `NumberInt(...)` / `NumberLong(...)` / `NumberDecimal(...)` explicitly to store the intended type.
+- In Python: a plain `int` variable is already stored as int32 by the driver — no extra wrapper needed.
+- Consult your language's MongoDB driver documentation to understand what each native type maps to.
+
+---
+
+### Working with int32
+
+Use `NumberInt("value")` to store a 32-bit integer. This uses less storage than the default 64-bit double for the same whole-number value.
+
+```js
+// Insert as int32 (string form is preferred)
+db.numtest.insertOne({ a: NumberInt("29") });
+
+// Check storage
+db.numtest.stats();
+// size is smaller vs. plain `a: 29` stored as double
+```
+
+**Shell output:**
+
+```js
+test> db.numtest.insertOne({ a: NumberInt(29) })
+{
+  acknowledged: true,
+  insertedId: ObjectId('69abdfce7ed55a861ae21127')
+}
+test> db.numtest.stats()
+{
+  size: 29,        // smaller than double (35 bytes for the same value)
+  count: 1,
+  avgObjSize: 29,
+  ...
+}
+```
+
+**Key points:**
+- `NumberInt(29)` and `NumberInt("29")` both work; string form is preferred
+- Saves a few bytes per document — meaningful at scale across millions of documents
+- Use when the value is always a whole number within the ±2.1 billion range
+- In Python/Java, plain integer variables are already stored as int32 by the driver — no wrapper needed in those languages
+
+---
+
+### Working with int64
+
+Use `NumberLong("value")` for integers that exceed int32's ±2.1 billion range.
+
+**Why pass the value as a string:** The Shell runs JavaScript. JavaScript cannot precisely represent very large integers as numeric literals — a bare `NumberLong(9223372036854775807)` silently loses precision because JavaScript truncates the number before MongoDB ever sees it. Passing a string bypasses JavaScript's numeric handling entirely.
+
+```js
+// ❌ Wrong — JavaScript drops precision before MongoDB receives the value
+db.companies.insertOne({ valuation: NumberLong(9223372036854775807) });
+// Warning: NumberLong: specifying a number as argument is deprecated and may
+// lead to loss of precision, pass a string instead
+
+// ✅ Correct — pass as string
+db.companies.insertOne({ valuation: NumberLong("9223372036854775807") });
+```
+
+**int32 overflow — no error, silent value corruption:**
+
+```js
+// 5 billion exceeds int32 range — no error, but stored value is WRONG
+test> db.numtest.insertOne({ valuation: NumberInt("5000000000") })
+test> db.numtest.find()
+[ { valuation: 705032704 } ]   // ❌ Corrupted value, no error thrown
+
+// At exactly the max, it's correct:
+test> db.numtest.insertOne({ valuation: NumberInt("2147483647") })
+[ { valuation: 2147483647 } ]  // ✅
+
+// One above max wraps to the minimum (negative):
+test> db.numtest.insertOne({ valuation: NumberInt("2147483648") })
+[ { valuation: -2147483648 } ]  // ❌ Overflow wraps to negative
+```
+
+> **MongoDB does NOT throw an error on integer overflow** — the value silently wraps or corrupts. Always know the range you need.
+
+**NumberLong shell example:**
+
+```js
+test> db.numtest.insertOne({ valuation: NumberLong("1234567891234567890") })
+{
+  acknowledged: true,
+  insertedId: ObjectId('69ac0fca7ed55a861ae2112c')
+}
+test> db.numtest.find()
+[ { valuation: Long('1234567891234567890') } ]  // ✅ Stored exactly
+```
+
+---
+
+### Doing Math with Floats int32 and int64
+
+**Why not store numbers as strings?**
+
+Strings cannot be used with arithmetic operators — `$inc`, `$multiply`, etc. will throw a type error:
+
+```js
+db.accounts.insertOne({ amount: "10" });  // stored as a string
+db.accounts.updateOne({}, { $inc: { amount: 10 } });
+// MongoServerError: Cannot apply $inc to a value of non-numeric type
+```
+
+**Type preservation during arithmetic:**
+
+If you use `$inc` with a plain number on a `NumberInt` field, MongoDB silently converts the field to float64. Use the same constructor in the update to preserve the type:
+
+```js
+// ❌ Type is lost — NumberInt field converted to float64 after update
+db.accounts.updateOne({}, { $inc: { amount: 10 } });
+
+// ✅ int32 type preserved
+db.accounts.updateOne({}, { $inc: { amount: NumberInt("10") } });
+
+// ✅ int64 type preserved
+db.accounts.updateOne({}, { $inc: { valuation: NumberLong("1") } });
+```
+
+**int64 precision consequence if plain number is used in `$inc`:**
+
+```js
+// Field stored as NumberLong("1234567891234567890")
+db.accounts.updateOne({}, { $inc: { amount: 10 } });  // plain number
+// Result: Long('1234567891234567900') — WRONG due to float64 intermediate conversion
+
+// Correct:
+db.accounts.updateOne({}, { $inc: { amount: NumberLong("10") } });
+// Result: Long('1234567891234567900') — ✅ exact
+```
+
+**Full working example:**
+
+```js
+test> db.accounts.insertOne({ name: "Max", amount: NumberInt("10") })
+test> db.accounts.updateOne({}, { $inc: { amount: NumberInt("10") } })
+{
+  acknowledged: true,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+test> db.accounts.find()
+[ { name: 'Max', amount: 20 } ]  // stored as int32 behind the scenes (looks like plain number in shell)
+```
+
+> `NumberInt` and `NumberLong` support all query and update operators (`$gt`, `$lt`, `$sort`, `$inc`) exactly like plain numbers — with the added benefit of their type constraints and storage efficiency.
+
+---
+
+### What's Wrong with Normal Doubles?
+
+Normal 64-bit doubles (the Shell/JavaScript default) use IEEE 754 binary floating-point representation, which **approximates** decimal values rather than storing them exactly. This is a computer science constraint — not a MongoDB limitation.
+
+**Proof via the aggregation framework:**
+
+```js
+db.science.insertOne({ a: 0.3, b: 0.1 });  // stored as 64-bit floats (approximated)
+db.science.aggregate([
+  { $project: { result: { $subtract: ["$a", "$b"] } } }
+])
+// Expected: 0.2
+// Actual:   0.19999999999999998  ❌ — imprecision from float64 representation
+```
+
+**Shell output:**
+
+```js
+test> db.science.insertOne({ a: 0.3, b: 0.1 })
+{ acknowledged: true, insertedId: ObjectId('69ac14ac7ed55a861ae2113d') }
+test> db.science.aggregate([
+|   { $project: { result: { $subtract: ["$a", "$b"] } } }
+| ])
+[
+  {
+    _id: ObjectId('69ac14ac7ed55a861ae2113d'),
+    result: 0.19999999999999998
+  }
+]
+```
+
+**When doubles are acceptable:**
+- Displaying a price on a webpage (rounding to 2 decimal places is fine for display)
+- Passing values to a third-party payment provider that handles precision on their end
+- Approximate scientific values where exact decimal representation is not required
+
+**When doubles are NOT acceptable:**
+- Server-side arithmetic in aggregation pipelines where the computed result is used in business logic
+- Storing financials that require auditable precision
+- Scientific calculations requiring exact decimal representation
+
+Use `Decimal128` when precision matters.
+
+---
+
+### Working with Decimal 128bit
+
+`Decimal128` stores decimal values with **exact precision up to 34 significant digits**. Use `NumberDecimal("value")` in the Shell (always pass as string).
+
+**Direct comparison with double:**
+
+```js
+// With normal double (imprecise):
+db.science.insertOne({ a: 0.3, b: 0.1 });
+db.science.aggregate([{ $project: { result: { $subtract: ["$a", "$b"] } } }])
+// result: 0.19999999999999998  ❌
+
+// With Decimal128 (exact):
+db.science.insertOne({ a: NumberDecimal("0.3"), b: NumberDecimal("0.1") });
+db.science.aggregate([{ $project: { result: { $subtract: ["$a", "$b"] } } }])
+// result: Decimal128('0.2')  ✅
+```
+
+**Shell example:**
+
+```js
+test> db.science.insertOne({ a: NumberDecimal("0.3"), b: NumberDecimal("0.1") })
+test> db.science.find({})
+[
+  {
+    _id: ObjectId('69ac16627ed55a861ae2113f'),
+    a: Decimal128('0.3'),
+    b: Decimal128('0.1')
+  }
+]
+test> db.science.aggregate([
+|   { $project: { result: { $subtract: ["$a", "$b"] } } }
+| ])
+[
+  {
+    _id: ObjectId('69ac16627ed55a861ae2113f'),
+    result: Decimal128('0.2')
+  }
+]
+```
+
+**Preserve precision in updates — always use `NumberDecimal` in `$inc`:**
+
+```js
+// ❌ Mixes plain float64 into a Decimal128 field — re-introduces imprecision
+db.science.updateOne({}, { $inc: { a: 0.1 } });
+// Result: Decimal128('0.400000000000000')  — trailing zeros, potential precision drift
+
+// ✅ Keeps full precision
+db.science.updateOne({}, { $inc: { a: NumberDecimal("0.1") } });
+// Result: Decimal128('0.5')  — exact
+```
+
+**Storage trade-off:**
+
+Decimal128 consumes more storage than a double per document:
+
+```js
+db.nums.insertOne({ a: 0.1 });                   // double — smaller footprint
+db.nums.stats();   // size: N
+
+db.nums.insertOne({ a: NumberDecimal("0.1") });  // Decimal128 — larger footprint
+db.nums.stats();   // size: N + delta (higher storage cost per document)
+```
+
+**Guidelines:**
+- Use for financial data (prices, interest, tax calculations)
+- Use for scientific work requiring exact decimal representation
+- Do **not** use as a default for all floats — wastes storage
+- Always use `NumberDecimal("value")` in both inserts and `$inc` updates
+
+---
+
+### Model Monetary Data
+
+> **Source:** MongoDB official documentation (`model-monetary-data`) + established software engineering best practices (IEEE 754, ISO 4217).
+
+---
+
+#### Why float64 (double) Must Never Be Used for Money
+
+MongoDB's default numeric type — when you write a bare decimal literal like `9.99` in the shell or most drivers — is **float64** (BSON double, IEEE 754 binary64). It stores numbers in **base 2**, not base 10.
+
+**Root cause:** Fractions like `1/10` (0.1) cannot be expressed exactly in base 2, just as `1/3` cannot be expressed exactly in base 10. MongoDB stores the closest representable binary fraction — which is almost, but not exactly, the intended value.
+
+**Concrete precision failures:**
+
+```js
+// JavaScript / MongoDB shell — all plain number literals are float64:
+0.1 + 0.2           // → 0.30000000000000004  (not 0.3)
+0.3 - 0.1           // → 0.19999999999999998  (not 0.2)
+9.99 * 100          // → 998.9999999999999    (not 999)
+1.005 * 100         // → 100.50000000000001   (should be 100.5, rounds wrong)
+1.1 + 1.1 + 1.1     // → 3.3000000000000003  (not 3.3)
+```
+
+**Real financial harm these errors cause:**
+
+| Error type | Consequence |
+|---|---|
+| Aggregation drift | Summing thousands of transactions accumulates tiny errors into visible rounding differences |
+| Tax miscalculation | `amount * taxRate` already inexact; rounding on an inexact value gives wrong cent |
+| Balance mismatch | Sum of debits ≠ sum of credits in a ledger by a fraction of a cent |
+| Sorting anomaly | Two values that are logically equal compare as unequal due to binary representation |
+| Batch processing drift | 1,000,000 × $0.01 in float64 does not reliably sum to exactly $10,000.00 |
+
+> **Rule:** Never store monetary values as plain untyped numbers (`9.99`) in MongoDB. Use either **Decimal128** or the **Scale Factor (integer)** approach.
+
+---
+
+#### Approach 1 — Decimal128 (`NumberDecimal`)
+
+##### How It Works
+
+BSON type `Decimal128` implements **IEEE 754-2008 decimal128** — it stores numbers in **base 10**, so decimal fractions are represented exactly as written.
+
+| Property | Value |
+|---|---|
+| Storage | 128 bits (16 bytes) |
+| Significant digits | Up to **34** decimal digits |
+| Exponent range | −6143 to +6144 |
+| Shell constructor | `NumberDecimal("value")` — **always pass as a string** |
+
+##### When to Use
+
+- Financial, monetary, or accounting calculations
+- Any aggregation pipeline that does arithmetic on money (`$sum`, `$multiply`, `$divide`, etc.)
+- Scientific measurements requiring exact decimal representation
+- Multi-currency apps where different currencies have different numbers of decimal places
+- New applications using modern drivers (all official drivers ≥ 2018 support it)
+
+##### Pros and Cons
+
+| Pros | Cons |
+|---|---|
+| Exact base-10 representation — no drift | 16 bytes per value (2× a double, 4× an int32) |
+| Works directly with all MongoDB arithmetic operators | Must always pass value as a **string** to the constructor |
+| Human-readable — stored value matches what you inserted | Slightly slower arithmetic than integer types |
+| Handles variable-precision currencies natively | Older drivers (pre-2016) may not support it |
+| `$gte`/`$lte` comparisons are exact | Trailing zeros preserved: `"9.90"` ≠ `"9.9"` in string form but are numerically equal |
+
+##### Code Examples
+
+```js
+// ── INSERT ─────────────────────────────────────────────────────────────────
+
+db.orders.insertOne({
+  item:     "laptop",
+  price:    NumberDecimal("999.99"),   // ✅ exact
+  taxRate:  NumberDecimal("0.08875"),
+  qty:      NumberInt("2")
+});
+
+// ❌ WRONG — bare literal stores as float64:
+db.orders.insertOne({ price: 999.99 });  // → double, not Decimal128
+
+
+// ── QUERY ──────────────────────────────────────────────────────────────────
+
+// Exact match
+db.orders.find({ price: NumberDecimal("999.99") });
+
+// Range query
+db.orders.find({ price: { $gte: NumberDecimal("100.00"), $lte: NumberDecimal("1000.00") } });
+
+
+// ── ARITHMETIC IN AGGREGATION ──────────────────────────────────────────────
+
+db.orders.aggregate([
+  {
+    $project: {
+      subtotal: { $multiply: ["$price", "$qty"] },
+      tax:      { $multiply: ["$price", "$qty", "$taxRate"] },
+      total: {
+        $add: [
+          { $multiply: ["$price", "$qty"] },
+          { $multiply: ["$price", "$qty", "$taxRate"] }
+        ]
+      }
+    }
+  }
+]);
+// subtotal → Decimal128('1999.98')   ✅ exact
+// tax      → Decimal128('177.498225')
+// total    → Decimal128('2177.478225')
+
+
+// ── UPDATE — use NumberDecimal in $inc too ─────────────────────────────────
+
+// ❌ WRONG — mixes plain float into Decimal128 field → re-introduces imprecision:
+db.orders.updateOne({ item: "laptop" }, { $inc: { price: 0.01 } });
+
+// ✅ CORRECT — stays Decimal128:
+db.orders.updateOne({ item: "laptop" }, { $inc: { price: NumberDecimal("0.01") } });
+
+
+// ── SUM ACROSS DOCUMENTS ──────────────────────────────────────────────────
+
+db.orders.aggregate([
+  { $group: { _id: null, revenue: { $sum: { $multiply: ["$price", "$qty"] } } } }
+]);
+// → Decimal128('...') — exact sum, no drift
+```
+
+##### Gotchas
+
+1. **Always use string argument:** `NumberDecimal("9.99")` not `NumberDecimal(9.99)`. The numeric literal `9.99` is already a float64 *before* it reaches the constructor.
+2. **Mixed-type arithmetic:** If one operand is Decimal128 and another is double, MongoDB promotes to double — precision is lost. Keep all monetary fields as Decimal128.
+3. **`$inc` with wrong type:** Using `{ $inc: { amount: 0.01 } }` on a Decimal128 field silently converts it to double. Always `$inc` with `NumberDecimal("0.01")`.
+4. **Trailing zeros:** `NumberDecimal("9.90")` and `NumberDecimal("9.9")` are numerically equal but have different string representations. When comparing or displaying, be consistent.
+5. **Driver support:** Verify your application driver version supports Decimal128 — all modern official MongoDB drivers do.
+
+---
+
+#### Approach 2 — Scale Factor (Integer)
+
+##### How It Works
+
+Store monetary values **multiplied by a power of 10** (the scale factor) as an integer. Integers are always exact in base 2.
+
+```
+$9.99  →  stored as  999   (scale = 100, i.e., ×100 = cents)
+$1,234.56  →  stored as 123456
+€0.50  →  stored as 50
+¥1499  →  stored as 1499   (JPY has 0 decimal places, scale = 1)
+```
+
+The scale factor is either:
+- **Implied by convention** (e.g., "all prices are in cents") documented in your schema
+- **Stored per-document** in a `scale` field (safer for multi-currency)
+
+##### When to Use
+
+- Single-currency applications where decimal place count is fixed (e.g., USD always has 2)
+- Performance- or storage-critical systems
+- Environments using older drivers without Decimal128 support
+- When the application layer handles all arithmetic anyway (no DB-side math)
+- Systems that already use integers for money (common in payments industry — Stripe API uses integer cents)
+
+##### Pros and Cons
+
+| Pros | Cons |
+|---|---|
+| Compact: int32 = 4 bytes, int64 = 8 bytes (vs 16 for Decimal128) | Stored value doesn't look like the real price (999 ≠ $9.99) |
+| Fastest arithmetic — integer operations | Scale factor must be consistently applied and removed in app code |
+| Perfect precision for fixed-decimal currencies | Multi-currency complicates things (JPY = 0 decimals, KWD = 3 decimals) |
+| Universal — all drivers handle integers identically | `$divide` in aggregation returns float64, negating precision goal |
+| Well-understood pattern (used by Stripe, payment gateways) | Multiplication of two monetary values doubles the scale — easy source of bugs |
+
+##### ISO 4217 Minor Unit (Scale Factor) Reference
+
+| Currency | Decimal places | Scale factor |
+|---|---|---|
+| USD, EUR, GBP, CAD, AUD | 2 | 100 |
+| JPY, KRW, VND | 0 | 1 |
+| KWD, BHD, OMR (Kuwaiti/Bahraini/Omani) | 3 | 1000 |
+| CLF (Chilean Unit of Account) | 4 | 10000 |
+
+##### Code Examples
+
+```js
+// ── INSERT ─────────────────────────────────────────────────────────────────
+
+// Convention: all USD amounts stored as integer cents (×100)
+db.orders.insertOne({
+  item:         "laptop",
+  price_cents:  NumberLong("99999"),   // $999.99 stored as 99999 cents
+  qty:          NumberInt("2"),
+  currency:     "USD",
+  scale:        NumberInt("100")       // explicit scale — good practice
+});
+
+// ❌ WRONG — int32 overflows at 2,147,483,647 (~$21.4 million in cents):
+db.orders.insertOne({ price_cents: NumberInt("999999999999") });  // silent overflow!
+
+// ✅ Use NumberLong for large amounts:
+db.orders.insertOne({ price_cents: NumberLong("999999999999") });
+
+
+// ── QUERY ──────────────────────────────────────────────────────────────────
+
+// Find all products >= $10.00 (i.e., >= 1000 cents)
+db.orders.find({ price_cents: { $gte: NumberInt("1000") } });
+
+// Find products in the $9.00–$10.00 range
+db.orders.find({
+  price_cents: { $gte: NumberInt("900"), $lte: NumberInt("1000") }
+});
+
+
+// ── AGGREGATION ───────────────────────────────────────────────────────────
+
+// Total in cents — keep as integer, divide in application layer
+db.orders.aggregate([
+  {
+    $project: {
+      total_cents: { $multiply: ["$price_cents", "$qty"] }
+      // → 199998 cents; app divides by 100 → $1999.98
+    }
+  }
+]);
+
+// ⚠️  Dividing inside aggregation returns float64 — defeats the purpose:
+db.orders.aggregate([
+  {
+    $project: {
+      total: { $divide: [{ $multiply: ["$price_cents", "$qty"] }, 100] }
+      // → 1999.98 as float64 — imprecise for further arithmetic
+    }
+  }
+]);
+// Only do this for display/reporting, not for further monetary calculations.
+
+
+// ── UPDATE ────────────────────────────────────────────────────────────────
+
+// Apply a $1.00 discount (100 cents)
+db.orders.updateOne(
+  { item: "laptop" },
+  { $inc: { price_cents: NumberInt("-100") } }
+);
+```
+
+##### Scale Factor Gotchas
+
+1. **`$divide` returns float64:** If you need to divide a scaled integer in the aggregation pipeline, the result is a double. For reporting this is usually fine; for further monetary arithmetic it re-introduces imprecision. Prefer dividing in application code.
+2. **int32 overflow cap:** `NumberInt` holds up to ±2,147,483,647. For currencies in cents, that's ~$21.4 million. Use `NumberLong` for anything larger.
+3. **Multiplication doubles the scale:** `price_cents × price_cents` would produce a value with scale²  — never multiply two monetary values together; only multiply `price × quantity`.
+4. **Forgetting the scale factor:** A query like `{ price_cents: { $gte: 10 } }` means ≥ $0.10, not ≥ $10.00. Always apply the scale in both reads and writes.
+5. **Multi-currency scale divergence:** If you add JPY support later but forget to update the scale, `1499` in USD context is $14.99 but in JPY context it's ¥1499 — completely different values. Store an explicit `scale` or `currency` field and enforce it.
+
+---
+
+#### MongoDB's Official Recommendation
+
+> MongoDB **recommends `Decimal128`** for monetary and financial data in modern applications.
+
+The scale-factor approach is acknowledged as a valid alternative — particularly for performance-sensitive or legacy-driver environments — but Decimal128 is the primary recommendation because:
+
+- It eliminates the application-layer burden of managing scale factors
+- It works directly and correctly with the aggregation pipeline
+- It is the standard IEEE 754-2008 decimal type, recognised across databases and languages
+- It handles variable-decimal-place currencies (JPY, KWD) without schema changes
+
+**Decision guide:**
+
+| Scenario | Recommended approach |
+|---|---|
+| New application, modern drivers | **Decimal128** |
+| Arithmetic in the aggregation pipeline | **Decimal128** |
+| Multi-currency with varying decimal places | **Decimal128** |
+| Fixed-currency (e.g., USD-only), simple reads | Either — integers are simpler |
+| Performance/storage-critical, no DB-side math | Scale factor (integers) |
+| Legacy / older driver compatibility | Scale factor (integers) |
+| Scientific or high-precision calculations | **Decimal128** |
+
+---
+
+#### Multi-Currency Patterns
+
+##### Pattern A — Embedded `{ amount, currency }` Object (Recommended)
+
+Store amount and currency code together as an embedded document. This is the pattern shown in MongoDB's official data modelling tutorial.
+
+```js
+// Single-currency price field
+db.products.insertOne({
+  name:  "Widget Pro",
+  price: { amount: NumberDecimal("9.99"), currency: "USD" }
+});
+
+// Query
+db.products.find({
+  "price.currency": "USD",
+  "price.amount":   { $gte: NumberDecimal("5.00") }
+});
+
+// Multi-currency product — array of prices
+db.products.insertOne({
+  name: "Widget Pro",
+  prices: [
+    { amount: NumberDecimal("9.99"),  currency: "USD" },
+    { amount: NumberDecimal("8.75"),  currency: "EUR" },
+    { amount: NumberDecimal("1499"),  currency: "JPY" },
+    { amount: NumberDecimal("13.49"), currency: "KWD" }   // 3 decimal places — no schema change needed
+  ]
+});
+
+// Find the USD price of a product
+db.products.find(
+  { name: "Widget Pro", "prices.currency": "USD" },
+  { prices: { $elemMatch: { currency: "USD" } } }
+);
+
+// Revenue aggregation in USD
+db.orders.aggregate([
+  { $match:  { "price.currency": "USD" } },
+  { $group:  { _id: null, total: { $sum: "$price.amount" } } }
+]);
+// → Decimal128('...') — exact
+```
+
+##### Pattern B — Scale Factor with Explicit `currency` and `scale` Fields
+
+```js
+db.orders.insertOne({
+  item:      "Widget Pro",
+  amount:    NumberLong("999"),    // $9.99 in USD  →  999 cents
+  currency:  "USD",
+  scale:     NumberInt("100")      // ISO 4217 minor unit exponent
+});
+
+db.orders.insertOne({
+  item:      "Widget Pro",
+  amount:    NumberLong("1499"),   // ¥1499 in JPY  →  1499 (no minor unit)
+  currency:  "JPY",
+  scale:     NumberInt("1")
+});
+
+// Application code to get display value:
+// displayValue = doc.amount / doc.scale
+// 999  / 100 → 9.99 USD
+// 1499 / 1   → 1499 JPY
+```
+
+##### Pattern Comparison
+
+| | Decimal128 + currency | Scale factor + currency + scale |
+|---|---|---|
+| Human-readable in DB | ✅ `"9.99"` | ❌ `999` |
+| DB-side arithmetic | ✅ exact | ⚠️ `$divide` → float64 |
+| Multi-currency support | ✅ native | ⚠️ must track scale per currency |
+| Storage per field | 16 bytes | 8–12 bytes |
+| Driver compatibility | Modern drivers | Universal |
+
+---
+
+#### Quick Reference — Monetary Data Decision Card
+
+```
+Is your application new and using a modern driver?
+  └─ YES → Use Decimal128 ("9.99" as NumberDecimal("9.99") + currency: "USD")
+  └─ NO (legacy driver / extreme storage constraint)
+       └─ Use scale factor integers (amount_cents: NumberLong("999") + currency + scale)
+
+Are you doing arithmetic in the aggregation pipeline?
+  └─ YES → Use Decimal128 (scale factor + $divide = float64, defeats the purpose)
+
+Do you have multi-currency with non-2-decimal currencies (JPY, KWD)?
+  └─ YES → Use Decimal128 (scale factor requires per-currency scale management)
+
+Absolute rules:
+  ✅ Always pass NumberDecimal values as strings: NumberDecimal("9.99")
+  ✅ Always use NumberDecimal in $inc on Decimal128 fields
+  ✅ Use NumberLong (not NumberInt) for scale-factor amounts > $21.4 million
+  ❌ Never store money as a bare decimal literal: { price: 9.99 }
+  ❌ Never use $divide on monetary integers for further arithmetic
+```
+
+---
+
+### Working with Numeric Data — Summary
+
+| Type | Shell Constructor | Bits | Integer Only | Precision | Best For |
+|---|---|---|---|---|---|
+| **int32** | `NumberInt("val")` | 32 | ✅ | Exact (no decimals) | Ages, counts, IDs within ±2.1B |
+| **int64** | `NumberLong("val")` | 64 | ✅ | Exact (no decimals) | Large counters, company valuations |
+| **double** | plain `1.5` | 64 | ❌ | Approximated | Prices for display, general floats |
+| **Decimal128** | `NumberDecimal("val")` | 128 | ❌ | Exact (34 sig. digits) | Financial / scientific calculations |
+
+**Critical rules:**
+
+1. Pass large values to `NumberLong` and `NumberDecimal` as **strings**, not numeric literals
+2. Use the same number type in `$inc` updates as in inserts — mixing plain numbers converts the field to float64
+3. Strings cannot be used with arithmetic operators — always store typed numbers
+4. Integer overflow is **silent** — MongoDB does not throw an error, the value silently corrupts
+
+**Precision gotcha:**
+
+```js
+0.3 - 0.1 = 0.19999999999999998  // double (default)
+0.3 - 0.1 = 0.2                   // Decimal128 (exact)
+```
+
+> [⬆ Back to Index](#table-of-contents)
+
+
+## MongoDB and Security

@@ -97,6 +97,16 @@
   - [Working with Decimal 128bit](#working-with-decimal-128bit)
   - [Model Monetary Data](#model-monetary-data)
   - [Working with Numeric Data — Summary](#working-with-numeric-data--summary)
+- [MongoDB and Security](#mongodb-and-security)
+  - [Introduction](#introduction)
+  - [Understanding Role Based Access Control](#understanding-role-based-access-control)
+  - [Creating a User](#creating-a-user)
+  - [Built-In Roles — An Overview](#built-in-roles--an-overview)
+  - [Assigning Roles to Users and Databases](#assigning-roles-to-users-and-databases)
+  - [Updating and Extending Roles to Other Databases](#updating-and-extending-roles-to-other-databases)
+  - [Adding SSL Transport Encryption](#adding-ssl-transport-encryption)
+  - [Encryption at Rest](#encryption-at-rest)
+  - [MongoDB and Security — Summary](#mongodb-and-security--summary)
 
 ---
 
@@ -163,10 +173,12 @@ MongoDB offers a comprehensive ecosystem of tools and services:
 ### MongoDB Database Options
 
 1. **Self-Managed/Enterprise**
+
    - Install and manage on your own servers
    - **CloudManager/OpsManager**: Tools for monitoring and automating database operations
 
 2. **Atlas (Cloud)**
+
    - Fully managed cloud database service (DBaaS - Database as a Service)
    - Available on AWS, Azure, and Google Cloud
    - Automatic backups, scaling, and monitoring
@@ -291,6 +303,7 @@ flowchart TD
 **Explanation:**
 
 1. **Memory Storage\*\*\*\***
+
    - Data is read into RAM for fast access
    - Write operations first go to memory
    - Extremely fast but volatile (lost on restart)
@@ -474,14 +487,14 @@ db.flightData.updateOne({ distance: 980 }, { $set: { marker: "delete" } });
 
 db.flightData.updateMany(
   {}, // empty filter = match all
-  { $set: { marker: "delete" } },
+  { $set: { marker: "delete" } }
 );
 
 // Update an array field
 
 db.passengers.updateOne(
   { name: "Albert Twostone" },
-  { $set: { hobbies: ["Sports", "Cooking"] } },
+  { $set: { hobbies: ["Sports", "Cooking"] } }
 );
 ```
 
@@ -2731,7 +2744,7 @@ db.persons.insertOne(
 ```js
 db.persons.insertOne(
   { name: "Sara", age: 35 },
-  { writeConcern: { w: "majority" } },
+  { writeConcern: { w: "majority" } }
 );
 ```
 
@@ -2827,7 +2840,7 @@ db.persons.insertOne(
 
 db.persons.insertOne(
   { name: "Test" },
-  { writeConcern: { w: "majority", wtimeout: 100 } },
+  { writeConcern: { w: "majority", wtimeout: 100 } }
 );
 // Error: waiting for replication timed out
 ```
@@ -2944,7 +2957,7 @@ db.users.updateOne(
     $set: { name: "John Doe" },
     $inc: { loginCount: 1 },
     $push: { loginHistory: new Date() },
-  },
+  }
 );
 ```
 
@@ -3014,7 +3027,7 @@ db.users.updateOne(
       },
     },
     $inc: { version: 1 },
-  },
+  }
 );
 ```
 
@@ -3037,7 +3050,7 @@ db.blogs.updateOne(
       "comments.$.editedAt": new Date(),
     },
     $inc: { "comments.$.editCount": 1 },
-  },
+  }
 );
 ```
 
@@ -3119,7 +3132,7 @@ session.commitTransaction();
 
 db.products.updateOne(
   { _id: "product123" },
-  { $inc: { quantity: -1 } }, // Atomic decrement
+  { $inc: { quantity: -1 } } // Atomic decrement
 );
 ```
 
@@ -3169,6 +3182,147 @@ try {
 ```bash
 mongoimport [options] <file>
 ```
+
+### Common Options
+
+| Option                     | Description                                        | Example                    |
+| -------------------------- | -------------------------------------------------- | -------------------------- |
+| `-d, --database`           | Database name                                      | `-d movieData`             |
+| `-c, --collection`         | Collection name                                    | `-c movies`                |
+| `--drop`                   | Drop collection before importing                   | `--drop`                   |
+| `--jsonArray`              | Import a JSON array (file contains `[{...}, ...]`) | `--jsonArray`              |
+| `--file`                   | Input file path                                    | `--file data.json`         |
+| `--type`                   | File type: json, csv, tsv                          | `--type csv`               |
+| `--headerline`             | Use first line as field names (CSV/TSV)            | `--headerline`             |
+| `--mode`                   | Import mode: insert, upsert, merge                 | `--mode upsert`            |
+| `--uri`                    | MongoDB connection string                          | `--uri mongodb://...`      |
+| `--host`                   | MongoDB host                                       | `--host localhost:27017`   |
+| `--ignoreBlanks`           | Ignore blank fields in CSV/TSV                     | `--ignoreBlanks`           |
+| `--stopOnError`            | Stop on first error                                | `--stopOnError`            |
+| `--maintainInsertionOrder` | Process documents in order                         | `--maintainInsertionOrder` |
+
+---
+
+### Complete Import Example
+
+**Command:**
+
+```bash
+mongoimport tv-shows.json -d movieData -c movies --jsonArray --drop
+```
+
+**Breakdown:**
+
+- `tv-shows.json` - Input file (can also use `--file tv-shows.json`)
+- `-d movieData` - Database name
+- `-c movies` - Collection name
+- `--jsonArray` - File contains JSON array format `[{...}, {...}]`
+- `--drop` - Drop existing `movies` collection before importing
+
+---
+
+**Output:**
+
+```bash
+2026-02-22T17:41:13.419+0530    connected to: mongodb://localhost/
+2026-02-22T17:41:13.420+0530    dropping: movieData.movies
+2026-02-22T17:41:13.485+0530    240 document(s) imported successfully. 0 document(s) failed to import.
+```
+
+**Explanation:**
+
+1. ✅ **Connected** to MongoDB on localhost
+2. ✅ **Dropped** existing `movieData.movies` collection
+3. ✅ **Imported** 240 documents successfully with 0 failures
+
+---
+
+**Verify Import:**
+
+````js
+test> show dbs
+admin         40.00 KiB
+config        72.00 KiB
+contactData   72.00 KiB
+hobbies       72.00 KiB
+local         72.00 KiB
+movieData    188.00 KiB  // ✅ New database created
+
+test> use movieData
+switched to
+ movieData
+
+movieData> show collections
+movies  // ✅ Collection created
+
+moviewData>
+db.movies.find().limit(1)  // View first document
+[
+  {
+    _id: ObjectId('699af2612adc1485c87da5ab'),  // Auto-generated _id
+    id: 1,
+    url: 'http://www.tvmaze.com/shows/1/under-the-dome',
+    name: 'Under the Dome',
+    type: 'Scripted',
+    language: 'English',
+    genres: [ 'Drama', 'Science-Fiction', 'Thriller' ],
+    status: 'Ended',
+    runtime: 60,
+    premiered: '2013-06-24',
+    officialSite: 'http://www.cbs.com/shows/under-the-dome/',
+    schedule: { time: '22:00', days: [ 'Thursday' ] },
+    rating: { average: 6.5 },
+    weight: 91,
+    network: {
+      id: 2,
+      name: 'CBS',
+      country: {
+        name: 'United States',
+        code: 'US',
+        timezone: 'America/New_York'
+      }
+    },
+    webChannel: null,
+    externals: {
+      tvrage: 25988,
+      thetvdb: 264492,
+      imdb: 'tt1553656'
+    },
+    image: {
+      medium: 'http://static.tvmaze.com/uploads/images/medium_portrait/0/1.jpg',
+      original: 'http://static.tvmaze.com/uploads/images/original_untouched/0/1.jpg'
+    },
+    summary: "<p><b>Under the Dome</b> is the story of a small town...",
+    updat | Example                                     |
+| ---------------------- | ------------------------------------ | ------------------------------------------- |
+| **Single Document**    | ✅ Always Atomic                     | `insertOne()`, `updateOne()`, `deleteOne()` |
+| **Embedded Documents** | ✅ Always Atomic                     | Updates to nested fields                    |
+| **Multiple Documents** | ❌ Not Atomic (without transactions) | Multiple `updateOne()` calls                |
+| **With Transactions**  | ✅ Atomic                            | Operations within `startTransaction()`      |
+
+**Key Takeaway:**
+
+> MongoDB guarantees atomicity at the document level by default. For multi-document atomicity, use transactions (MongoDB 4.0+).
+
+**Design Philosophy:**
+
+- **Prefer embedding** related data in single documents
+- **Use transactions** when multi-document atomicity is required
+- **Understand the guarantee**: Each CRUD operation on a single document is atomic, including all embedded subdocuments
+
+> [⬆ Back to Index](#table-of-contents)
+
+---
+
+## Importing Data with mongoimport
+
+**`mongoimport`** is a command-line utility that imports data from JSON, CSV, or TSV files into MongoDB collections.
+
+### Basic Syntax
+
+```bash
+mongoimport [options] <file>
+````
 
 ### Common Options
 
@@ -5149,7 +5303,7 @@ db.posts.find(
     comments: {
       $elemMatch: { score: { $gt: 5 } },
     },
-  },
+  }
 );
 ```
 
@@ -5210,7 +5364,7 @@ db.movies
     {
       name: 1,
       score: { $meta: "textScore" },
-    },
+    }
   )
   .sort({ score: { $meta: "textScore" } });
 ```
@@ -5370,7 +5524,7 @@ users> db.users.updateOne(
 ```js
 db.users.updateMany(
   { "hobbies.title": "Sports" },
-  { $set: { isSporty: true } },
+  { $set: { isSporty: true } }
 );
 ```
 
@@ -5469,7 +5623,7 @@ db.users.updateOne(
     $inc: {
       age: 2, // Increment age by 2
     },
-  },
+  }
 );
 ```
 
@@ -5499,7 +5653,7 @@ db.users.updateOne(
     $set: {
       isSporty: false, // Set isSporty field
     },
-  },
+  }
 );
 ```
 
@@ -5645,7 +5799,7 @@ db.collection.updateOne({ filter }, { $mul: { field: multiplier } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $mul: { age: 1.1 } }, // Multiply age by 1.1 (10% increase)
+  { $mul: { age: 1.1 } } // Multiply age by 1.1 (10% increase)
 );
 ```
 
@@ -5720,7 +5874,7 @@ db.users.find({ name: "Chris" });
 ```js
 db.collection.updateMany(
   { filter },
-  { $unset: { field: "" } }, // Value doesn't matter (use "" or 1)
+  { $unset: { field: "" } } // Value doesn't matter (use "" or 1)
 );
 ```
 
@@ -5785,7 +5939,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   { isSporty: true },
-  { $unset: { phone: "" } }, // Remove 'phone' field
+  { $unset: { phone: "" } } // Remove 'phone' field
 );
 ```
 
@@ -5836,7 +5990,7 @@ db.users.updateMany(
 ```js
 db.collection.updateMany(
   { filter },
-  { $rename: { oldFieldName: "newFieldName" } },
+  { $rename: { oldFieldName: "newFieldName" } }
 );
 ```
 
@@ -5854,7 +6008,7 @@ db.collection.updateMany(
 ```js
 db.users.updateMany(
   {}, // Empty filter = all documents
-  { $rename: { age: "totalAge" } },
+  { $rename: { age: "totalAge" } }
 );
 ```
 
@@ -5899,7 +6053,7 @@ db.users.updateMany(
 ```js
 db.users.updateMany(
   {},
-  { $rename: { "address.zipCode": "address.postalCode" } },
+  { $rename: { "address.zipCode": "address.postalCode" } }
 );
 ```
 
@@ -5919,7 +6073,7 @@ db.users.updateMany(
 db.collection.updateOne(
   { filter },
   { updateOperators },
-  { upsert: true }, // Enable upsert
+  { upsert: true } // Enable upsert
 );
 ```
 
@@ -5956,7 +6110,7 @@ db.users.updateOne(
       isSporty: true,
     },
   },
-  { upsert: true }, // If not found, insert
+  { upsert: true } // If not found, insert
 );
 ```
 
@@ -6038,7 +6192,7 @@ db.users.updateOne(
 db.pageViews.updateOne(
   { page: "/home" },
   { $inc: { views: 1 } },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -6051,7 +6205,7 @@ db.pageViews.updateOne(
 db.settings.updateOne(
   { userId: "user123" },
   { $set: { theme: "dark", language: "en" } },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -6067,7 +6221,7 @@ db.sessions.updateOne(
     $set: { lastActive: new Date() },
     $inc: { requestCount: 1 },
   },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -6080,7 +6234,7 @@ db.sessions.updateOne(
 db.inventory.updateOne(
   { sku: "LAPTOP-001" },
   { $set: { quantity: 50, price: 999 } },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -6103,7 +6257,7 @@ db.users.updateOne(
     $inc: { loginCount: 1 },
     $setOnInsert: { createdAt: new Date() }, // Only on insert
   },
-  { upsert: true },
+  { upsert: true }
 );
 ```
 
@@ -6207,7 +6361,7 @@ db.users.find({
 ```js
 db.collection.updateMany(
   { "array.field": value }, // Filter
-  { $set: { "array.$.newField": value } }, // $ = matched element
+  { $set: { "array.$.newField": value } } // $ = matched element
 );
 ```
 
@@ -6229,7 +6383,7 @@ db.users.updateMany(
     $set: {
       "hobbies.$.highFrequency": true, // $ = first matched hobby
     },
-  },
+  }
 );
 ```
 
@@ -6328,7 +6482,7 @@ After update with `$`:
 ```js
 db.collection.updateMany(
   { filter },
-  { $set: { "array.$[].field": value } }, // $[] = all elements
+  { $set: { "array.$[].field": value } } // $[] = all elements
 );
 ```
 
@@ -6382,7 +6536,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateMany(
   { totalAge: { $gt: 30 } },
-  { $inc: { "hobbies.frequency": -1 } }, // ERROR!
+  { $inc: { "hobbies.frequency": -1 } } // ERROR!
 );
 // Error: Cannot create field frequency in element hobbies
 ```
@@ -6400,7 +6554,7 @@ db.users.updateMany(
     $inc: {
       "hobbies.$[].frequency": -1, // $[] = all hobbies
     },
-  },
+  }
 );
 ```
 
@@ -6481,7 +6635,7 @@ db.users.find({ totalAge: { $gt: 30 } });
 ```js
 db.users.updateOne(
   { name: "Alex", "hobbies.frequency": { $gte: 3 } },
-  { $set: { "hobbies.$.popular": true } },
+  { $set: { "hobbies.$.popular": true } }
 );
 
 // Result:
@@ -6523,7 +6677,7 @@ db.users.updateOne({ name: "Alex" }, { $inc: { "hobbies.$[].frequency": 1 } });
 // Add field to all items
 db.products.updateOne(
   { _id: productId },
-  { $set: { "reviews.$[].verified": false } },
+  { $set: { "reviews.$[].verified": false } }
 );
 ```
 
@@ -6551,7 +6705,7 @@ db.posts.updateMany({}, { $unset: { "comments.$[].tempFlag": "" } });
 // Update nested field in all array elements
 db.users.updateOne(
   { name: "Alex" },
-  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } },
+  { $set: { "hobbies.$[].metadata.lastUpdated": new Date() } }
 );
 ```
 
@@ -6566,7 +6720,7 @@ db.users.updateOne(
 // Can't use dot notation after $[]
 db.blogs.updateOne(
   { _id: blogId },
-  { $set: { "tags.$[]": "updated" } }, // Replaces all tags with "updated"
+  { $set: { "tags.$[]": "updated" } } // Replaces all tags with "updated"
 );
 ```
 
@@ -6578,7 +6732,7 @@ db.users.updateOne(
   {
     $inc: { "hobbies.$[].frequency": 1 },
     $set: { lastModified: new Date() },
-  },
+  }
 );
 ```
 
@@ -6603,7 +6757,7 @@ db.users.updateOne(
 db.collection.updateMany(
   { documentFilter }, // Filter documents
   { $set: { "array.$[identifier].field": value } }, // Update matching array elements
-  { arrayFilters: [{ "identifier.field": condition }] }, // Filter array elements
+  { arrayFilters: [{ "identifier.field": condition }] } // Filter array elements
 );
 ```
 
@@ -6676,7 +6830,7 @@ db.users.find({ "hobbies.frequency": { $gt: 2 } });
 db.users.updateMany(
   { "hobbies.frequency": { $gt: 2 } }, // Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } }, // Array update
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // Array element filter
 );
 ```
 
@@ -6795,7 +6949,7 @@ db.users.find();
 db.users.updateMany(
   { totalAge: { $gt: 30 } }, // ← Document filter
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }, // ← Array element filter
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] } // ← Array element filter
 );
 ```
 
@@ -6831,7 +6985,7 @@ db.posts.updateMany(
       { "comment.upvotes": { $gte: 10 } }, // Filter for comments
       { "tag.category": "tech" }, // Filter for tags
     ],
-  },
+  }
 );
 ```
 
@@ -6856,7 +7010,7 @@ db.posts.updateMany(
 db.products.updateMany(
   { category: "Electronics" },
   { $set: { "reviews.$[review].verified": true } },
-  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] },
+  { arrayFilters: [{ "review.upvotes": { $gte: 5 } }] }
 );
 ```
 
@@ -6869,7 +7023,7 @@ db.products.updateMany(
 db.orders.updateMany(
   { status: "pending" },
   { $mul: { "items.$[item].price": 0.9 } },
-  { arrayFilters: [{ "item.price": { $gt: 50 } }] },
+  { arrayFilters: [{ "item.price": { $gt: 50 } }] }
 );
 ```
 
@@ -6889,7 +7043,7 @@ db.posts.updateMany(
         "c.createdAt": { $lt: new Date("2025-01-01") },
       },
     ],
-  },
+  }
 );
 ```
 
@@ -6938,7 +7092,7 @@ db.users.find({
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[h].goodFrequency": true } },
-  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] },
+  { arrayFilters: [{ "h.frequency": { $gt: 2 } }] }
 );
 ```
 
@@ -6970,7 +7124,7 @@ db.collection.updateOne(
         $position: N,
       },
     },
-  },
+  }
 );
 ```
 
@@ -6994,7 +7148,7 @@ db.collection.updateOne(
 ```js
 db.users.updateOne(
   { name: "Maria" },
-  { $push: { hobbies: { title: "Sports", frequency: 2 } } },
+  { $push: { hobbies: { title: "Sports", frequency: 2 } } }
 );
 ```
 
@@ -7047,7 +7201,7 @@ db.users.updateOne(
         ],
       },
     },
-  },
+  }
 );
 ```
 
@@ -7091,7 +7245,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // Sort by frequency descending
       },
     },
-  },
+  }
 );
 ```
 
@@ -7154,7 +7308,7 @@ db.users.updateOne(
         $sort: { frequency: -1 },
       },
     },
-  },
+  }
 );
 
 // Array remains sorted even with duplicates
@@ -7202,7 +7356,7 @@ db.users.updateOne(
         $slice: 3, // Keep only top 3
       },
     },
-  },
+  }
 );
 ```
 
@@ -7257,7 +7411,7 @@ db.users.updateOne(
         $position: 0, // Insert at start
       },
     },
-  },
+  }
 );
 
 // Result: New hobby is first in array
@@ -7284,7 +7438,7 @@ db.products.updateOne(
         $position: 0, // Insert at beginning
       },
     },
-  },
+  }
 );
 ```
 
@@ -7327,7 +7481,7 @@ db.products.updateOne(
 ```js
 db.collection.updateOne(
   { documentFilter },
-  { $pull: { arrayField: condition } },
+  { $pull: { arrayField: condition } }
 );
 ```
 
@@ -7367,7 +7521,7 @@ db.users.updateOne(
         title: "Good food", // Remove by exact match
       },
     },
-  },
+  }
 );
 ```
 
@@ -7410,7 +7564,7 @@ db.users.updateOne(
         frequency: { $lte: 1 }, // Remove if frequency ≤ 1
       },
     },
-  },
+  }
 );
 ```
 
@@ -7467,7 +7621,7 @@ db.collection.updateOne({ filter }, { $pop: { arrayField: value } });
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: 1 } }, // 1 = remove last
+  { $pop: { hobbies: 1 } } // 1 = remove last
 );
 ```
 
@@ -7502,7 +7656,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { name: "Chris" },
-  { $pop: { hobbies: -1 } }, // -1 = remove first
+  { $pop: { hobbies: -1 } } // -1 = remove first
 );
 
 // Result: "Sports" would be removed
@@ -7528,7 +7682,7 @@ db.users.updateOne(
 // Remove all hobbies with low frequency
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
 );
 // Removes: All matching elements (could be 0, 1, or many)
 ```
@@ -7581,7 +7735,7 @@ db.users.updateMany(
         createdAt: { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
     },
-  },
+  }
 );
 ```
 
@@ -7601,7 +7755,7 @@ db.players.updateOne(
         $slice: 5, // Keep top 5
       },
     },
-  },
+  }
 );
 ```
 
@@ -7656,7 +7810,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  },
+  }
 );
 ```
 
@@ -7697,7 +7851,7 @@ db.users.updateOne(
     $push: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  },
+  }
 );
 // Run again...
 // Run again...
@@ -7721,7 +7875,7 @@ db.users.updateOne(
     $addToSet: {
       hobbies: { title: "Hiking", frequency: 2 },
     },
-  },
+  }
 );
 // Run again...
 // Run again...
@@ -7752,7 +7906,7 @@ db.users.updateOne(
         ],
       },
     },
-  },
+  }
 );
 ```
 
@@ -7816,7 +7970,7 @@ db.posts.updateOne({ _id: postId }, { $addToSet: { tags: "mongodb" } });
 ```js
 db.articles.updateOne(
   { _id: articleId },
-  { $addToSet: { tags: "javascript" } },
+  { $addToSet: { tags: "javascript" } }
 );
 // Prevents duplicate tags
 ```
@@ -7833,7 +7987,7 @@ db.users.updateOne({ username: "alice" }, { $addToSet: { followers: "bob" } });
 ```js
 db.users.updateOne(
   { userId: "user123" },
-  { $addToSet: { viewedProducts: productId } },
+  { $addToSet: { viewedProducts: productId } }
 );
 // Track unique views only
 ```
@@ -7843,7 +7997,7 @@ db.users.updateOne(
 ```js
 db.users.updateOne(
   { email: "admin@example.com" },
-  { $addToSet: { roles: "moderator" } },
+  { $addToSet: { roles: "moderator" } }
 );
 // Can't assign same role twice
 ```
@@ -7865,7 +8019,7 @@ db.users.updateOne(
         $sort: { frequency: -1 }, // ❌ Error!
       },
     },
-  },
+  }
 );
 ```
 
@@ -7951,7 +8105,7 @@ Need to add to array?
 db.collection.updateOne(
   { filter }, // 1st argument: Query selector (which documents?)
   { update }, // 2nd argument: Update operators (what changes?)
-  { options }, // 3rd argument: Options (upsert, arrayFilters, etc.)
+  { options } // 3rd argument: Options (upsert, arrayFilters, etc.)
 );
 ```
 
@@ -7993,7 +8147,7 @@ db.collection.updateOne(
 // Update first match
 db.users.updateOne(
   { "hobbies.title": "Sports" },
-  { $set: { "hobbies.$.frequency": 5 } },
+  { $set: { "hobbies.$.frequency": 5 } }
 );
 
 // Update all elements
@@ -8003,7 +8157,7 @@ db.users.updateOne({ name: "Maria" }, { $inc: { "hobbies.$[].frequency": 1 } });
 db.users.updateOne(
   { name: "Maria" },
   { $set: { "hobbies.$[el].goodFrequency": true } },
-  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] },
+  { arrayFilters: [{ "el.frequency": { $gt: 2 } }] }
 );
 ```
 
@@ -8032,13 +8186,13 @@ db.users.updateOne(
         $slice: 5,
       },
     },
-  },
+  }
 );
 
 // Pull by condition
 db.users.updateOne(
   { name: "Maria" },
-  { $pull: { hobbies: { frequency: { $lt: 2 } } } },
+  { $pull: { hobbies: { frequency: { $lt: 2 } } } }
 );
 
 // Pop last element
@@ -8058,7 +8212,7 @@ db.users.updateOne({ name: "Maria" }, { $addToSet: { tags: "featured" } });
 db.users.updateOne(
   { username: "alice" },
   { $set: { lastLogin: new Date() } },
-  { upsert: true }, // Insert if not found
+  { upsert: true } // Insert if not found
 );
 ```
 
@@ -8068,7 +8222,7 @@ db.users.updateOne(
 db.users.updateMany(
   {},
   { $set: { "hobbies.$[hobby].active": true } },
-  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] },
+  { arrayFilters: [{ "hobby.frequency": { $gte: 3 } }] }
 );
 ```
 
@@ -8088,7 +8242,7 @@ db.users.replaceOne(
     hobbies: [],
     active: true,
     // All other fields removed
-  },
+  }
 );
 ```
 
@@ -8177,7 +8331,7 @@ MongoDB provides several methods to delete documents and collections:
 ```js
 db.collection.deleteOne(
   { filter }, // Required: Query selector
-  { writeConcern }, // Optional: Write concern settings
+  { writeConcern } // Optional: Write concern settings
 );
 ```
 
@@ -8275,7 +8429,7 @@ db.users.deleteOne({
 ```js
 db.collection.deleteMany(
   { filter }, // Required: Query selector
-  { writeConcern }, // Optional: Write concern settings
+  { writeConcern } // Optional: Write concern settings
 );
 ```
 
@@ -8501,7 +8655,7 @@ false; // Collection doesn't exist (no error)
 ```js
 db.users.deleteOne(
   { name: "Chris" },
-  { writeConcern: { w: "majority", wtimeout: 5000 } },
+  { writeConcern: { w: "majority", wtimeout: 5000 } }
 );
 ```
 
@@ -9185,7 +9339,7 @@ A partial index indexes **only documents that match a given filter** (`partialFi
 // Create partial index: only store dob.age entries where gender = "male"
 db.contacts.createIndex(
   { "dob.age": 1 },
-  { partialFilterExpression: { gender: "male" } },
+  { partialFilterExpression: { gender: "male" } }
 );
 ```
 
@@ -9238,7 +9392,7 @@ db.contacts.explain("executionStats").find({
 // Only ages > 60 are stored — useful app that almost never queries younger ages
 db.contacts.createIndex(
   { "dob.age": 1 },
-  { partialFilterExpression: { "dob.age": { $gt: 60 } } },
+  { partialFilterExpression: { "dob.age": { $gt: 60 } } }
 );
 ```
 
@@ -9297,7 +9451,7 @@ db.users.createIndex(
   {
     unique: true,
     partialFilterExpression: { email: { $exists: true } },
-  },
+  }
 );
 ```
 
@@ -9469,7 +9623,7 @@ db.customers.explain("executionStats").find({ name: "Max" });
 ```js
 db.customers.explain("executionStats").find(
   { name: "Max" },
-  { _id: 0, name: 1 }, // only return indexed field, exclude _id
+  { _id: 0, name: 1 } // only return indexed field, exclude _id
 );
 ```
 
@@ -9809,10 +9963,10 @@ When searching text, MongoDB internally calculates a **relevance score** for eac
 db.product
   .find(
     { $text: { $search: "awesome t-shirt" } },
-    { score: { $meta: "textScore" } }, // project the score field
+    { score: { $meta: "textScore" } } // project the score field
   )
   .sort(
-    { score: { $meta: "textScore" } }, // sort by score descending
+    { score: { $meta: "textScore" } } // sort by score descending
   );
 ```
 
@@ -9961,7 +10115,7 @@ db.product.createIndex(
   {
     default_language: "english",
     weights: { title: 1, description: 10 }, // description weighs 10x more than title
-  },
+  }
 );
 ```
 
@@ -9972,7 +10126,7 @@ db.product.createIndex(
 ```js
 db.product.find(
   { $text: { $search: "red" } },
-  { score: { $meta: "textScore" } },
+  { score: { $meta: "textScore" } }
 );
 ```
 
@@ -9995,7 +10149,7 @@ db.product.find(
 // Default: case-insensitive — "Red" and "red" are equivalent
 db.product.find(
   { $text: { $search: "Red", $caseSensitive: true } },
-  { score: { $meta: "textScore" } },
+  { score: { $meta: "textScore" } }
 );
 // Result: [] — "Red" (capital R) not found (document stores "red" lowercase in index)
 ```
@@ -11978,32 +12132,54 @@ MongoDB supports multiple numeric types for efficient storage and precise calcul
 
 MongoDB has four numeric types:
 
-| Type | Shell Constructor | Bits | Integer Only | Decimal Precision |
-|---|---|---|---|---|
-| **int32** | `NumberInt("val")` | 32 | ✅ | N/A (integers only) |
-| **int64 / long** | `NumberLong("val")` | 64 | ✅ | N/A (integers only) |
-| **double (float64)** | plain number e.g. `1.5` | 64 | ❌ | Approximated (IEEE 754) |
-| **Decimal128** | `NumberDecimal("val")` | 128 | ❌ | Exact up to 34 significant digits |
+| Type                 | Shell Constructor       | Bits | Integer Only | Decimal Precision                 |
+| -------------------- | ----------------------- | ---- | ------------ | --------------------------------- |
+| **int32**            | `NumberInt("val")`      | 32   | ✅           | N/A (integers only)               |
+| **int64 / long**     | `NumberLong("val")`     | 64   | ✅           | N/A (integers only)               |
+| **double (float64)** | plain number e.g. `1.5` | 64   | ❌           | Approximated (IEEE 754)           |
+| **Decimal128**       | `NumberDecimal("val")`  | 128  | ❌           | Exact up to 34 significant digits |
 
 **Ranges:**
 
-| Type | Min | Max |
-|---|---|---|
-| int32 | -2,147,483,648 | 2,147,483,647 |
-| int64 | -9,223,372,036,854,775,808 | 9,223,372,036,854,775,807 |
-| double | Very large range | Decimal values approximated |
-| Decimal128 | Smaller integer range | Decimal values exact (≤ 34 sig. digits) |
+| Type       | Min                        | Max                                     |
+| ---------- | -------------------------- | --------------------------------------- |
+| int32      | -2,147,483,648             | 2,147,483,647                           |
+| int64      | -9,223,372,036,854,775,808 | 9,223,372,036,854,775,807               |
+| double     | Very large range           | Decimal values approximated             |
+| Decimal128 | Smaller integer range      | Decimal values exact (≤ 34 sig. digits) |
 
 **When to use each:**
 
-| Type | Use case |
-|---|---|
-| `int32` | Normal integers within ±2.1 billion (e.g., age, count, quantity) |
-| `int64` | Large integers exceeding int32 range (e.g., company valuations) |
-| `double` | Prices/floats where 2 decimal place display precision is sufficient |
+| Type         | Use case                                                               |
+| ------------ | ---------------------------------------------------------------------- |
+| `int32`      | Normal integers within ±2.1 billion (e.g., age, count, quantity)       |
+| `int64`      | Large integers exceeding int32 range (e.g., company valuations)        |
+| `double`     | Prices/floats where 2 decimal place display precision is sufficient    |
 | `Decimal128` | Financial or scientific calculations requiring exact decimal precision |
 
+```mermaid
+flowchart TD
+    Q["What number am I storing?"]
+    Q --> INT{Whole number only?}
+    INT -->|Yes| RANGE{Within ±2.1 billion?}
+    RANGE -->|Yes| I32["NumberInt('val')<br/>int32 — 32 bits<br/>e.g. age, count, quantity"]
+    RANGE -->|No| I64["NumberLong('val')<br/>int64 — 64 bits<br/>e.g. large IDs, valuations"]
+    INT -->|No — has decimals| PREC{Need exact precision?<br/>e.g. money / science}
+    PREC -->|No — display only| DBL["plain 1.5<br/>double — 64 bits<br/>⚠️ approximated (IEEE 754)"]
+    PREC -->|Yes — must be exact| DEC128["NumberDecimal('val')<br/>Decimal128 — 128 bits<br/>exact up to 34 sig. digits"]
+
+    style Q fill:#e2e3e5,color:#000
+    style INT fill:#fff3cd,color:#000
+    style RANGE fill:#fff3cd,color:#000
+    style PREC fill:#fff3cd,color:#000
+    style I32 fill:#d4edda,color:#000
+    style I64 fill:#d4edda,color:#000
+    style DBL fill:#f8d7da,color:#000
+    style DEC128 fill:#cce5ff,color:#000
+```
+
 **Shell constructor rules:**
+
 - `NumberInt("val")` → int32
 - `NumberLong("val")` → int64
 - Plain number (e.g. `1`, `0.3`) → double 64-bit (Shell/JavaScript default)
@@ -12026,13 +12202,14 @@ db.numtest.insertOne({ a: 1 });
 
 This is a Shell/JavaScript constraint, **not a MongoDB constraint**. Other language drivers behave differently:
 
-| Language | Integer type | Float type | Stored in MongoDB as |
-|---|---|---|---|
-| **JavaScript / Shell** | No integer type | float64 for all numbers | double (64-bit) |
-| **Python** | `int` (arbitrary precision) | `float` (float64) | `int` → int32/int64; `float` → double |
-| **Java** | `int` (32-bit) / `long` (64-bit) | `double` (64-bit) | Matches Java types directly |
+| Language               | Integer type                     | Float type              | Stored in MongoDB as                  |
+| ---------------------- | -------------------------------- | ----------------------- | ------------------------------------- |
+| **JavaScript / Shell** | No integer type                  | float64 for all numbers | double (64-bit)                       |
+| **Python**             | `int` (arbitrary precision)      | `float` (float64)       | `int` → int32/int64; `float` → double |
+| **Java**               | `int` (32-bit) / `long` (64-bit) | `double` (64-bit)       | Matches Java types directly           |
 
 **Practical rule:**
+
 - In the Shell (JavaScript): always use `NumberInt(...)` / `NumberLong(...)` / `NumberDecimal(...)` explicitly to store the intended type.
 - In Python: a plain `int` variable is already stored as int32 by the driver — no extra wrapper needed.
 - Consult your language's MongoDB driver documentation to understand what each native type maps to.
@@ -12070,6 +12247,7 @@ test> db.numtest.stats()
 ```
 
 **Key points:**
+
 - `NumberInt(29)` and `NumberInt("29")` both work; string form is preferred
 - Saves a few bytes per document — meaningful at scale across millions of documents
 - Use when the value is always a whole number within the ±2.1 billion range
@@ -12097,17 +12275,20 @@ db.companies.insertOne({ valuation: NumberLong("9223372036854775807") });
 
 ```js
 // 5 billion exceeds int32 range — no error, but stored value is WRONG
-test> db.numtest.insertOne({ valuation: NumberInt("5000000000") })
-test> db.numtest.find()
-[ { valuation: 705032704 } ]   // ❌ Corrupted value, no error thrown
+test > db.numtest.insertOne({ valuation: NumberInt("5000000000") });
+test > db.numtest.find()[{ valuation: 705032704 }]; // ❌ Corrupted value, no error thrown
 
 // At exactly the max, it's correct:
-test> db.numtest.insertOne({ valuation: NumberInt("2147483647") })
-[ { valuation: 2147483647 } ]  // ✅
+test >
+  db.numtest.insertOne({ valuation: NumberInt("2147483647") })[
+    { valuation: 2147483647 }
+  ]; // ✅
 
 // One above max wraps to the minimum (negative):
-test> db.numtest.insertOne({ valuation: NumberInt("2147483648") })
-[ { valuation: -2147483648 } ]  // ❌ Overflow wraps to negative
+test >
+  db.numtest.insertOne({ valuation: NumberInt("2147483648") })[
+    { valuation: -2147483648 }
+  ]; // ❌ Overflow wraps to negative
 ```
 
 > **MongoDB does NOT throw an error on integer overflow** — the value silently wraps or corrupts. Always know the range you need.
@@ -12133,7 +12314,7 @@ test> db.numtest.find()
 Strings cannot be used with arithmetic operators — `$inc`, `$multiply`, etc. will throw a type error:
 
 ```js
-db.accounts.insertOne({ amount: "10" });  // stored as a string
+db.accounts.insertOne({ amount: "10" }); // stored as a string
 db.accounts.updateOne({}, { $inc: { amount: 10 } });
 // MongoServerError: Cannot apply $inc to a value of non-numeric type
 ```
@@ -12157,7 +12338,7 @@ db.accounts.updateOne({}, { $inc: { valuation: NumberLong("1") } });
 
 ```js
 // Field stored as NumberLong("1234567891234567890")
-db.accounts.updateOne({}, { $inc: { amount: 10 } });  // plain number
+db.accounts.updateOne({}, { $inc: { amount: 10 } }); // plain number
 // Result: Long('1234567891234567900') — WRONG due to float64 intermediate conversion
 
 // Correct:
@@ -12188,13 +12369,33 @@ test> db.accounts.find()
 
 Normal 64-bit doubles (the Shell/JavaScript default) use IEEE 754 binary floating-point representation, which **approximates** decimal values rather than storing them exactly. This is a computer science constraint — not a MongoDB limitation.
 
-**Proof via the aggregation framework:**
+```mermaid
+flowchart LR
+    subgraph double path
+        A1["Insert: { a: 0.3, b: 0.1 }<br/>stored as float64 approximation"]
+        A2["$subtract in $project"]
+        A3["Result: 0.19999999999999998 ❌<br/>Wrong due to IEEE 754 binary encoding"]
+        A1 --> A2 --> A3
+    end
+
+    subgraph Decimal128 path
+        B1["Insert: { a: NumberDecimal('0.3'),<br/>b: NumberDecimal('0.1') }<br/>stored as exact base-10"]
+        B2["$subtract in $project"]
+        B3["Result: Decimal128('0.2') ✅<br/>Exactly correct"]
+        B1 --> B2 --> B3
+    end
+
+    style A1 fill:#f8d7da,color:#000
+    style A2 fill:#fff3cd,color:#000
+    style A3 fill:#f8d7da,color:#000
+    style B1 fill:#d4edda,color:#000
+    style B2 fill:#fff3cd,color:#000
+    style B3 fill:#d4edda,color:#000
+```
 
 ```js
-db.science.insertOne({ a: 0.3, b: 0.1 });  // stored as 64-bit floats (approximated)
-db.science.aggregate([
-  { $project: { result: { $subtract: ["$a", "$b"] } } }
-])
+db.science.insertOne({ a: 0.3, b: 0.1 }); // stored as 64-bit floats (approximated)
+db.science.aggregate([{ $project: { result: { $subtract: ["$a", "$b"] } } }]);
 // Expected: 0.2
 // Actual:   0.19999999999999998  ❌ — imprecision from float64 representation
 ```
@@ -12216,11 +12417,13 @@ test> db.science.aggregate([
 ```
 
 **When doubles are acceptable:**
+
 - Displaying a price on a webpage (rounding to 2 decimal places is fine for display)
 - Passing values to a third-party payment provider that handles precision on their end
 - Approximate scientific values where exact decimal representation is not required
 
 **When doubles are NOT acceptable:**
+
 - Server-side arithmetic in aggregation pipelines where the computed result is used in business logic
 - Storing financials that require auditable precision
 - Scientific calculations requiring exact decimal representation
@@ -12238,12 +12441,12 @@ Use `Decimal128` when precision matters.
 ```js
 // With normal double (imprecise):
 db.science.insertOne({ a: 0.3, b: 0.1 });
-db.science.aggregate([{ $project: { result: { $subtract: ["$a", "$b"] } } }])
+db.science.aggregate([{ $project: { result: { $subtract: ["$a", "$b"] } } }]);
 // result: 0.19999999999999998  ❌
 
 // With Decimal128 (exact):
 db.science.insertOne({ a: NumberDecimal("0.3"), b: NumberDecimal("0.1") });
-db.science.aggregate([{ $project: { result: { $subtract: ["$a", "$b"] } } }])
+db.science.aggregate([{ $project: { result: { $subtract: ["$a", "$b"] } } }]);
 // result: Decimal128('0.2')  ✅
 ```
 
@@ -12287,14 +12490,15 @@ db.science.updateOne({}, { $inc: { a: NumberDecimal("0.1") } });
 Decimal128 consumes more storage than a double per document:
 
 ```js
-db.nums.insertOne({ a: 0.1 });                   // double — smaller footprint
-db.nums.stats();   // size: N
+db.nums.insertOne({ a: 0.1 }); // double — smaller footprint
+db.nums.stats(); // size: N
 
-db.nums.insertOne({ a: NumberDecimal("0.1") });  // Decimal128 — larger footprint
-db.nums.stats();   // size: N + delta (higher storage cost per document)
+db.nums.insertOne({ a: NumberDecimal("0.1") }); // Decimal128 — larger footprint
+db.nums.stats(); // size: N + delta (higher storage cost per document)
 ```
 
 **Guidelines:**
+
 - Use for financial data (prices, interest, tax calculations)
 - Use for scientific work requiring exact decimal representation
 - Do **not** use as a default for all floats — wastes storage
@@ -12318,22 +12522,22 @@ MongoDB's default numeric type — when you write a bare decimal literal like `9
 
 ```js
 // JavaScript / MongoDB shell — all plain number literals are float64:
-0.1 + 0.2           // → 0.30000000000000004  (not 0.3)
-0.3 - 0.1           // → 0.19999999999999998  (not 0.2)
-9.99 * 100          // → 998.9999999999999    (not 999)
-1.005 * 100         // → 100.50000000000001   (should be 100.5, rounds wrong)
-1.1 + 1.1 + 1.1     // → 3.3000000000000003  (not 3.3)
+0.1 + 0.2; // → 0.30000000000000004  (not 0.3)
+0.3 - 0.1; // → 0.19999999999999998  (not 0.2)
+9.99 * 100; // → 998.9999999999999    (not 999)
+1.005 * 100; // → 100.50000000000001   (should be 100.5, rounds wrong)
+1.1 + 1.1 + 1.1; // → 3.3000000000000003  (not 3.3)
 ```
 
 **Real financial harm these errors cause:**
 
-| Error type | Consequence |
-|---|---|
-| Aggregation drift | Summing thousands of transactions accumulates tiny errors into visible rounding differences |
-| Tax miscalculation | `amount * taxRate` already inexact; rounding on an inexact value gives wrong cent |
-| Balance mismatch | Sum of debits ≠ sum of credits in a ledger by a fraction of a cent |
-| Sorting anomaly | Two values that are logically equal compare as unequal due to binary representation |
-| Batch processing drift | 1,000,000 × $0.01 in float64 does not reliably sum to exactly $10,000.00 |
+| Error type             | Consequence                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| Aggregation drift      | Summing thousands of transactions accumulates tiny errors into visible rounding differences |
+| Tax miscalculation     | `amount * taxRate` already inexact; rounding on an inexact value gives wrong cent           |
+| Balance mismatch       | Sum of debits ≠ sum of credits in a ledger by a fraction of a cent                          |
+| Sorting anomaly        | Two values that are logically equal compare as unequal due to binary representation         |
+| Batch processing drift | 1,000,000 × $0.01 in float64 does not reliably sum to exactly $10,000.00                    |
 
 > **Rule:** Never store monetary values as plain untyped numbers (`9.99`) in MongoDB. Use either **Decimal128** or the **Scale Factor (integer)** approach.
 
@@ -12345,12 +12549,12 @@ MongoDB's default numeric type — when you write a bare decimal literal like `9
 
 BSON type `Decimal128` implements **IEEE 754-2008 decimal128** — it stores numbers in **base 10**, so decimal fractions are represented exactly as written.
 
-| Property | Value |
-|---|---|
-| Storage | 128 bits (16 bytes) |
-| Significant digits | Up to **34** decimal digits |
-| Exponent range | −6143 to +6144 |
-| Shell constructor | `NumberDecimal("value")` — **always pass as a string** |
+| Property           | Value                                                  |
+| ------------------ | ------------------------------------------------------ |
+| Storage            | 128 bits (16 bytes)                                    |
+| Significant digits | Up to **34** decimal digits                            |
+| Exponent range     | −6143 to +6144                                         |
+| Shell constructor  | `NumberDecimal("value")` — **always pass as a string** |
 
 ##### When to Use
 
@@ -12362,13 +12566,13 @@ BSON type `Decimal128` implements **IEEE 754-2008 decimal128** — it stores num
 
 ##### Pros and Cons
 
-| Pros | Cons |
-|---|---|
-| Exact base-10 representation — no drift | 16 bytes per value (2× a double, 4× an int32) |
-| Works directly with all MongoDB arithmetic operators | Must always pass value as a **string** to the constructor |
-| Human-readable — stored value matches what you inserted | Slightly slower arithmetic than integer types |
-| Handles variable-precision currencies natively | Older drivers (pre-2016) may not support it |
-| `$gte`/`$lte` comparisons are exact | Trailing zeros preserved: `"9.90"` ≠ `"9.9"` in string form but are numerically equal |
+| Pros                                                    | Cons                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Exact base-10 representation — no drift                 | 16 bytes per value (2× a double, 4× an int32)                                         |
+| Works directly with all MongoDB arithmetic operators    | Must always pass value as a **string** to the constructor                             |
+| Human-readable — stored value matches what you inserted | Slightly slower arithmetic than integer types                                         |
+| Handles variable-precision currencies natively          | Older drivers (pre-2016) may not support it                                           |
+| `$gte`/`$lte` comparisons are exact                     | Trailing zeros preserved: `"9.90"` ≠ `"9.9"` in string form but are numerically equal |
 
 ##### Code Examples
 
@@ -12376,15 +12580,14 @@ BSON type `Decimal128` implements **IEEE 754-2008 decimal128** — it stores num
 // ── INSERT ─────────────────────────────────────────────────────────────────
 
 db.orders.insertOne({
-  item:     "laptop",
-  price:    NumberDecimal("999.99"),   // ✅ exact
-  taxRate:  NumberDecimal("0.08875"),
-  qty:      NumberInt("2")
+  item: "laptop",
+  price: NumberDecimal("999.99"), // ✅ exact
+  taxRate: NumberDecimal("0.08875"),
+  qty: NumberInt("2"),
 });
 
 // ❌ WRONG — bare literal stores as float64:
-db.orders.insertOne({ price: 999.99 });  // → double, not Decimal128
-
+db.orders.insertOne({ price: 999.99 }); // → double, not Decimal128
 
 // ── QUERY ──────────────────────────────────────────────────────────────────
 
@@ -12392,8 +12595,9 @@ db.orders.insertOne({ price: 999.99 });  // → double, not Decimal128
 db.orders.find({ price: NumberDecimal("999.99") });
 
 // Range query
-db.orders.find({ price: { $gte: NumberDecimal("100.00"), $lte: NumberDecimal("1000.00") } });
-
+db.orders.find({
+  price: { $gte: NumberDecimal("100.00"), $lte: NumberDecimal("1000.00") },
+});
 
 // ── ARITHMETIC IN AGGREGATION ──────────────────────────────────────────────
 
@@ -12401,20 +12605,19 @@ db.orders.aggregate([
   {
     $project: {
       subtotal: { $multiply: ["$price", "$qty"] },
-      tax:      { $multiply: ["$price", "$qty", "$taxRate"] },
+      tax: { $multiply: ["$price", "$qty", "$taxRate"] },
       total: {
         $add: [
           { $multiply: ["$price", "$qty"] },
-          { $multiply: ["$price", "$qty", "$taxRate"] }
-        ]
-      }
-    }
-  }
+          { $multiply: ["$price", "$qty", "$taxRate"] },
+        ],
+      },
+    },
+  },
 ]);
 // subtotal → Decimal128('1999.98')   ✅ exact
 // tax      → Decimal128('177.498225')
 // total    → Decimal128('2177.478225')
-
 
 // ── UPDATE — use NumberDecimal in $inc too ─────────────────────────────────
 
@@ -12422,20 +12625,24 @@ db.orders.aggregate([
 db.orders.updateOne({ item: "laptop" }, { $inc: { price: 0.01 } });
 
 // ✅ CORRECT — stays Decimal128:
-db.orders.updateOne({ item: "laptop" }, { $inc: { price: NumberDecimal("0.01") } });
-
+db.orders.updateOne(
+  { item: "laptop" },
+  { $inc: { price: NumberDecimal("0.01") } }
+);
 
 // ── SUM ACROSS DOCUMENTS ──────────────────────────────────────────────────
 
 db.orders.aggregate([
-  { $group: { _id: null, revenue: { $sum: { $multiply: ["$price", "$qty"] } } } }
+  {
+    $group: { _id: null, revenue: { $sum: { $multiply: ["$price", "$qty"] } } },
+  },
 ]);
 // → Decimal128('...') — exact sum, no drift
 ```
 
 ##### Gotchas
 
-1. **Always use string argument:** `NumberDecimal("9.99")` not `NumberDecimal(9.99)`. The numeric literal `9.99` is already a float64 *before* it reaches the constructor.
+1. **Always use string argument:** `NumberDecimal("9.99")` not `NumberDecimal(9.99)`. The numeric literal `9.99` is already a float64 _before_ it reaches the constructor.
 2. **Mixed-type arithmetic:** If one operand is Decimal128 and another is double, MongoDB promotes to double — precision is lost. Keep all monetary fields as Decimal128.
 3. **`$inc` with wrong type:** Using `{ $inc: { amount: 0.01 } }` on a Decimal128 field silently converts it to double. Always `$inc` with `NumberDecimal("0.01")`.
 4. **Trailing zeros:** `NumberDecimal("9.90")` and `NumberDecimal("9.9")` are numerically equal but have different string representations. When comparing or displaying, be consistent.
@@ -12457,6 +12664,7 @@ $1,234.56  →  stored as 123456
 ```
 
 The scale factor is either:
+
 - **Implied by convention** (e.g., "all prices are in cents") documented in your schema
 - **Stored per-document** in a `scale` field (safer for multi-currency)
 
@@ -12470,22 +12678,22 @@ The scale factor is either:
 
 ##### Pros and Cons
 
-| Pros | Cons |
-|---|---|
-| Compact: int32 = 4 bytes, int64 = 8 bytes (vs 16 for Decimal128) | Stored value doesn't look like the real price (999 ≠ $9.99) |
-| Fastest arithmetic — integer operations | Scale factor must be consistently applied and removed in app code |
-| Perfect precision for fixed-decimal currencies | Multi-currency complicates things (JPY = 0 decimals, KWD = 3 decimals) |
-| Universal — all drivers handle integers identically | `$divide` in aggregation returns float64, negating precision goal |
-| Well-understood pattern (used by Stripe, payment gateways) | Multiplication of two monetary values doubles the scale — easy source of bugs |
+| Pros                                                             | Cons                                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Compact: int32 = 4 bytes, int64 = 8 bytes (vs 16 for Decimal128) | Stored value doesn't look like the real price (999 ≠ $9.99)                   |
+| Fastest arithmetic — integer operations                          | Scale factor must be consistently applied and removed in app code             |
+| Perfect precision for fixed-decimal currencies                   | Multi-currency complicates things (JPY = 0 decimals, KWD = 3 decimals)        |
+| Universal — all drivers handle integers identically              | `$divide` in aggregation returns float64, negating precision goal             |
+| Well-understood pattern (used by Stripe, payment gateways)       | Multiplication of two monetary values doubles the scale — easy source of bugs |
 
 ##### ISO 4217 Minor Unit (Scale Factor) Reference
 
-| Currency | Decimal places | Scale factor |
-|---|---|---|
-| USD, EUR, GBP, CAD, AUD | 2 | 100 |
-| JPY, KRW, VND | 0 | 1 |
-| KWD, BHD, OMR (Kuwaiti/Bahraini/Omani) | 3 | 1000 |
-| CLF (Chilean Unit of Account) | 4 | 10000 |
+| Currency                               | Decimal places | Scale factor |
+| -------------------------------------- | -------------- | ------------ |
+| USD, EUR, GBP, CAD, AUD                | 2              | 100          |
+| JPY, KRW, VND                          | 0              | 1            |
+| KWD, BHD, OMR (Kuwaiti/Bahraini/Omani) | 3              | 1000         |
+| CLF (Chilean Unit of Account)          | 4              | 10000        |
 
 ##### Code Examples
 
@@ -12494,19 +12702,18 @@ The scale factor is either:
 
 // Convention: all USD amounts stored as integer cents (×100)
 db.orders.insertOne({
-  item:         "laptop",
-  price_cents:  NumberLong("99999"),   // $999.99 stored as 99999 cents
-  qty:          NumberInt("2"),
-  currency:     "USD",
-  scale:        NumberInt("100")       // explicit scale — good practice
+  item: "laptop",
+  price_cents: NumberLong("99999"), // $999.99 stored as 99999 cents
+  qty: NumberInt("2"),
+  currency: "USD",
+  scale: NumberInt("100"), // explicit scale — good practice
 });
 
 // ❌ WRONG — int32 overflows at 2,147,483,647 (~$21.4 million in cents):
-db.orders.insertOne({ price_cents: NumberInt("999999999999") });  // silent overflow!
+db.orders.insertOne({ price_cents: NumberInt("999999999999") }); // silent overflow!
 
 // ✅ Use NumberLong for large amounts:
 db.orders.insertOne({ price_cents: NumberLong("999999999999") });
-
 
 // ── QUERY ──────────────────────────────────────────────────────────────────
 
@@ -12515,9 +12722,8 @@ db.orders.find({ price_cents: { $gte: NumberInt("1000") } });
 
 // Find products in the $9.00–$10.00 range
 db.orders.find({
-  price_cents: { $gte: NumberInt("900"), $lte: NumberInt("1000") }
+  price_cents: { $gte: NumberInt("900"), $lte: NumberInt("1000") },
 });
-
 
 // ── AGGREGATION ───────────────────────────────────────────────────────────
 
@@ -12525,23 +12731,22 @@ db.orders.find({
 db.orders.aggregate([
   {
     $project: {
-      total_cents: { $multiply: ["$price_cents", "$qty"] }
+      total_cents: { $multiply: ["$price_cents", "$qty"] },
       // → 199998 cents; app divides by 100 → $1999.98
-    }
-  }
+    },
+  },
 ]);
 
 // ⚠️  Dividing inside aggregation returns float64 — defeats the purpose:
 db.orders.aggregate([
   {
     $project: {
-      total: { $divide: [{ $multiply: ["$price_cents", "$qty"] }, 100] }
+      total: { $divide: [{ $multiply: ["$price_cents", "$qty"] }, 100] },
       // → 1999.98 as float64 — imprecise for further arithmetic
-    }
-  }
+    },
+  },
 ]);
 // Only do this for display/reporting, not for further monetary calculations.
-
 
 // ── UPDATE ────────────────────────────────────────────────────────────────
 
@@ -12556,7 +12761,7 @@ db.orders.updateOne(
 
 1. **`$divide` returns float64:** If you need to divide a scaled integer in the aggregation pipeline, the result is a double. For reporting this is usually fine; for further monetary arithmetic it re-introduces imprecision. Prefer dividing in application code.
 2. **int32 overflow cap:** `NumberInt` holds up to ±2,147,483,647. For currencies in cents, that's ~$21.4 million. Use `NumberLong` for anything larger.
-3. **Multiplication doubles the scale:** `price_cents × price_cents` would produce a value with scale²  — never multiply two monetary values together; only multiply `price × quantity`.
+3. **Multiplication doubles the scale:** `price_cents × price_cents` would produce a value with scale² — never multiply two monetary values together; only multiply `price × quantity`.
 4. **Forgetting the scale factor:** A query like `{ price_cents: { $gte: 10 } }` means ≥ $0.10, not ≥ $10.00. Always apply the scale in both reads and writes.
 5. **Multi-currency scale divergence:** If you add JPY support later but forget to update the scale, `1499` in USD context is $14.99 but in JPY context it's ¥1499 — completely different values. Store an explicit `scale` or `currency` field and enforce it.
 
@@ -12573,17 +12778,40 @@ The scale-factor approach is acknowledged as a valid alternative — particularl
 - It is the standard IEEE 754-2008 decimal type, recognised across databases and languages
 - It handles variable-decimal-place currencies (JPY, KWD) without schema changes
 
-**Decision guide:**
+```mermaid
+flowchart TD
+    START["Storing monetary data?"]
+    START --> MODERN{New app +<br/>modern driver?}
+    MODERN -->|Yes| D128A["✅ Decimal128<br/>NumberDecimal('9.99')"]
+    MODERN -->|No| AGG{Doing arithmetic<br/>in aggregation pipeline?}
+    AGG -->|Yes| D128B["✅ Decimal128<br/>$divide returns float64<br/>with scale factor"]
+    AGG -->|No| MULTI{Multi-currency or<br/>non-2-decimal currencies?}
+    MULTI -->|Yes| D128C["✅ Decimal128<br/>handles JPY / KWD natively"]
+    MULTI -->|No| PERF{Performance-critical<br/>or legacy driver?}
+    PERF -->|Yes| SCALE["⚖️ Scale Factor<br/>NumberLong('999') = $9.99<br/>store scale separately"]
+    PERF -->|No| D128D["✅ Decimal128<br/>recommended default"]
 
-| Scenario | Recommended approach |
-|---|---|
-| New application, modern drivers | **Decimal128** |
-| Arithmetic in the aggregation pipeline | **Decimal128** |
-| Multi-currency with varying decimal places | **Decimal128** |
+    style D128A fill:#d4edda,color:#000
+    style D128B fill:#d4edda,color:#000
+    style D128C fill:#d4edda,color:#000
+    style D128D fill:#d4edda,color:#000
+    style SCALE fill:#fff3cd,color:#000
+    style START fill:#e2e3e5,color:#000
+    style MODERN fill:#cce5ff,color:#000
+    style AGG fill:#cce5ff,color:#000
+    style MULTI fill:#cce5ff,color:#000
+    style PERF fill:#cce5ff,color:#000
+```
+
+| Scenario                                      | Recommended approach          |
+| --------------------------------------------- | ----------------------------- |
+| New application, modern drivers               | **Decimal128**                |
+| Arithmetic in the aggregation pipeline        | **Decimal128**                |
+| Multi-currency with varying decimal places    | **Decimal128**                |
 | Fixed-currency (e.g., USD-only), simple reads | Either — integers are simpler |
-| Performance/storage-critical, no DB-side math | Scale factor (integers) |
-| Legacy / older driver compatibility | Scale factor (integers) |
-| Scientific or high-precision calculations | **Decimal128** |
+| Performance/storage-critical, no DB-side math | Scale factor (integers)       |
+| Legacy / older driver compatibility           | Scale factor (integers)       |
+| Scientific or high-precision calculations     | **Decimal128**                |
 
 ---
 
@@ -12596,25 +12824,25 @@ Store amount and currency code together as an embedded document. This is the pat
 ```js
 // Single-currency price field
 db.products.insertOne({
-  name:  "Widget Pro",
-  price: { amount: NumberDecimal("9.99"), currency: "USD" }
+  name: "Widget Pro",
+  price: { amount: NumberDecimal("9.99"), currency: "USD" },
 });
 
 // Query
 db.products.find({
   "price.currency": "USD",
-  "price.amount":   { $gte: NumberDecimal("5.00") }
+  "price.amount": { $gte: NumberDecimal("5.00") },
 });
 
 // Multi-currency product — array of prices
 db.products.insertOne({
   name: "Widget Pro",
   prices: [
-    { amount: NumberDecimal("9.99"),  currency: "USD" },
-    { amount: NumberDecimal("8.75"),  currency: "EUR" },
-    { amount: NumberDecimal("1499"),  currency: "JPY" },
-    { amount: NumberDecimal("13.49"), currency: "KWD" }   // 3 decimal places — no schema change needed
-  ]
+    { amount: NumberDecimal("9.99"), currency: "USD" },
+    { amount: NumberDecimal("8.75"), currency: "EUR" },
+    { amount: NumberDecimal("1499"), currency: "JPY" },
+    { amount: NumberDecimal("13.49"), currency: "KWD" }, // 3 decimal places — no schema change needed
+  ],
 });
 
 // Find the USD price of a product
@@ -12625,8 +12853,8 @@ db.products.find(
 
 // Revenue aggregation in USD
 db.orders.aggregate([
-  { $match:  { "price.currency": "USD" } },
-  { $group:  { _id: null, total: { $sum: "$price.amount" } } }
+  { $match: { "price.currency": "USD" } },
+  { $group: { _id: null, total: { $sum: "$price.amount" } } },
 ]);
 // → Decimal128('...') — exact
 ```
@@ -12635,17 +12863,17 @@ db.orders.aggregate([
 
 ```js
 db.orders.insertOne({
-  item:      "Widget Pro",
-  amount:    NumberLong("999"),    // $9.99 in USD  →  999 cents
-  currency:  "USD",
-  scale:     NumberInt("100")      // ISO 4217 minor unit exponent
+  item: "Widget Pro",
+  amount: NumberLong("999"), // $9.99 in USD  →  999 cents
+  currency: "USD",
+  scale: NumberInt("100"), // ISO 4217 minor unit exponent
 });
 
 db.orders.insertOne({
-  item:      "Widget Pro",
-  amount:    NumberLong("1499"),   // ¥1499 in JPY  →  1499 (no minor unit)
-  currency:  "JPY",
-  scale:     NumberInt("1")
+  item: "Widget Pro",
+  amount: NumberLong("1499"), // ¥1499 in JPY  →  1499 (no minor unit)
+  currency: "JPY",
+  scale: NumberInt("1"),
 });
 
 // Application code to get display value:
@@ -12656,13 +12884,13 @@ db.orders.insertOne({
 
 ##### Pattern Comparison
 
-| | Decimal128 + currency | Scale factor + currency + scale |
-|---|---|---|
-| Human-readable in DB | ✅ `"9.99"` | ❌ `999` |
-| DB-side arithmetic | ✅ exact | ⚠️ `$divide` → float64 |
-| Multi-currency support | ✅ native | ⚠️ must track scale per currency |
-| Storage per field | 16 bytes | 8–12 bytes |
-| Driver compatibility | Modern drivers | Universal |
+|                        | Decimal128 + currency | Scale factor + currency + scale  |
+| ---------------------- | --------------------- | -------------------------------- |
+| Human-readable in DB   | ✅ `"9.99"`           | ❌ `999`                         |
+| DB-side arithmetic     | ✅ exact              | ⚠️ `$divide` → float64           |
+| Multi-currency support | ✅ native             | ⚠️ must track scale per currency |
+| Storage per field      | 16 bytes              | 8–12 bytes                       |
+| Driver compatibility   | Modern drivers        | Universal                        |
 
 ---
 
@@ -12692,12 +12920,12 @@ Absolute rules:
 
 ### Working with Numeric Data — Summary
 
-| Type | Shell Constructor | Bits | Integer Only | Precision | Best For |
-|---|---|---|---|---|---|
-| **int32** | `NumberInt("val")` | 32 | ✅ | Exact (no decimals) | Ages, counts, IDs within ±2.1B |
-| **int64** | `NumberLong("val")` | 64 | ✅ | Exact (no decimals) | Large counters, company valuations |
-| **double** | plain `1.5` | 64 | ❌ | Approximated | Prices for display, general floats |
-| **Decimal128** | `NumberDecimal("val")` | 128 | ❌ | Exact (34 sig. digits) | Financial / scientific calculations |
+| Type           | Shell Constructor      | Bits | Integer Only | Precision              | Best For                            |
+| -------------- | ---------------------- | ---- | ------------ | ---------------------- | ----------------------------------- |
+| **int32**      | `NumberInt("val")`     | 32   | ✅           | Exact (no decimals)    | Ages, counts, IDs within ±2.1B      |
+| **int64**      | `NumberLong("val")`    | 64   | ✅           | Exact (no decimals)    | Large counters, company valuations  |
+| **double**     | plain `1.5`            | 64   | ❌           | Approximated           | Prices for display, general floats  |
+| **Decimal128** | `NumberDecimal("val")` | 128  | ❌           | Exact (34 sig. digits) | Financial / scientific calculations |
 
 **Critical rules:**
 
@@ -12715,5 +12943,550 @@ Absolute rules:
 
 > [⬆ Back to Index](#table-of-contents)
 
+---
 
 ## MongoDB and Security
+
+MongoDB provides a layered security model. As a developer, the most important areas are **authentication/authorization** and **transport encryption**.
+
+---
+
+### Introduction
+
+MongoDB's security model is built around six areas:
+
+| Area                               | Description                                      | Who is responsible                       |
+| ---------------------------------- | ------------------------------------------------ | ---------------------------------------- |
+| **Authentication & Authorization** | Who can connect; what they can do                | Developer + Admin                        |
+| **Transport Encryption (TLS/SSL)** | Data encrypted in transit between app and server | Developer + Admin                        |
+| **Encryption at Rest**             | Data encrypted on disk                           | Admin (Enterprise) + Developer (hashing) |
+| **Auditing**                       | Logging who did what and when                    | Admin                                    |
+| **Network Security**               | Firewalls, VPCs, IP allowlists                   | Admin / Infra                            |
+| **Backups & Updates**              | Regular backups; keep software patched           | Admin                                    |
+
+This module covers the first three — the ones that directly affect your work as a developer.
+
+```mermaid
+flowchart TD
+    APP(["Your Application"])
+    APP --> NET["🔒 Network Security<br/>Firewalls, VPCs, IP allowlists<br/>Admin / Infra"]
+    NET --> TLS["🔒 Transport Encryption TLS/SSL<br/>Data encrypted in transit<br/>Developer + Admin"]
+    TLS --> AUTH["🔑 Authentication<br/>Who can connect?<br/>Username + password<br/>Developer + Admin"]
+    AUTH --> AUTHZ["🛡️ Authorization RBAC<br/>What can they do?<br/>Roles + privileges<br/>Developer + Admin"]
+    AUTHZ --> DB[("MongoDB Server")]
+    DB --> REST["🔒 Encryption at Rest<br/>Data encrypted on disk<br/>Admin Enterprise + Dev hashing"]
+    DB --> AUDIT["📋 Auditing<br/>Logging who did what<br/>Admin"]
+
+    style APP fill:#cce5ff,color:#000
+    style NET fill:#e2e3e5,color:#000
+    style TLS fill:#d4edda,color:#000
+    style AUTH fill:#d4edda,color:#000
+    style AUTHZ fill:#d4edda,color:#000
+    style DB fill:#e2e3e5,color:#000
+    style REST fill:#fff3cd,color:#000
+    style AUDIT fill:#e2e3e5,color:#000
+```
+
+MongoDB uses a **Role-Based Access Control (RBAC)** model to manage both _who_ can connect and _what_ they can do.
+
+#### _Authentication vs Authorization_
+
+| Concept            | Question           | How                                          |
+| ------------------ | ------------------ | -------------------------------------------- |
+| **Authentication** | _Who are you?_     | Username + password login against a database |
+| **Authorization**  | _What can you do?_ | Roles assigned to the authenticated user     |
+
+**Analogy:** Authentication = your key card to enter the office. Authorization = what rooms and systems you can access once inside.
+
+> **Important:** "Users" in MongoDB means users of the **MongoDB server** (your app, a DBA, a data analyst) — **not** end-users of your application. Your application's customer accounts are a separate concern managed by your own code.
+
+#### _How RBAC Works_
+
+```
+User (username + password)
+  └─ assigned Roles
+       └─ each Role contains Privileges
+            └─ Privilege = Resource + Action
+                           e.g.  products collection  +  insert command
+                           e.g.  analytics DB         +  find command
+```
+
+- **Resource**: A collection, database, or the whole cluster
+- **Action**: A MongoDB command (`find`, `insert`, `update`, `delete`, `createCollection`, etc.)
+- **Privilege**: One resource + one action
+- **Role**: A named bundle of privileges
+- **User**: A login entity assigned one or more roles
+
+```mermaid
+flowchart TD
+    U["👤 User<br/>username + password"]
+    U --> R1["Role: readWrite<br/>on shop DB"]
+    U --> R2["Role: read<br/>on analytics DB"]
+
+    R1 --> P1["Privilege<br/>shop.orders + find"]
+    R1 --> P2["Privilege<br/>shop.orders + insert"]
+    R1 --> P3["Privilege<br/>shop.orders + update"]
+
+    R2 --> P4["Privilege<br/>analytics.persons + find"]
+
+    P1 & P2 & P3 --> RES1[("shop database")]
+    P4 --> RES2[("analytics database")]
+
+    NOTE["Principle of Least Privilege:<br/>Grant only what is needed"]
+
+    style U fill:#cce5ff,color:#000
+    style R1 fill:#d4edda,color:#000
+    style R2 fill:#d4edda,color:#000
+    style P1 fill:#fff3cd,color:#000
+    style P2 fill:#fff3cd,color:#000
+    style P3 fill:#fff3cd,color:#000
+    style P4 fill:#fff3cd,color:#000
+    style RES1 fill:#e2e3e5,color:#000
+    style RES2 fill:#e2e3e5,color:#000
+    style NOTE fill:#f8d7da,color:#000
+```
+
+Different people/processes need different access levels — this is the **principle of least privilege**: grant only what is needed.
+
+| User type              | Needs                                      | Example role               |
+| ---------------------- | ------------------------------------------ | -------------------------- |
+| Database administrator | Create users, configure server, manage DBs | `userAdminAnyDatabase`     |
+| App / developer        | Insert, read, update, delete data          | `readWrite` on specific DB |
+| Data analyst / BI      | Read data only                             | `read` on specific DB      |
+
+---
+
+### Creating a User
+
+#### _Enabling Authentication — `--auth` flag_
+
+By default, MongoDB runs without authentication (anyone who can connect can do anything). Add `--auth` to require all clients to log in:
+
+```bash
+mongod --auth --dbpath /path/to/data --logpath /path/to/log
+```
+
+#### _The Localhost Exception_
+
+When `--auth` is enabled and **no users exist yet**, MongoDB allows one unauthenticated connection from `localhost` to create the first user. This is called the **localhost exception**. Use it to create your initial admin user immediately.
+
+#### _Creating the First Admin User_
+
+```js
+// Connect to mongosh while server has --auth enabled (no users yet)
+mongosh
+
+// Switch to admin database first
+use admin
+
+// Create the first user with admin rights
+db.createUser({
+  user:  "adminUser",
+  pwd:   "securePassword",
+  roles: ["userAdminAnyDatabase"]
+})
+// { ok: 1 }
+
+// Now authenticate as that user
+db.auth("adminUser", "securePassword")
+// { ok: 1 }
+
+show dbs   // now works
+```
+
+> `userAdminAnyDatabase` grants this user the ability to create and manage users across all databases — but NOT to read or write data. Use it solely for user administration.
+
+#### _Authenticating on Connection_
+
+Pass credentials at connection time using `--authenticationDatabase` to specify which DB the user was created on:
+
+```bash
+mongosh -u adminUser -p securePassword --authenticationDatabase admin
+```
+
+#### _Shell Example — Full Flow_
+
+```js
+// Before --auth: unauthenticated connections silently allowed
+// After adding --auth: connections succeed but all commands are blocked
+
+test> show dbs
+// (empty — no error, but access denied silently)
+
+test> db.science.find({})
+// MongoServerError[Unauthorized]: not authorized on test ...
+
+// Switch to admin DB and create first user (localhost exception)
+test> use admin
+admin> db.createUser({ user: "Prash", pwd: "Prash", roles: ["userAdminAnyDatabase"] })
+{ ok: 1 }
+
+admin> db.auth("Prash", "Prash")
+{ ok: 1 }
+
+admin> show dbs
+admin   52.00 KiB
+config  12.00 KiB
+local   40.00 KiB
+```
+
+---
+
+### Built-In Roles — An Overview
+
+MongoDB ships with a comprehensive set of built-in roles covering all standard use cases. You can also create custom roles (admin task — see official docs).
+
+| Category             | Role                   | What it allows                                                                     |
+| -------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
+| **Database User**    | `read`                 | `find`, `listCollections`, aggregation reads on one DB                             |
+|                      | `readWrite`            | All `read` operations + `insert`, `update`, `delete`, `createCollection` on one DB |
+| **Database Admin**   | `dbAdmin`              | Stats, indexes, collections management — not data access                           |
+|                      | `userAdmin`            | Create and manage users on one DB                                                  |
+|                      | `dbOwner`              | Combines `readWrite` + `dbAdmin` + `userAdmin` on one DB                           |
+| **All Database**     | `readAnyDatabase`      | `read` across **all** databases                                                    |
+|                      | `readWriteAnyDatabase` | `readWrite` across **all** databases                                               |
+|                      | `userAdminAnyDatabase` | `userAdmin` across **all** databases (used for the first admin user)               |
+|                      | `dbAdminAnyDatabase`   | `dbAdmin` across **all** databases                                                 |
+| **Cluster Admin**    | `clusterAdmin`         | Manage replica sets and sharded clusters                                           |
+|                      | `clusterManager`       | Monitor and manage cluster operations                                              |
+|                      | `clusterMonitor`       | Read-only monitoring of clusters                                                   |
+|                      | `hostManager`          | Manage and monitor individual mongod instances                                     |
+| **Backup / Restore** | `backup`               | Perform `mongodump` backups                                                        |
+|                      | `restore`              | Perform `mongorestore` operations                                                  |
+| **Superuser**        | `root`                 | Full read/write/admin access to everything — equivalent to pre-auth mode           |
+|                      | `dbOwner` on `admin`   | Superuser-level: can create users and change own roles                             |
+|                      | `userAdmin` on `admin` | Can create users with any role (including `root`)                                  |
+
+> **Rule of thumb:** Assign the narrowest role that allows the user to do their job. Never use `root` for application accounts.
+
+---
+
+### Assigning Roles to Users and Databases
+
+#### _Creating an Application User on a Specific Database_
+
+Roles are scoped to the database the user is created on by default. A user created on `shop` with `readWrite` can only read/write in `shop`.
+
+```js
+// Log in as admin user first
+mongosh -u Prash -p Prash --authenticationDatabase admin
+
+// Switch to the target database
+use shop
+
+// Create app user — role is automatically scoped to 'shop'
+db.createUser({
+  user:  "appdev",
+  pwd:   "dev",
+  roles: ["readWrite"]
+})
+// { ok: 1 }
+```
+
+#### _Connecting as the New User_
+
+```bash
+# --authenticationDatabase must match the DB the user was created on
+mongosh -u appdev -p dev --authenticationDatabase shop
+```
+
+```js
+// Must explicitly switch to the database the role applies to
+use shop
+db.products.insertOne({ name: "A Book" })
+// { acknowledged: true, insertedId: ObjectId('...') }
+
+db.products.find()
+// [ { _id: ObjectId('...'), name: 'A Book' } ]
+
+// Trying to access another DB fails (readWrite is scoped to shop only)
+use blog
+db.posts.insertOne({ title: "Hello" })
+// MongoServerError[Unauthorized]: not authorized on blog ...
+```
+
+#### _Shell Output Example_
+
+```js
+// Creating user
+test> use shop
+switched to db shop
+shop> db.createUser({ user: "appdev", pwd: "dev", roles: ["readWrite"] })
+{ ok: 1 }
+
+// Connecting as appdev
+mongosh -u appdev -p dev --authenticationDatabase shop
+test> use shop
+shop> db.products.insertOne({ name: "A Book" })
+{ acknowledged: true, insertedId: ObjectId('69ac4aaeb1d9d5f99823c08a') }
+```
+
+---
+
+### Updating and Extending Roles to Other Databases
+
+Use `db.updateUser()` to modify an existing user's roles. This **replaces** the entire roles array (not additive) — always re-include all required roles.
+
+#### _Adding Access to a Second Database_
+
+To give a user `readWrite` on both `shop` and `blog`, you must be logged in as an admin user with permission to update users in that database:
+
+```js
+// Log in as admin (must switch to the DB the user was created on)
+use admin
+db.auth("Prash", "Prash")
+// { ok: 1 }
+
+use shop
+
+// Update — roles array REPLACES the old one entirely
+db.updateUser("appdev", {
+  roles: [
+    "readWrite",                      // shop (implied from the user's home DB)
+    { role: "readWrite", db: "blog" } // explicit second database
+  ]
+})
+// { ok: 1 }
+
+// Verify
+db.getUser("appdev")
+// {
+//   _id: 'shop.appdev',
+//   user: 'appdev',
+//   db: 'shop',
+//   roles: [
+//     { role: 'readWrite', db: 'shop' },
+//     { role: 'readWrite', db: 'blog' }
+//   ]
+// }
+```
+
+#### _Verify the Extended Access_
+
+```js
+// Log back in as appdev
+mongosh -u appdev -p dev --authenticationDatabase shop
+
+use blog
+db.posts.insertOne({ title: "hello!" })
+// { acknowledged: true, insertedId: ObjectId('69ac4c21b1d9d5f99823c08b') }
+// ✅ Works — blog access was granted explicitly
+```
+
+#### _Key Points_
+
+- `db.updateUser(username, updateDoc)` — second arg describes the change, not a `$set`
+- Passing `roles: [...]` **replaces** all existing roles — always include everything the user needs
+- The user lives on the database they were created on (`_id: 'shop.appdev'`) but their roles can span any database
+- Only users with `userAdmin` (or equivalent) on that database can call `updateUser`
+
+---
+
+### Adding SSL Transport Encryption
+
+MongoDB uses **TLS** (Transport Layer Security — the modern successor to SSL) to encrypt data in transit between your application and the MongoDB server. Without this, anyone intercepting the network traffic can read your data.
+
+#### _How TLS Works in MongoDB_
+
+```mermaid
+flowchart TD
+    subgraph Development
+        CERT["1. Generate self-signed cert<br/>openssl req -x509 ...<br/>CN must match hostname"]
+        PEM["2. Create PEM file<br/>cat key.pem cert.pem > mongodb.pem<br/>(private key + certificate)"]
+        CERT --> PEM
+    end
+
+    subgraph Connection Flow
+        APP(["App / mongosh"])
+        TLS["TLS Handshake<br/>App encrypts with server public key"]
+        SRV["MongoDB Server<br/>--tlsMode requireTLS<br/>--tlsCertificateKeyFile mongodb.pem"]
+        DEC["Decrypts with private key<br/>reads / writes data"]
+        APP -->|"--tls --host localhost"| TLS
+        TLS --> SRV
+        SRV --> DEC
+    end
+
+    PEM --> SRV
+
+    SNIFF["❌ Without TLS:<br/>Anyone on the network<br/>can read your data"]
+    SAFE["✅ With TLS:<br/>Data is unreadable<br/>in transit"]
+
+    TLS --> SAFE
+    APP -.->|no TLS| SNIFF
+
+    style APP fill:#cce5ff,color:#000
+    style TLS fill:#d4edda,color:#000
+    style SRV fill:#e2e3e5,color:#000
+    style DEC fill:#d4edda,color:#000
+    style CERT fill:#fff3cd,color:#000
+    style PEM fill:#fff3cd,color:#000
+    style SNIFF fill:#f8d7da,color:#000
+    style SAFE fill:#d4edda,color:#000
+```
+
+A **PEM file** bundles the private key and certificate together. MongoDB uses it to establish the encrypted channel. In production, the certificate should come from a trusted Certificate Authority (CA); in development, a self-signed certificate is sufficient.
+
+#### _Creating a Self-Signed Certificate (Development)_
+
+```bash
+# Generate private key and self-signed certificate (interactive — enter 'localhost' for Common Name)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 \
+  -nodes -subj "/C=XX/ST=State/L=City/O=Dev/OU=Dev/CN=localhost"
+
+# Combine into a single PEM file that MongoDB expects
+cat key.pem cert.pem > mongodb.pem
+```
+
+> **Critical:** The `CN` (Common Name) in the certificate must match the hostname you use to connect. Use `localhost` for local development. In production, use your server's actual domain name.
+
+#### _Starting mongod with TLS Required_
+
+```bash
+mongod --auth \
+       --dbpath /path/to/data \
+       --logpath /path/to/log \
+       --tlsMode requireTLS \
+       --tlsCertificateKeyFile /path/to/mongodb.pem
+```
+
+| TLS mode     | Behaviour                                    |
+| ------------ | -------------------------------------------- |
+| `disabled`   | TLS off — plain text connections only        |
+| `allowTLS`   | Accepts both TLS and non-TLS connections     |
+| `preferTLS`  | Prefers TLS but allows plain text            |
+| `requireTLS` | Rejects any connection that does not use TLS |
+
+#### _Connecting with TLS_
+
+```bash
+# Modern mongosh syntax (TLS flag + certificate key file)
+mongosh --tls \
+        --tlsCertificateKeyFile ./mongodb.pem \
+        --host localhost \
+        -u adminUser -p securePassword \
+        --authenticationDatabase admin
+```
+
+> The `--host localhost` flag must match the `CN` in the certificate. Without it, mongosh will try `127.0.0.1`, which counts as a different hostname and will fail certificate validation.
+
+#### _CA File (Production)_
+
+In production, you get a PEM file **and** a CA file from your certificate authority. Include both:
+
+```bash
+mongod --tlsMode requireTLS \
+       --tlsCertificateKeyFile /path/to/server.pem \
+       --tlsCAFile /path/to/ca.pem
+```
+
+The CA file prevents man-in-the-middle attacks by verifying that the server's certificate was signed by a trusted authority.
+
+#### _Shell Example from Course_
+
+```bash
+# Generate PEM (non-interactive)
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem \
+  -sha256 -days 3650 -nodes \
+  -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=Dev/CN=localhost"
+
+cat key.pem cert.pem > mongodb.pem
+
+# Connect (mongosh uses --tls in newer versions)
+mongosh --tlsCertificateKeyFile ./mongodb.pem
+# → prompts for TLS key file password (if set), then connects
+```
+
+---
+
+### Encryption at Rest
+
+Encrypting data **at rest** means the data files stored on disk are unreadable without the decryption key — even if someone gains direct filesystem access to your MongoDB server.
+
+#### _Two Approaches_
+
+| Approach                               | Who does it                | How                                                                                                            |
+| -------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Storage-level file encryption**      | Admin (MongoDB Enterprise) | MongoDB Enterprise has built-in encryption of all `.wt` data files on disk. Enable it during `mongod` startup. |
+| **Application-level field encryption** | Developer                  | Hash or encrypt sensitive field values in your application code before inserting into MongoDB                  |
+
+#### _MongoDB Enterprise — Storage Encryption_
+
+MongoDB Enterprise provides **Encrypted Storage Engine** support, which encrypts the entire WiredTiger data directory (`collection-*.wt`, `index-*.wt`, journal files) at rest. This is transparent to queries — data is decrypted automatically on access.
+
+See the official MongoDB documentation (linked in the course's last module lecture) for configuration steps.
+
+#### _Application-Level Encryption — Developer Responsibility_
+
+Even without Enterprise, you as a developer should **always hash sensitive values** before storing them:
+
+```js
+// ❌ WRONG — plain text password stored in DB
+db.users.insertOne({ email: "user@example.com", password: "mySecret123" });
+
+// ✅ CORRECT — hash the password first (e.g., using bcrypt in Node.js)
+const bcrypt = require("bcrypt");
+const hash = await bcrypt.hash("mySecret123", 12);
+db.users.insertOne({ email: "user@example.com", password: hash });
+```
+
+**Principle:** Any data that would be damaging if exposed (passwords, national IDs, payment details) should be hashed or encrypted in application code before it ever reaches the database.
+
+> Password hashing and field-level encryption in application drivers is covered in the **From Shell to Driver** module later in the course.
+
+#### _Defence in Depth — Full Picture_
+
+```
+Request from app
+    │
+    ▼
+TLS/SSL (transport encryption) ── data encrypted in transit
+    │
+    ▼
+MongoDB server authentication (--auth + RBAC)
+    │
+    ▼
+Data files on disk
+    │
+    ├── MongoDB Enterprise: storage engine encryption (file-level)
+    └── Application code: hashed/encrypted field values (field-level)
+```
+
+Both layers matter: transport encryption protects data on the wire; at-rest encryption protects data if storage media is physically stolen or filesystem access is obtained.
+
+---
+
+### MongoDB and Security — Summary
+
+| Topic                    | Key points                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **Authentication**       | Enable with `--auth`; use `db.createUser()` in admin DB via localhost exception for first user                           |
+| **Authorization**        | Users have roles; roles have privileges (resource + action); always use least-privilege                                  |
+| **Built-in roles**       | `readWrite` (app user), `read` (analyst), `userAdminAnyDatabase` (user admin), `root` (full access)                      |
+| **Creating users**       | `db.createUser({ user, pwd, roles })` — attach role as string (scoped to current DB) or as `{ role, db }` for another DB |
+| **Updating users**       | `db.updateUser(name, { roles: [...] })` — **replaces** entire roles array                                                |
+| **Transport encryption** | TLS via `--tlsMode requireTLS` + `--tlsCertificateKeyFile`; use `--tls --host localhost` in mongosh                      |
+| **Encryption at rest**   | Enterprise: storage engine file encryption; Developer: always hash passwords / sensitive fields in app code              |
+
+**Critical commands:**
+
+```js
+// Create user
+db.createUser({ user: "name", pwd: "pass", roles: ["readWrite"] })
+
+// Authenticate in shell
+db.auth("name", "pass")
+
+// Update user roles (replaces all)
+db.updateUser("name", { roles: ["readWrite", { role: "readWrite", db: "otherDB" }] })
+
+// Inspect a user
+db.getUser("name")
+
+// Connection string with auth
+mongosh -u name -p pass --authenticationDatabase dbName
+
+// Connection string with TLS
+mongosh --tls --tlsCertificateKeyFile ./mongodb.pem --host localhost
+```
+
+> [⬆ Back to Index](#table-of-contents)

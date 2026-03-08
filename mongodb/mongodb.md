@@ -12157,27 +12157,6 @@ MongoDB has four numeric types:
 | `double`     | Prices/floats where 2 decimal place display precision is sufficient    |
 | `Decimal128` | Financial or scientific calculations requiring exact decimal precision |
 
-```mermaid
-flowchart TD
-    Q["What number am I storing?"]
-    Q --> INT{Whole number only?}
-    INT -->|Yes| RANGE{Within ±2.1 billion?}
-    RANGE -->|Yes| I32["NumberInt('val')<br/>int32 — 32 bits<br/>e.g. age, count, quantity"]
-    RANGE -->|No| I64["NumberLong('val')<br/>int64 — 64 bits<br/>e.g. large IDs, valuations"]
-    INT -->|No — has decimals| PREC{Need exact precision?<br/>e.g. money / science}
-    PREC -->|No — display only| DBL["plain 1.5<br/>double — 64 bits<br/>⚠️ approximated (IEEE 754)"]
-    PREC -->|Yes — must be exact| DEC128["NumberDecimal('val')<br/>Decimal128 — 128 bits<br/>exact up to 34 sig. digits"]
-
-    style Q fill:#e2e3e5,color:#000
-    style INT fill:#fff3cd,color:#000
-    style RANGE fill:#fff3cd,color:#000
-    style PREC fill:#fff3cd,color:#000
-    style I32 fill:#d4edda,color:#000
-    style I64 fill:#d4edda,color:#000
-    style DBL fill:#f8d7da,color:#000
-    style DEC128 fill:#cce5ff,color:#000
-```
-
 **Shell constructor rules:**
 
 - `NumberInt("val")` → int32
@@ -12369,29 +12348,7 @@ test> db.accounts.find()
 
 Normal 64-bit doubles (the Shell/JavaScript default) use IEEE 754 binary floating-point representation, which **approximates** decimal values rather than storing them exactly. This is a computer science constraint — not a MongoDB limitation.
 
-```mermaid
-flowchart LR
-    subgraph double path
-        A1["Insert: { a: 0.3, b: 0.1 }<br/>stored as float64 approximation"]
-        A2["$subtract in $project"]
-        A3["Result: 0.19999999999999998 ❌<br/>Wrong due to IEEE 754 binary encoding"]
-        A1 --> A2 --> A3
-    end
-
-    subgraph Decimal128 path
-        B1["Insert: { a: NumberDecimal('0.3'),<br/>b: NumberDecimal('0.1') }<br/>stored as exact base-10"]
-        B2["$subtract in $project"]
-        B3["Result: Decimal128('0.2') ✅<br/>Exactly correct"]
-        B1 --> B2 --> B3
-    end
-
-    style A1 fill:#f8d7da,color:#000
-    style A2 fill:#fff3cd,color:#000
-    style A3 fill:#f8d7da,color:#000
-    style B1 fill:#d4edda,color:#000
-    style B2 fill:#fff3cd,color:#000
-    style B3 fill:#d4edda,color:#000
-```
+**Proof via the aggregation framework:**
 
 ```js
 db.science.insertOne({ a: 0.3, b: 0.1 }); // stored as 64-bit floats (approximated)
@@ -12709,7 +12666,7 @@ db.orders.insertOne({
   scale: NumberInt("100"), // explicit scale — good practice
 });
 
-// ❌ WRONG — int32 overflows at 2,147,483,647 (~$21.4 million in cents):
+// ❌ WRONG — int32 overflows at 2,147,483,647 (~$21.4 million in cents):****
 db.orders.insertOne({ price_cents: NumberInt("999999999999") }); // silent overflow!
 
 // ✅ Use NumberLong for large amounts:
@@ -12778,30 +12735,7 @@ The scale-factor approach is acknowledged as a valid alternative — particularl
 - It is the standard IEEE 754-2008 decimal type, recognised across databases and languages
 - It handles variable-decimal-place currencies (JPY, KWD) without schema changes
 
-```mermaid
-flowchart TD
-    START["Storing monetary data?"]
-    START --> MODERN{New app +<br/>modern driver?}
-    MODERN -->|Yes| D128A["✅ Decimal128<br/>NumberDecimal('9.99')"]
-    MODERN -->|No| AGG{Doing arithmetic<br/>in aggregation pipeline?}
-    AGG -->|Yes| D128B["✅ Decimal128<br/>$divide returns float64<br/>with scale factor"]
-    AGG -->|No| MULTI{Multi-currency or<br/>non-2-decimal currencies?}
-    MULTI -->|Yes| D128C["✅ Decimal128<br/>handles JPY / KWD natively"]
-    MULTI -->|No| PERF{Performance-critical<br/>or legacy driver?}
-    PERF -->|Yes| SCALE["⚖️ Scale Factor<br/>NumberLong('999') = $9.99<br/>store scale separately"]
-    PERF -->|No| D128D["✅ Decimal128<br/>recommended default"]
-
-    style D128A fill:#d4edda,color:#000
-    style D128B fill:#d4edda,color:#000
-    style D128C fill:#d4edda,color:#000
-    style D128D fill:#d4edda,color:#000
-    style SCALE fill:#fff3cd,color:#000
-    style START fill:#e2e3e5,color:#000
-    style MODERN fill:#cce5ff,color:#000
-    style AGG fill:#cce5ff,color:#000
-    style MULTI fill:#cce5ff,color:#000
-    style PERF fill:#cce5ff,color:#000
-```
+**Decision guide:**
 
 | Scenario                                      | Recommended approach          |
 | --------------------------------------------- | ----------------------------- |
@@ -12966,26 +12900,9 @@ MongoDB's security model is built around six areas:
 
 This module covers the first three — the ones that directly affect your work as a developer.
 
-```mermaid
-flowchart TD
-    APP(["Your Application"])
-    APP --> NET["🔒 Network Security<br/>Firewalls, VPCs, IP allowlists<br/>Admin / Infra"]
-    NET --> TLS["🔒 Transport Encryption TLS/SSL<br/>Data encrypted in transit<br/>Developer + Admin"]
-    TLS --> AUTH["🔑 Authentication<br/>Who can connect?<br/>Username + password<br/>Developer + Admin"]
-    AUTH --> AUTHZ["🛡️ Authorization RBAC<br/>What can they do?<br/>Roles + privileges<br/>Developer + Admin"]
-    AUTHZ --> DB[("MongoDB Server")]
-    DB --> REST["🔒 Encryption at Rest<br/>Data encrypted on disk<br/>Admin Enterprise + Dev hashing"]
-    DB --> AUDIT["📋 Auditing<br/>Logging who did what<br/>Admin"]
+---
 
-    style APP fill:#cce5ff,color:#000
-    style NET fill:#e2e3e5,color:#000
-    style TLS fill:#d4edda,color:#000
-    style AUTH fill:#d4edda,color:#000
-    style AUTHZ fill:#d4edda,color:#000
-    style DB fill:#e2e3e5,color:#000
-    style REST fill:#fff3cd,color:#000
-    style AUDIT fill:#e2e3e5,color:#000
-```
+### Understanding Role Based Access Control
 
 MongoDB uses a **Role-Based Access Control (RBAC)** model to manage both _who_ can connect and _what_ they can do.
 
@@ -13017,34 +12934,7 @@ User (username + password)
 - **Role**: A named bundle of privileges
 - **User**: A login entity assigned one or more roles
 
-```mermaid
-flowchart TD
-    U["👤 User<br/>username + password"]
-    U --> R1["Role: readWrite<br/>on shop DB"]
-    U --> R2["Role: read<br/>on analytics DB"]
-
-    R1 --> P1["Privilege<br/>shop.orders + find"]
-    R1 --> P2["Privilege<br/>shop.orders + insert"]
-    R1 --> P3["Privilege<br/>shop.orders + update"]
-
-    R2 --> P4["Privilege<br/>analytics.persons + find"]
-
-    P1 & P2 & P3 --> RES1[("shop database")]
-    P4 --> RES2[("analytics database")]
-
-    NOTE["Principle of Least Privilege:<br/>Grant only what is needed"]
-
-    style U fill:#cce5ff,color:#000
-    style R1 fill:#d4edda,color:#000
-    style R2 fill:#d4edda,color:#000
-    style P1 fill:#fff3cd,color:#000
-    style P2 fill:#fff3cd,color:#000
-    style P3 fill:#fff3cd,color:#000
-    style P4 fill:#fff3cd,color:#000
-    style RES1 fill:#e2e3e5,color:#000
-    style RES2 fill:#e2e3e5,color:#000
-    style NOTE fill:#f8d7da,color:#000
-```
+#### _Why Multiple Roles?_
 
 Different people/processes need different access levels — this is the **principle of least privilege**: grant only what is needed.
 
@@ -13288,40 +13178,15 @@ MongoDB uses **TLS** (Transport Layer Security — the modern successor to SSL) 
 
 #### _How TLS Works in MongoDB_
 
-```mermaid
-flowchart TD
-    subgraph Development
-        CERT["1. Generate self-signed cert<br/>openssl req -x509 ...<br/>CN must match hostname"]
-        PEM["2. Create PEM file<br/>cat key.pem cert.pem > mongodb.pem<br/>(private key + certificate)"]
-        CERT --> PEM
-    end
-
-    subgraph Connection Flow
-        APP(["App / mongosh"])
-        TLS["TLS Handshake<br/>App encrypts with server public key"]
-        SRV["MongoDB Server<br/>--tlsMode requireTLS<br/>--tlsCertificateKeyFile mongodb.pem"]
-        DEC["Decrypts with private key<br/>reads / writes data"]
-        APP -->|"--tls --host localhost"| TLS
-        TLS --> SRV
-        SRV --> DEC
-    end
-
-    PEM --> SRV
-
-    SNIFF["❌ Without TLS:<br/>Anyone on the network<br/>can read your data"]
-    SAFE["✅ With TLS:<br/>Data is unreadable<br/>in transit"]
-
-    TLS --> SAFE
-    APP -.->|no TLS| SNIFF
-
-    style APP fill:#cce5ff,color:#000
-    style TLS fill:#d4edda,color:#000
-    style SRV fill:#e2e3e5,color:#000
-    style DEC fill:#d4edda,color:#000
-    style CERT fill:#fff3cd,color:#000
-    style PEM fill:#fff3cd,color:#000
-    style SNIFF fill:#f8d7da,color:#000
-    style SAFE fill:#d4edda,color:#000
+```
+App / Shell
+    │
+    │  (TLS encrypted with public key)
+    ▼
+MongoDB Server
+    │  (decrypts with private key)
+    ▼
+Data stored / accessed
 ```
 
 A **PEM file** bundles the private key and certificate together. MongoDB uses it to establish the encrypted channel. In production, the certificate should come from a trusted Certificate Authority (CA); in development, a self-signed certificate is sufficient.
@@ -13488,5 +13353,611 @@ mongosh -u name -p pass --authenticationDatabase dbName
 // Connection string with TLS
 mongosh --tls --tlsCertificateKeyFile ./mongodb.pem --host localhost
 ```
+
+> [⬆ Back to Index](#table-of-contents)
+
+## Performance, Fault Tolerance & Deployment
+
+### Introduction
+
+This module covers factors that impact MongoDB performance, fault tolerance mechanisms, and deploying a MongoDB solution from localhost to the web.
+
+**Topics Covered:**
+
+| Topic              | Type              | Relevance                          |
+| ------------------ | ----------------- | ---------------------------------- |
+| Capped Collections | Developer feature | Performance / auto-cleanup         |
+| Replica Sets       | Admin concept     | Fault tolerance + read performance |
+| Sharding           | Admin concept     | Horizontal scaling                 |
+| Deployment / Atlas | Admin + developer | Getting MongoDB into production    |
+
+---
+
+### What Influences Performance?
+
+MongoDB performance is shaped by two layers of responsibility:
+
+**Developer / DB Admin:**
+
+| Factor                         | Description                                                                |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| Efficient Queries & Operations | Only retrieve / write data you need; use correct write concerns            |
+| Indexes                        | Create indexes matching your query patterns; communicate with your DBA     |
+| Fitting Data Schema            | Store data in the shape your app queries — minimise aggregation transforms |
+
+**DB Admin / System Admin:**
+
+| Factor             | Description                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| Hardware & Network | CPU, RAM, disk I/O, and network bandwidth of the server               |
+| Sharding           | Distribute data horizontally across multiple servers                  |
+| Replica Sets       | Replicate data across nodes for fault tolerance and load distribution |
+
+```mermaid
+flowchart LR
+    PERF(["MongoDB Performance"])
+
+    subgraph DEV ["Developer / DB Admin"]
+        D1["Efficient Queries<br/>& Operations"]
+        D2["Indexes"]
+        D3["Fitting Data Schema"]
+    end
+
+    subgraph ADMIN ["DB Admin / System Admin"]
+        A1["Hardware & Network"]
+        A2["Sharding"]
+        A3["Replica Sets"]
+    end
+
+    PERF --> DEV
+    PERF --> ADMIN
+
+    style PERF fill:#cce5ff,color:#000
+    style DEV fill:#d4edda,color:#000
+    style ADMIN fill:#fff3cd,color:#000
+```
+
+> **Key Takeaway:** As a developer you directly control queries, indexes, and schema. Sharding and replica sets are admin tasks — but understanding them helps you collaborate effectively and write better applications.
+
+---
+
+### Understanding Capped Collections
+
+**Capped collections** are a special collection type where you set a fixed maximum size (in bytes) and optionally a maximum document count. When the limit is reached, the **oldest documents are automatically deleted** to make room for new ones.
+
+#### When to Use Capped Collections
+
+| Use Case                     | Why It Fits                                                      |
+| ---------------------------- | ---------------------------------------------------------------- |
+| Application logs             | Only recent logs matter; old ones can be discarded automatically |
+| Short-term caching           | Data is transient; eviction of stale entries is desired          |
+| High-throughput ring buffers | Auto-cleanup keeps the collection small and fast                 |
+
+> **Do NOT use** for users, products, blog posts, or any data you cannot afford to lose.
+
+#### Creating a Capped Collection
+
+```js
+use performance
+db.createCollection("capped", {
+  capped: true,   // Required: turns on capping
+  size: 10000,    // Required: max size in bytes (rounded up to 256-byte boundary)
+  max: 3          // Optional: max number of documents
+})
+```
+
+#### Behaviour Demo
+
+```js
+performance > db.capped.insertOne({ name: "Max" }); // ✅ doc 1/3
+performance > db.capped.insertOne({ name: "Manu" }); // ✅ doc 2/3
+performance > db.capped.insertOne({ name: "Anna" }); // ✅ doc 3/3
+performance > db.capped.insertOne({ name: "Maria" }); // ✅ "Max" (oldest) auto-deleted
+
+performance >
+  db.capped.find()[
+    ({ _id: ObjectId("..."), name: "Manu" },
+    { _id: ObjectId("..."), name: "Anna" },
+    { _id: ObjectId("..."), name: "Maria" })
+  ];
+```
+
+#### Natural Sort Order
+
+Capped collections always return documents **in insertion order** by default — unlike normal collections where order is not guaranteed.
+
+```js
+// Reverse insertion order (newest first)
+db.capped.find().sort({ $natural: -1 });
+```
+
+#### How Eviction Works
+
+```mermaid
+flowchart TD
+    CAP_TITLE["Capped Collection — max: 3 docs"]
+    subgraph CAP
+        SLOT1["1: Max (oldest)"]
+        SLOT2["2: Manu"]
+        SLOT3["3: Anna"]
+    end
+    CAP_TITLE --> CAP
+
+    INSERT(["insertOne({ name: 'Maria' })"]) --> CHECK{"Collection full?<br/>3/3 docs"}
+    CHECK -->|"Yes — evict oldest"| EVICT["Delete Max (oldest doc)"]
+    EVICT --> WRITE["Write Maria into freed slot"]
+    CHECK -->|"No"| WRITE
+    WRITE --> RESULT["Collection: Manu · Anna · Maria"]
+
+    style INSERT fill:#cce5ff,color:#000
+    style CHECK fill:#fff3cd,color:#000
+    style EVICT fill:#f8d7da,color:#000
+    style WRITE fill:#d4edda,color:#000
+    style RESULT fill:#d4edda,color:#000
+    style CAP fill:#e2e3e5,color:#000
+
+    classDef spacer fill:transparent,stroke:transparent,color:transparent;
+```
+
+---
+
+### What are Replica Sets?
+
+A **Replica Set** is a group of MongoDB server instances (nodes) that all hold the same data. One node is the **Primary** (all writes go here); the others are **Secondaries** that asynchronously replicate the primary's data.
+
+#### Why Replica Sets?
+
+| Benefit                       | Explanation                                                            |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| **Backup / Fault Tolerance**  | If the primary crashes, secondaries elect a new primary automatically  |
+| **Improved Read Performance** | Reads can be distributed across all nodes, splitting the load          |
+| **Zero-Downtime Recovery**    | Automatic election means the app can continue talking to a new primary |
+
+#### How Replica Sets Work
+
+```mermaid
+flowchart TD
+    CLIENT(["Client / App / Shell"])
+
+    subgraph RS ["Replica Set"]
+        PRIMARY["Primary Node<br/>(all writes go here)"]
+        SEC1["Secondary Node 1"]
+        SEC2["Secondary Node 2"]
+    end
+
+    CLIENT -->|"Write (insert/update/delete)"| PRIMARY
+    PRIMARY -->|"async replication"| SEC1
+    PRIMARY -->|"async replication"| SEC2
+    CLIENT -->|"Read (distributed)"| SEC1
+    CLIENT -->|"Read (distributed)"| SEC2
+
+    PRIMARY -->|"Primary goes offline"| ELECT{"Election among<br/>secondary nodes"}
+    ELECT --> NEWPRI["New Primary elected ✅<br/>Ops resume automatically"]
+
+    style CLIENT fill:#cce5ff,color:#000
+    style PRIMARY fill:#d4edda,color:#000
+    style SEC1 fill:#e2e3e5,color:#000
+    style SEC2 fill:#e2e3e5,color:#000
+    style ELECT fill:#fff3cd,color:#000
+    style NEWPRI fill:#d4edda,color:#000
+    style RS fill:#f8f9fa,color:#000
+```
+
+**Key Points:**
+
+- Writes **always** go to the primary node
+- Reads can be configured to distribute across all nodes (admin task)
+- Asynchronous replication: secondaries catch up shortly after the primary writes
+- Three nodes is the recommended minimum (one primary + two secondaries for a majority vote)
+
+> Setting up replica sets is an **admin task**. As a developer, understanding the concept helps you design fault-tolerant apps and collaborate with your DBA.
+
+---
+
+### Understanding Sharding (Horizontal Scaling)
+
+**Sharding** solves the problem of a single server reaching its hardware limits. Instead of upgrading one machine (**vertical scaling**), you add more machines (**horizontal scaling**) and **distribute** data across them.
+
+#### Sharding vs Replica Sets
+
+|                | Replica Sets                        | Sharding                                      |
+| -------------- | ----------------------------------- | --------------------------------------------- |
+| **Data**       | Duplicated (same data on all nodes) | Split (different chunks on each shard)        |
+| **Purpose**    | Fault tolerance + read distribution | Horizontal scaling — more write/read capacity |
+| **Each shard** | Is one node                         | Is itself a replica set                       |
+
+#### The Shard Key
+
+Every document must have a **shard key** — a field whose value determines which shard stores that document. Choosing a good shard key is critical:
+
+- It must be **evenly distributed** across possible values
+- If values cluster (e.g., all users start with "A"), one shard will be overloaded
+- Sit with your admin to pick a shard key that matches your query patterns
+
+#### The `mongos` Router
+
+Clients never talk to shards directly — they talk to **`mongos`**, the query router:
+
+| Scenario                             | Behaviour                                                          |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| Query **includes** shard key value   | `mongos` routes directly to the responsible shard (efficient)      |
+| Query **does not include** shard key | `mongos` broadcasts to all shards, merges results (scatter-gather) |
+
+```mermaid
+flowchart TD
+    CLIENT(["Client / App"])
+    MONGOS["mongos Router<br/>(reads shard key)"]
+
+    subgraph SHARD1 ["Shard 1 — A to F (Replica Set)"]
+        S1P["Primary"]
+        S1S["Secondary"]
+    end
+    subgraph SHARD2 ["Shard 2 — G to N (Replica Set)"]
+        S2P["Primary"]
+        S2S["Secondary"]
+    end
+    subgraph SHARD3 ["Shard 3 — O to Z (Replica Set)"]
+        S3P["Primary"]
+        S3S["Secondary"]
+    end
+
+    CLIENT -->|"Query / Write"| MONGOS
+    MONGOS -->|"shard key known → direct route"| SHARD1
+    MONGOS -->|"no shard key → broadcast"| SHARD2
+    MONGOS -->|"no shard key → broadcast"| SHARD3
+    SHARD1 -->|"Result"| MONGOS
+    SHARD2 -->|"Result"| MONGOS
+    SHARD3 -->|"Result"| MONGOS
+    MONGOS -->|"Merged result"| CLIENT
+
+    style CLIENT fill:#cce5ff,color:#000
+    style MONGOS fill:#fff3cd,color:#000
+    style SHARD1 fill:#d4edda,color:#000
+    style SHARD2 fill:#d4edda,color:#000
+    style SHARD3 fill:#d4edda,color:#000
+```
+
+> **Developer Implication:** When you know sharding is in use, write queries that include the shard key in their filter whenever possible to avoid costly scatter-gather operations.
+
+---
+
+### Deploying a MongoDB Server
+
+Deploying MongoDB to production involves many tasks beyond just starting `mongod`:
+
+| Task                                | Category           |
+| ----------------------------------- | ------------------ |
+| User authentication configuration   | MongoDB / Security |
+| Network firewall and TLS setup      | System Admin       |
+| Replica set configuration           | DB Admin           |
+| Sharding setup (if needed)          | DB Admin           |
+| Software updates & security patches | System Admin       |
+| Regular data backups                | DB Admin           |
+| Encryption in transit and at rest   | Security           |
+
+**Recommendation:** Unless you are an experienced system administrator, use a **managed solution** rather than configuring all of this manually.
+
+**MongoDB Atlas** — the official managed cloud service — handles all of the above automatically, with a convenient web UI, a free tier to start, and pay-per-use pricing.
+
+---
+
+### Using MongoDB Atlas
+
+**MongoDB Atlas** is the official MongoDB-as-a-Service platform. It deploys and manages your cluster on AWS, Azure, or GCP.
+
+#### Setup Steps
+
+| Step                     | Details                                                      |
+| ------------------------ | ------------------------------------------------------------ |
+| Sign up at `mongodb.com` | No credit card required for free tier                        |
+| Choose Cloud Provider    | AWS / Azure / GCP — pick a region with "Free tier available" |
+| Choose Cluster Tier      | **M0** = free; M10/M30 = paid with more power and features   |
+| Storage                  | Adjustable GB; can auto-expand                               |
+| MongoDB Version          | Free tier may be locked to an older version                  |
+| Backups                  | Continuous (paid) or 24-hour snapshot (paid)                 |
+| Sharding                 | Available from M30+ tier                                     |
+
+#### Cluster Tier Guide
+
+| Tier | Cost | Features                                                |
+| ---- | ---- | ------------------------------------------------------- |
+| M0   | Free | Shared cluster, 512 MB storage, no backups, no sharding |
+| M10  | Paid | Dedicated cluster, configurable storage, backups        |
+| M30  | Paid | Sharding support, global cluster distribution           |
+
+#### Security Configuration
+
+1. **Add a Database User** — under the Security tab; set username, password, and role (Atlas Admin, readWriteAnyDatabase, etc.)
+2. **IP Whitelist** — add your current IP (dev) or app server IP (prod); avoid "allow from anywhere" in production
+
+> Atlas automatically provisions a **3-node replica set** for every cluster — fault tolerance is built in.
+
+---
+
+### Backups and Setting Alerts in MongoDB Atlas
+
+#### Backups
+
+- Available when backups are enabled at cluster creation time
+- **Continuous backup** (paid): near-real-time backup history; restore to any point in time
+- **Snapshot backup** (paid): daily snapshots; up to ~24 hours of potential data loss
+
+#### Alerts
+
+Atlas lets you configure email/SMS/webhook alerts for:
+
+| Alert Type     | Example                                      |
+| -------------- | -------------------------------------------- |
+| User login     | "Alert me whenever a user logs in"           |
+| Slow queries   | "Alert when average read time exceeds 200ms" |
+| Cluster health | "Alert when primary node is down"            |
+| Disk space     | "Alert when storage is 80% full"             |
+
+Configure under: **Alerts → Add New Alert** in the Atlas dashboard.
+
+> Strongly recommended for any production deployment — proactive monitoring prevents outages from going unnoticed.
+
+---
+
+### Connecting to an Atlas Cluster
+
+#### From mongosh
+
+```bash
+# Copy the connection string from Atlas → Connect → MongoDB Shell
+mongosh "mongodb+srv://<cluster-url>/test" --username <username>
+# You'll be prompted for password
+```
+
+- Replace `/test` with your target database name
+- The connection string handles replica set routing automatically
+
+#### From the Shell
+
+```js
+// Works identically to a local MongoDB instance
+use shop
+db.products.insertOne({ title: "A Book", price: 12.99 })
+// → { acknowledged: true, insertedId: ObjectId('...') }
+
+// Query it back
+db.products.find()
+```
+
+No changes to your MongoDB commands — the driver handles the difference between local and Atlas transparently.
+
+---
+
+### Performance, Fault Tolerance & Deployment — Summary
+
+| Concept                | What It Is                                      | Key Benefit                                    |
+| ---------------------- | ----------------------------------------------- | ---------------------------------------------- |
+| **Capped Collections** | Fixed-size collection; oldest docs auto-deleted | Auto-cleanup; keeps collection small and fast  |
+| **Efficient Queries**  | Only fetch/write data you need                  | Reduces CPU, memory, network usage             |
+| **Indexes**            | Pre-sorted field lookups                        | Speeds up reads dramatically                   |
+| **Fitting Schema**     | Store data in query-friendly shape              | Avoids runtime transformation cost             |
+| **Replica Sets**       | Multiple synced nodes; auto-failover            | Fault tolerance + read load distribution       |
+| **Sharding**           | Data split across multiple servers              | Horizontal scaling beyond one machine's limits |
+| **MongoDB Atlas**      | Managed cloud MongoDB service                   | Production-ready setup without admin expertise |
+
+**Critical Points:**
+
+- Performance is a shared responsibility between developers (queries, indexes, schema) and admins (hardware, sharding, replica sets)
+- Capped collections solve a specific problem — auto-evicting old data — not general storage
+- Replica sets give you backup + better reads; sharding gives you more write/read capacity
+- For most developers: **Atlas** is the right deployment choice — it handles replica sets, backups, TLS, and security automatically
+
+> [⬆ Back to Index](#table-of-contents)
+
+---
+
+## Transactions
+
+### Introduction
+
+**Transactions** were introduced in MongoDB 4.0. They allow you to group multiple operations so that they **either all succeed or all fail together** — providing ACID guarantees across multiple documents and even multiple collections.
+
+**Requirements:**
+
+- MongoDB 4.0 or higher
+- A **Replica Set** environment (transactions require the oplog that replica sets provide)
+- MongoDB Atlas clusters satisfy both requirements automatically
+
+---
+
+### What are Transactions?
+
+Without transactions, separate write operations are independent. If the first succeeds but the second fails (network issue, crash, etc.), the database ends up in an **inconsistent state**.
+
+#### The Problem
+
+```
+Scenario: Delete a user account AND all their posts
+
+Step 1: db.users.deleteOne({ _id: userId })   ✅ succeeds
+Step 2: db.posts.deleteMany({ userId: userId }) ❌ network error mid-way
+
+Result: User is gone but their posts are still in the database
+        — orphaned data pointing at a non-existent user
+```
+
+#### The Solution: Transactions
+
+With a transaction, both operations are wrapped together:
+
+- If both succeed → changes are committed to the database
+- If either fails → the entire transaction is **rolled back**; database is restored to its pre-transaction state
+
+| Without Transactions                      | With Transactions                            |
+| ----------------------------------------- | -------------------------------------------- |
+| Each operation is independently atomic    | Group of operations is collectively atomic   |
+| Partial failure leaves inconsistent state | Failure rolls back all operations            |
+| Simpler, lower overhead                   | Slightly more overhead; use only when needed |
+
+---
+
+### A Typical Use Case
+
+```js
+// Collections: users + posts
+// Goal: delete a user and all their posts atomically
+
+// users collection
+{ _id: ObjectId("69ad5034..."), name: "Max" }
+
+// posts collection
+{ _id: ObjectId("69ad518c..."), title: "First Post", userId: ObjectId("69ad5034...") }
+{ _id: ObjectId("69ad518d..."), title: "Second Post", userId: ObjectId("69ad5034...") }
+```
+
+**Without transaction (risky):**
+
+```js
+db.users.deleteOne({ _id: userId }); // might succeed
+db.posts.deleteMany({ userId: userId }); // might fail → orphaned posts left behind
+```
+
+**With transaction (safe):**
+Both deletes are wrapped in a session; if either fails, both are rolled back automatically.
+
+---
+
+### How Does a Transaction Work?
+
+#### Step-by-Step Pattern
+
+```js
+// Step 1: Create a session
+const session = db.getMongo().startSession();
+
+// Step 2: Get collection references THROUGH the session (critical!)
+const usersC = session.getDatabase("blog").users;
+const postsC = session.getDatabase("blog").posts;
+
+// Step 3: Start the transaction
+session.startTransaction();
+
+// Step 4: Execute operations via the session-bound collection refs
+usersC.deleteOne({ _id: ObjectId("69ad5034344ca7df271a5e14") });
+postsC.deleteMany({ userId: ObjectId("69ad5034344ca7df271a5e14") });
+
+// Step 5a: Commit — writes all changes to the real database
+session.commitTransaction();
+
+// Step 5b: OR abort — rolls back everything, database unchanged
+// session.abortTransaction()
+```
+
+> **Critical rule:** All operations inside the transaction MUST use the collection references obtained via `session.getDatabase(...)`, not the regular `db.collection` shorthand. Regular `db.` commands bypass the session and execute immediately.
+
+#### Full Working Example
+
+```js
+rs0 [direct: primary] blog> db.users.find()
+[ { _id: ObjectId('69ad5034344ca7df271a5e14'), name: 'Prashant' } ]
+
+rs0 [direct: primary] blog> db.posts.find()
+[
+  {
+    _id: ObjectId('69ad518c189f1be0776db814'),
+    postBy: 'Prashant',
+    userId: ObjectId('69ad5034344ca7df271a5e14')
+  }
+]
+
+rs0 [direct: primary] blog> const session = db.getMongo().startSession()
+rs0 [direct: primary] blog> session.startTransaction()
+
+rs0 [direct: primary] blog> const usersC = session.getDatabase("blog").users
+rs0 [direct: primary] blog> const postsC = session.getDatabase("blog").posts
+
+// Operations staged (not yet committed to DB)
+rs0 [direct: primary] blog> usersC.deleteOne({ _id: ObjectId("69ad5034344ca7df271a5e14") })
+{ acknowledged: true, deletedCount: 1 }
+
+rs0 [direct: primary] blog> postsC.deleteOne({ userId: ObjectId("69ad5034344ca7df271a5e14") })
+{ acknowledged: true, deletedCount: 1 }
+
+// Verify: data still visible via normal db.* (not yet committed)
+rs0 [direct: primary] blog> db.users.find()
+[ { _id: ObjectId('69ad5034344ca7df271a5e14'), name: 'Prashant' } ]  // still there!
+
+// Commit: now writes apply to the real database
+rs0 [direct: primary] blog> session.commitTransaction()
+
+rs0 [direct: primary] blog> db.users.find()   // now empty
+rs0 [direct: primary] blog> db.posts.find()   // now empty
+```
+
+#### Transaction Flow Diagram
+
+```mermaid
+flowchart TD
+    NEED(["Need: delete user + all posts atomically"])
+    SESSION["const session = db.getMongo().startSession()"]
+    TXSTART["session.startTransaction()"]
+    GETCOL["Get collection refs via session<br/>usersC = session.getDatabase('blog').users<br/>postsC = session.getDatabase('blog').posts"]
+    OPS["Execute operations<br/>usersC.deleteOne({ _id: userId })<br/>postsC.deleteMany({ userId: userId })"]
+    CHECK{"All ops succeeded?"}
+    COMMIT["session.commitTransaction()<br/>Changes written to DB ✅"]
+    ABORT["session.abortTransaction()<br/>DB rolled back to original state ✅"]
+
+    NEED --> SESSION --> TXSTART --> GETCOL --> OPS --> CHECK
+    CHECK -->|"Yes"| COMMIT
+    CHECK -->|"No / Error"| ABORT
+
+    style NEED fill:#cce5ff,color:#000
+    style SESSION fill:#e2e3e5,color:#000
+    style TXSTART fill:#e2e3e5,color:#000
+    style GETCOL fill:#e2e3e5,color:#000
+    style OPS fill:#fff3cd,color:#000
+    style CHECK fill:#fff3cd,color:#000
+    style COMMIT fill:#d4edda,color:#000
+    style ABORT fill:#f8d7da,color:#000
+```
+
+#### Atomicity: Document Level vs Transaction Level
+
+| Scope                                  | Guaranteed?       | Mechanism                                 |
+| -------------------------------------- | ----------------- | ----------------------------------------- |
+| Single document (all fields)           | ✅ Always         | Built-in MongoDB document-level atomicity |
+| Multiple fields in one `updateOne`     | ✅ Always         | Document-level atomicity                  |
+| Multiple separate operations           | ❌ Not by default | Use transactions                          |
+| Multiple operations wrapped in session | ✅ Yes            | Transactions (MongoDB 4.0+)               |
+
+Transactions extend MongoDB's existing document-level atomicity across **multiple operations, collections, and documents**.
+
+#### When to Use Transactions
+
+**Use transactions when:**
+
+- ✅ Two or more write operations must succeed or fail together
+- ✅ Operations span multiple documents or collections
+- ✅ Data consistency across collections is critical (e.g., financial transfers, user deletion with related data)
+- ✅ You are using MongoDB 4.0+ with a replica set
+
+**Avoid transactions when:**
+
+- ❌ A single `deleteMany` or `insertMany` already gives you sufficient atomicity
+- ❌ Operations are independent (failure of one doesn't corrupt the other)
+- ❌ You are on MongoDB < 4.0 or a standalone server (no replica set)
+
+> **Performance note:** Transactions add overhead compared to single-document operations. Use them only where cross-operation consistency is genuinely required.
+
+---
+
+### Transactions — Summary
+
+| Concept                         | Details                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| **Requirement**                 | MongoDB 4.0+, replica set (Atlas satisfies both)                                        |
+| **Session**                     | Groups all operations together logically                                                |
+| **startTransaction()**          | Marks the beginning of an atomic group                                                  |
+| **Collection refs via session** | `session.getDatabase("db").collection` — required for ops to be part of the transaction |
+| **commitTransaction()**         | Writes all staged changes to the real database                                          |
+| **abortTransaction()**          | Discards all staged changes; DB unchanged                                               |
+| **Atomicity scope**             | All operations in the transaction succeed or all are rolled back                        |
+| **Best use case**               | Deleting/updating data across multiple related collections                              |
+| **Overuse warning**             | Adds performance overhead — only use when cross-operation consistency is needed         |
 
 > [⬆ Back to Index](#table-of-contents)

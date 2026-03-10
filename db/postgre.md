@@ -1,0 +1,5855 @@
+# PostgreSQL / PL/pgSQL Notes
+
+---
+
+## Table of Contents
+
+- [PostgreSQL / PL/pgSQL Notes](#postgresql--plpgsql-notes)
+  - [Table of Contents](#table-of-contents)
+  - [1. Database Foundations](#1-database-foundations)
+  - [2. Introduction to PostgreSQL / PL/pgSQL](#2-introduction-to-postgresql--plpgsql)
+    - [Dollar-Quoting (`$$`)](#dollar-quoting-)
+    - [SERIAL and GENERATED AS IDENTITY](#serial-and-generated-as-identity)
+  - [3. Data Types](#3-data-types)
+  - [4. Variables & Constants](#4-variables--constants)
+  - [5. Languages in PostgreSQL](#5-languages-in-postgresql)
+    - [DDL — CREATE, ALTER, TRUNCATE, DROP](#ddl---data-definition-language)
+    - [DML — INSERT, UPDATE, DELETE, MERGE](#dml---data-manipulation-language)
+    - [DQL — SELECT](#dql---data-query-language)
+    - [DCL — GRANT, REVOKE](#dcl---data-control-language)
+    - [TCL — BEGIN, COMMIT, ROLLBACK, SAVEPOINT](#tcl---transaction-control-language)
+  - [6. Types of Operators](#6-types-of-operators)
+  - [7. Types of Constraints](#7-types-of-constraints)
+  - [8. Database Design & Normalization](#8-database-design--normalization)
+  - [9. JOINs](#9-joins)
+  - [10. Aggregations & Grouping](#10-aggregations--grouping)
+  - [11. Subqueries](#11-subqueries)
+  - [12. Built-in Functions](#12-built-in-functions)
+  - [13. Indexes & Performance](#13-indexes--performance)
+  - [14. Transactions & Concurrency (Extended)](#14-transactions--concurrency-extended)
+  - [15. Views](#15-views)
+  - [16. Window Functions](#16-window-functions)
+  - [17. CTEs & Advanced Querying](#17-ctes--advanced-querying)
+  - [18. Control Structures](#18-control-structures)
+  - [19. Loops](#19-loops)
+  - [20. Cursors](#20-cursors)
+  - [21. Exceptions & Exception Handling](#21-exceptions--exception-handling)
+    - [Re-Raising Exceptions](#re-raising-exceptions)
+    - [GET STACKED DIAGNOSTICS](#get-stacked-diagnostics)
+  - [22. Stored Procedures](#22-stored-procedures)
+    - [Procedure with INOUT Parameter](#procedure-with-inout-parameter)
+    - [Transaction Control Inside a Procedure](#transaction-control-inside-a-procedure)
+  - [23. Functions](#23-functions)
+    - [RETURNS SETOF](#returns-setof--return-multiple-rows-of-an-existing-type)
+    - [SQL-Language Function](#sql-language-function)
+    - [SECURITY DEFINER vs SECURITY INVOKER](#security-definer-vs-security-invoker)
+  - [24. Packages & Schemas](#24-packages--schemas)
+  - [25. Triggers](#25-triggers)
+    - [Trigger with WHEN Condition](#trigger-with-when-condition)
+    - [Statement-Level Trigger](#statement-level-trigger)
+    - [INSTEAD OF Trigger (on Views)](#instead-of-trigger-on-views)
+  - [26. Collections](#26-collections)
+    - [JSONB — Semi-Structured Data](#jsonb--semi-structured-data-in-postgresql)
+  - [27. Backend Integration — Node.js Perspective](#27-backend-integration--nodejs-perspective)
+  - [28. Interview Preparation](#28-interview-preparation)
+
+---
+
+## 1. Database Foundations
+
+### 1.1 What is a Database
+
+#### What It Is (Simply)
+
+Imagine you are running a large hospital. Every day, thousands of patients visit, doctors write prescriptions, nurses update records, billing issues invoices, and the pharmacy tracks medicine stock. If all of this information was stored in paper files, finding a specific patient's record from five years ago would take hours. That is the problem databases solve.
+
+A **database** is an organized, structured collection of related data that can be stored, retrieved, modified, and managed efficiently. The key word here is _organized_ — without structure, data is just noise. With structure, it becomes actionable information.
+
+#### What It Is (Technically)
+
+Technically, a database is a persistent, organized data store managed by a **Database Management System (DBMS)**. The data is stored on disk in a structured format, and the DBMS provides a query interface — typically SQL — to interact with that data safely, concurrently, and consistently.
+
+---
+
+#### DBMS vs RDBMS
+
+A **Database Management System (DBMS)** is the software that manages data storage, retrieval, and access control. It could manage data in any format — files, XML, key-value pairs, documents.
+
+A **Relational Database Management System (RDBMS)** is a specific category of DBMS that organizes data into **tables** (relations in the mathematical sense), enforces relationships between tables via keys, and uses **SQL** as the standard query language. PostgreSQL, MySQL, Oracle, and MS SQL Server are all RDBMSs.
+
+The "relational" part comes from the mathematical concept of a _relation_ — a set of tuples sharing the same attributes. When you see a table with rows and columns, you are looking at a relation.
+
+RDBMSs give you: guaranteed data integrity via constraints, the ability to join and relate data across tables, ACID transaction support, and a standardized query language. Something like Redis (key-value store) or MongoDB (document store) is a DBMS but not an RDBMS — they sacrifice some guarantees for speed or flexibility.
+
+---
+
+#### Structured vs Unstructured Data
+
+**Structured data** follows a fixed, predefined schema. Every record has the same fields. A database table of employees — each row has an ID, name, salary, department — is structured. SQL databases excel at structured data.
+
+**Unstructured data** has no predefined schema. Think of email bodies, PDFs, images, videos, social media posts. You cannot put a tweet into a neat row-column format because every tweet might carry different metadata.
+
+**Semi-structured data** sits in between — JSON, XML, CSV. It has some structure but is schema-flexible. PostgreSQL's `JSONB` type lets you store semi-structured data inside a structured database, bridging both worlds — which is why PostgreSQL is so powerful for modern applications.
+
+As a backend developer, you will almost always have both. User profile data (structured) lives in PostgreSQL. User-uploaded documents (unstructured) live in object storage (S3). Your application bridges them.
+
+---
+
+#### Row-Oriented vs Column-Oriented Databases
+
+**Row-oriented databases** (PostgreSQL, MySQL) store data row by row on disk. When you fetch one row, the entire row is read in a single I/O operation. This is efficient for **OLTP workloads** — where you frequently read or write complete records one at a time.
+
+**Column-oriented databases** (Redshift, ClickHouse, BigQuery) store data column by column. When you run `SELECT AVG(salary) FROM employees`, only the salary column needs to be read — millions of rows, but a single column. This is massively efficient for **OLAP workloads** — large analytical queries aggregating across millions of rows.
+
+```mermaid
+graph LR
+    A["Row-Oriented DB<br/>PostgreSQL / MySQL"] -->|Best for| B["OLTP<br/>Insert/Update<br/>Fetch single rows"]
+    C["Column-Oriented DB<br/>Redshift / BigQuery"] -->|Best for| D["OLAP<br/>Aggregations<br/>Full column scans"]
+```
+
+**Common mistake:** Deploying PostgreSQL for analytics workloads with millions of rows and complex aggregations and hitting performance walls. Understanding this distinction helps you choose the right tool — or the right PostgreSQL optimization (indexes, materialized views, partitioning).
+
+---
+
+#### OLTP vs OLAP Systems
+
+**OLTP (Online Transaction Processing)** systems handle day-to-day operational transactions — user logins, order placements, payment processing.
+
+- High volume of short, fast queries
+- Many concurrent users
+- Frequent INSERT, UPDATE, DELETE
+- Data is current and normalized
+- Response time measured in milliseconds
+
+**OLAP (Online Analytical Processing)** systems support business intelligence and reporting.
+
+- Low volume of complex, slow queries
+- Few concurrent users (analysts, dashboards)
+- Mostly SELECT (read-heavy)
+- Data is historical and often denormalized
+- Response time measured in seconds to minutes
+
+As a backend engineer, you build OLTP systems. The classic mistake is running heavy OLAP-style queries on your OLTP PostgreSQL database during peak hours — this degrades performance for all users. The solution is read replicas, materialized views, or a separate data warehouse.
+
+---
+
+#### CAP Theorem (High-Level Awareness)
+
+The **CAP theorem** states that in any distributed data system, you can only guarantee **two out of three** of the following properties simultaneously:
+
+- **Consistency (C):** Every read gets the most recent write (no stale data)
+- **Availability (A):** Every request gets a response (no errors, no timeouts)
+- **Partition Tolerance (P):** The system continues operating even if some network nodes lose communication
+
+```mermaid
+graph TD
+    C[Consistency] --- CA["CA Systems<br/>PostgreSQL, MySQL<br/>No partition tolerance"]
+    C --- CP["CP Systems<br/>MongoDB, HBase<br/>No availability guarantee"]
+    A[Availability] --- CA
+    A --- AP["AP Systems<br/>DynamoDB, Cassandra<br/>Eventual consistency"]
+    P[Partition Tolerance] --- CP
+    P --- AP
+```
+
+Because network partitions are inevitable in distributed systems, you must always tolerate P. So the real choice is **CP vs AP** — consistency or availability when a partition occurs.
+
+PostgreSQL is a single-node system by default — CAP doesn't apply until you add replication. With streaming replication, PostgreSQL is **AP by default** (replicas may serve slightly stale data) unless you configure synchronous replication (CP).
+
+**Interview perspective:** The key insight is: in a real system, partition tolerance is non-negotiable, so you choose between strong consistency and high availability when a network partition occurs.
+
+---
+
+### 1.2 Relational Database Concepts
+
+#### Tables, Rows, and Columns
+
+In a relational database, all data lives in **tables**. A table has a name (e.g., `employees`) and is made up of:
+
+- **Columns (attributes):** Define the structure — what kind of data the table stores. Each column has a name and a data type.
+- **Rows (records/tuples):** Represent individual data entries. Each row is one instance of the entity — one employee, one order, one product.
+- **Cells:** The intersection of a row and column — a single piece of data.
+
+Think of a table exactly like a spreadsheet tab — columns are the headers, rows are the data. But unlike a spreadsheet, a database table enforces data types, constraints, and relationships between tables.
+
+---
+
+#### Schema
+
+A **schema** is the structural blueprint of your database — the definition of all tables, their columns, data types, constraints, indexes, and relationships. The schema is what you design before you insert a single row of data.
+
+Think of a schema like the architectural blueprint of a building. The blueprint doesn't contain furniture or people (data), but it defines how many rooms there are, where the doors go, and what each room is for.
+
+In PostgreSQL, "schema" has a dual meaning:
+
+1. The **overall database design** (all tables and their structure)
+2. A **namespace** inside a database (like a folder that groups related objects — `hr`, `finance`, `public`)
+
+---
+
+#### Relationships
+
+The power of relational databases is the ability to **relate** data across tables, avoiding duplication. There are three fundamental relationship types:
+
+**1:1 (One-to-One):** One row in Table A corresponds to exactly one row in Table B. Example: each employee has exactly one passport record. In practice, 1:1 relationships are rare and often a sign the data could be merged into one table.
+
+**1:N (One-to-Many):** One row in Table A relates to many rows in Table B. This is by far the most common relationship. Example: one department has many employees, but each employee belongs to one department.
+
+**N:M (Many-to-Many):** Many rows in Table A relate to many rows in Table B. Example: students can enroll in many courses, and courses have many students. In SQL, you implement M:N relationships with a **junction table** (bridge table / associative table).
+
+```mermaid
+erDiagram
+    DEPARTMENTS ||--o{ EMPLOYEES : "has many"
+    EMPLOYEES }o--o{ EMPLOYEE_PROJECTS : "assigned via"
+    PROJECTS ||--o{ EMPLOYEE_PROJECTS : "contains"
+    EMPLOYEES {
+        integer employee_id PK
+        varchar first_name
+        integer department_id FK
+    }
+    DEPARTMENTS {
+        integer department_id PK
+        varchar department_name
+    }
+    PROJECTS {
+        integer project_id PK
+        varchar project_name
+    }
+    EMPLOYEE_PROJECTS {
+        integer employee_id FK
+        integer project_id FK
+    }
+```
+
+---
+
+#### Entity-Relationship Model (ERD Basics)
+
+An **Entity-Relationship Diagram (ERD)** is a visual map of your database design. Before writing a single `CREATE TABLE` statement, experienced engineers draw an ERD to think through entities, their attributes, and their relationships.
+
+**Entities** become tables. **Attributes** become columns. **Relationships** become foreign keys (or junction tables for M:N).
+
+**Common mistake:** Skipping the ERD and jumping directly to `CREATE TABLE` statements. This leads to schema designs that require painful migrations later when you realize two entities actually have a many-to-many relationship you hadn't modeled.
+
+---
+
+#### Normalization Overview
+
+**Normalization** is the process of structuring a relational database to reduce data redundancy and improve data integrity. The process involves decomposing tables into smaller, well-structured tables and defining relationships between them.
+
+Without normalization, you get anomalies:
+
+- **Insert anomaly:** You cannot insert data about one entity without having data about another
+- **Update anomaly:** Changing one fact requires updating many rows
+- **Delete anomaly:** Deleting one record unintentionally deletes other information
+
+Normalization is organized into **Normal Forms (NF)** — each form a stricter set of rules (covered in full detail in Section 24 — Normalization).
+
+---
+
+### 1.3 Declarative vs Procedural Paradigm
+
+This is a subtle but critically important distinction that trips up many developers.
+
+**SQL is a declarative language.** When you write `SELECT * FROM employees WHERE salary > 50000`, you are declaring _what_ you want — employees with salary over 50k — without specifying _how_ the database should retrieve it. The database engine's query planner decides the execution strategy: whether to use an index, which join algorithm to use, in what order to read tables. You describe the desired outcome, not the steps to achieve it.
+
+**PL/pgSQL is procedural.** When you write a loop in a stored procedure, you are explicitly controlling _how_ things happen — step by step. You decide the order of operations, conditionals, and iterations.
+
+```mermaid
+graph LR
+    A["SQL<br/>Declarative"] -->|You say WHAT| B["Query Planner<br/>decides HOW"]
+    C["PL/pgSQL<br/>Procedural"] -->|You control HOW| D["Step-by-step<br/>execution"]
+```
+
+**Why this matters:** SQL being declarative is why you should not write procedural-style SQL (row-by-row cursor loops) for things that set-based SQL can solve. Set-based SQL is almost always faster because the query planner can optimize it. Save PL/pgSQL loops for when you genuinely need row-by-row logic.
+
+---
+
+## 2. Introduction to PostgreSQL / PL/pgSQL
+
+- **PL/pgSQL** = Procedural Language/PostgreSQL SQL — PostgreSQL's built-in procedural language
+- Extends SQL with procedural features: loops, conditionals, exception handling, and variables
+- Runs inside the PostgreSQL server engine — tightly integrated with SQL
+- Used to write stored procedures, functions, triggers, and custom logic
+- **PostgreSQL** is open-source, ACID-compliant, and supports advanced data types natively
+
+### Types of SQL / Relational Databases
+
+| Database          | Description                                     |
+| ----------------- | ----------------------------------------------- |
+| **PostgreSQL**    | Open-source, advanced object-relational DB      |
+| **MS SQL Server** | Microsoft's enterprise relational DB            |
+| **MySQL**         | Popular open-source DB, widely used in web apps |
+| **Oracle SQL**    | Enterprise-grade DB by Oracle Corporation       |
+| **PL/pgSQL**      | PostgreSQL's built-in procedural extension      |
+
+### PL/pgSQL Block Structure
+
+```mermaid
+flowchart TD
+    A(["Client / Application"]) --> B["DO $$ / CREATE FUNCTION / CREATE PROCEDURE"]
+    B --> C{"DECLARE block<br/>(optional)"}
+    C --> D["Variable declarations<br/>& cursor definitions"]
+    D --> E["BEGIN block<br/>(mandatory)"]
+    C --> E
+    E --> F["SQL statements<br/>PL/pgSQL logic"]
+    F --> G{"Exception<br/>raised?"}
+    G -->|No| H(["END — success"])
+    G -->|Yes| I["EXCEPTION block<br/>(optional)"]
+    I --> J{"WHEN clause<br/>matches?"}
+    J -->|Yes| K["handler runs"]
+    J -->|No| L(["Error propagates<br/>to caller"])
+    K --> H
+    style E fill:#4dabf7,color:#fff
+    style I fill:#ff6b6b,color:#fff
+    style H fill:#69db7c,color:#fff
+    style L fill:#ff6b6b,color:#fff
+```
+
+Every PL/pgSQL program is made up of **blocks**:
+
+```sql
+DO $$
+DECLARE
+  -- variable declarations (optional)
+BEGIN
+  -- executable statements (mandatory)
+EXCEPTION
+  -- error handling (optional)
+END;
+$$;
+```
+
+- **Anonymous Block** – not stored in DB, runs once (wrapped in `DO $$ ... $$;`)
+- **Named Block** – stored as procedures, functions, triggers
+
+### Hello World Example
+
+```sql
+DO $$
+BEGIN
+  RAISE NOTICE 'Hello, World!';
+END;
+$$;
+```
+
+> Messages appear via `RAISE NOTICE` — no additional setup required in psql
+
+### Dollar-Quoting (`$$`)
+
+PL/pgSQL function and procedure bodies are string literals passed to the PostgreSQL parser. You could wrap them in single quotes, but then every single quote _inside_ the body would need to be escaped (`''`). **Dollar-quoting** is a cleaner alternative — the body is delimited by `$$...$$` (or any tag like `$body$...$body$`), and single quotes inside need no escaping.
+
+```sql
+-- Single-quote style (messy — every internal quote must be doubled)
+CREATE FUNCTION example() RETURNS TEXT LANGUAGE plpgsql AS
+'BEGIN RETURN ''hello''; END;';
+
+-- Dollar-quote style (clean — no escaping needed)
+CREATE FUNCTION example() RETURNS TEXT LANGUAGE plpgsql AS
+$$
+BEGIN
+  RETURN 'hello';
+END;
+$$;
+```
+
+The `$$` delimiter can be any identifier surrounded by `$`: `$body$`, `$func$`, `$q$`. All forms work identically — use a unique tag when nested dollar-quoting is required.
+
+---
+
+### SERIAL and GENERATED AS IDENTITY
+
+Every table needs a primary key. In practice, most tables use an **auto-incrementing integer** as the PK. PostgreSQL provides two approaches:
+
+**`SERIAL` (traditional, pre-10):**
+`SERIAL` is syntactic sugar that creates a sequence and sets a default. It is shorthand — `id SERIAL PRIMARY KEY` expands to creating a sequence, setting `DEFAULT nextval(seq)`, and adding `NOT NULL`.
+
+```sql
+CREATE TABLE orders (
+  order_id  SERIAL       PRIMARY KEY,  -- auto-increments: 1, 2, 3 ...
+  customer  VARCHAR(100) NOT NULL
+);
+
+-- SERIAL variants by size:
+-- SMALLSERIAL  → 2-byte integer, max ~32,000
+-- SERIAL       → 4-byte integer, max ~2.1 billion
+-- BIGSERIAL    → 8-byte integer, max ~9.2 quintillion (use for any growing table)
+```
+
+**`GENERATED ALWAYS AS IDENTITY` (SQL-standard, PostgreSQL 10+):**
+The modern, SQL-standard approach. Prevents accidental overrides — `GENERATED ALWAYS` blocks manual inserts of the identity column unless you use `OVERRIDING SYSTEM VALUE`.
+
+```sql
+CREATE TABLE orders (
+  order_id  INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  customer  VARCHAR(100) NOT NULL
+);
+
+-- GENERATED BY DEFAULT allows manual override:
+CREATE TABLE events (
+  event_id  INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  name      TEXT NOT NULL
+);
+
+-- Resetting a sequence (e.g., after bulk delete in dev)
+ALTER SEQUENCE orders_order_id_seq RESTART WITH 1;
+```
+
+**Best practice:** Prefer `GENERATED ALWAYS AS IDENTITY` for new tables. Use `BIGSERIAL` / `BIGINT GENERATED ALWAYS AS IDENTITY` for any table that could grow large — you can never easily change PK type on a large live table.
+
+---
+
+## 3. Data Types
+
+```mermaid
+graph TD
+    DT["PostgreSQL Data Types"]
+    DT --> NUM["Numeric<br/>INTEGER · NUMERIC · FLOAT"]
+    DT --> MON["Monetary<br/>MONEY · NUMERIC(15,2)"]
+    DT --> CHR["Character<br/>CHAR · VARCHAR · TEXT"]
+    DT --> BIN["Binary<br/>BYTEA"]
+    DT --> ENM["Enumerated<br/>ENUM"]
+    DT --> BOL["Boolean<br/>TRUE / FALSE / NULL"]
+    DT --> GEO["Geometric<br/>POINT · LINE · POLYGON"]
+    DT --> DTM["Date / Time<br/>DATE · TIMESTAMP · INTERVAL"]
+    DT --> JSN["Semi-Structured<br/>JSON · JSONB"]
+    DT --> ARR["Arrays<br/>INTEGER[] · TEXT[]"]
+    DT --> SPC["Special<br/>%TYPE · %ROWTYPE"]
+    style DT fill:#4dabf7,color:#fff
+    style NUM fill:#74c0fc
+    style CHR fill:#74c0fc
+    style DTM fill:#74c0fc
+    style JSN fill:#ffa94d,color:#fff
+    style SPC fill:#a9e34b
+```
+
+### Scalar Data Types
+
+| Type            | Description                             |
+| --------------- | --------------------------------------- |
+| `INTEGER`       | Whole numbers                           |
+| `NUMERIC(p, s)` | Exact numeric values (precision, scale) |
+| `VARCHAR(n)`    | Variable-length string up to n chars    |
+| `CHAR(n)`       | Fixed-length string                     |
+| `DATE`          | Date only (no time component)           |
+| `TIMESTAMP`     | Date and time with optional timezone    |
+| `BOOLEAN`       | TRUE / FALSE / NULL (full column type)  |
+| `TEXT`          | Unlimited-length text data              |
+| `BYTEA`         | Binary data                             |
+
+### Data Type Categories
+
+#### 1. Numeric
+
+- **INTEGER** — stores pure whole numbers (e.g., `EmpId INT` → 100, 101)
+- **NUMERIC(P, S)** — stores exact decimal numbers
+
+  - `P` = Precision → total number of digits (both sides of decimal)
+  - `S` = Scale → number of digits **after** the decimal point
+  - Example: `NUMERIC(10, 2)` allows up to 10 total digits with 2 decimal places
+
+  | Value      | Precision (P) | Scale (S) |
+  | ---------- | :-----------: | :-------: |
+  | 100.23     |       5       |     2     |
+  | 2345.98765 |       9       |     5     |
+
+  ```sql
+  DO $$
+  DECLARE
+    v_emp_id  INTEGER := 101;
+    v_salary  NUMERIC(10, 2) := 2345.98;
+  BEGIN
+    RAISE NOTICE 'Emp ID : %', v_emp_id;
+    RAISE NOTICE 'Salary : %', v_salary;
+  END;
+  $$;
+  ```
+
+#### 2. Monetary
+
+- Used for currency values
+- PostgreSQL has a native `MONEY` type, or use `NUMERIC(15, 2)` for full precision control
+
+  ```sql
+  DO $$
+  DECLARE
+    v_price   NUMERIC(15, 2) := 19999.99;
+    v_tax     NUMERIC(15, 2) := v_price * 0.18;  -- 18% GST
+  BEGIN
+    RAISE NOTICE 'Price : %', v_price;
+    RAISE NOTICE 'Tax   : %', v_tax;
+    RAISE NOTICE 'Total : %', (v_price + v_tax);
+  END;
+  $$;
+  ```
+
+#### 3. Character
+
+- **CHAR(n)** — Fixed-length string; always uses `n` characters of storage
+  - e.g., `Emp_Name CHAR(100)` storing `'Prashant'` (8 chars) → **92 spaces padded**
+- **VARCHAR(n)** — Variable-length string; stores only what's needed
+  - e.g., `Emp_Name VARCHAR(100)` storing `'Prashant'` → only **8 chars used**
+- Always enclose `CHAR` / `VARCHAR` values in **single quotes**: `'Prashant'`
+
+  ```sql
+  DO $$
+  DECLARE
+    v_fixed   CHAR(10)      := 'Hi';        -- always 10 chars (space-padded)
+    v_dynamic VARCHAR(100)  := 'Prashant';  -- only 8 chars used
+  BEGIN
+    RAISE NOTICE 'CHAR   : %', v_fixed;
+    RAISE NOTICE 'VARCHAR: %', v_dynamic;
+  END;
+  $$;
+  ```
+
+#### 4. Binary
+
+- Stores data in byte format (images, files, etc.)
+- Primary type: `BYTEA` (byte array) — PostgreSQL's native binary storage type
+
+  ```sql
+  -- Declaring a BYTEA variable to hold binary data (e.g., an image)
+  DO $$
+  DECLARE
+    v_image  BYTEA;
+  BEGIN
+    -- In real use, BYTEA is loaded from a file or table column
+    RAISE NOTICE 'BYTEA variable declared successfully.';
+  END;
+  $$;
+  ```
+
+#### 5. Enumerated
+
+- A fixed set of named values
+- Example: `CREATE TYPE sport_type AS ENUM ('Tennis', 'Cricket', 'Volleyball', 'Basketball')`
+- PostgreSQL natively supports ENUM types via `CREATE TYPE ... AS ENUM`
+
+  ```sql
+  -- Creating a native ENUM type in PostgreSQL
+  CREATE TYPE sport_type AS ENUM ('Tennis', 'Cricket', 'Volleyball', 'Basketball');
+
+  CREATE TABLE Player (
+    player_id  INTEGER,
+    sport      sport_type
+  );
+
+  -- Valid insert
+  INSERT INTO Player VALUES (1, 'Cricket');
+
+  -- This will throw an error (value not in allowed list)
+  INSERT INTO Player VALUES (2, 'Football');
+  ```
+
+#### 6. Boolean
+
+- Holds `TRUE`, `FALSE`, or `NULL`
+- Equivalent to `1 / 0` in some contexts
+- **Note:** `BOOLEAN` is a **full column type** in PostgreSQL — usable in both PL/pgSQL code and table definitions
+
+  ```sql
+  DO $$
+  DECLARE
+    v_is_active  BOOLEAN := TRUE;
+  BEGIN
+    IF v_is_active THEN
+      RAISE NOTICE 'Employee is active.';
+    ELSE
+      RAISE NOTICE 'Employee is inactive.';
+    END IF;
+  END;
+  $$;
+  ```
+
+#### 7. Geometric
+
+- Used to represent spatial/geometric data
+- PostgreSQL has **built-in geometric types**: `POINT`, `LINE`, `LSEG`, `BOX`, `PATH`, `POLYGON`, `CIRCLE`
+- No extension required — geometric types are part of PostgreSQL core
+
+  ```sql
+  -- Creating a table with a native PostgreSQL POINT column
+  CREATE TABLE locations (
+    loc_id  INTEGER,
+    shape   POINT         -- native PostgreSQL geometric type
+  );
+
+  -- Storing a point (longitude, latitude) — Bangalore coordinates
+  INSERT INTO locations (loc_id, shape)
+  VALUES (1, POINT(77.5946, 12.9716));
+  ```
+
+#### 8. Date / Time
+
+- **DATE** — stores date only (no time) in PostgreSQL
+- **TIMESTAMP** — stores date + time; use `TIMESTAMP WITH TIME ZONE` for timezone-aware values
+- **INTERVAL** — stores a duration (e.g., `INTERVAL '2 years 3 months'`)
+
+  ```sql
+  DO $$
+  DECLARE
+    v_today      DATE        := CURRENT_DATE;
+    v_ts         TIMESTAMP   := CURRENT_TIMESTAMP;
+    v_join_date  DATE        := TO_DATE('01-JAN-2025', 'DD-MON-YYYY');
+  BEGIN
+    RAISE NOTICE 'Today      : %', TO_CHAR(v_today, 'DD-MON-YYYY');
+    RAISE NOTICE 'Timestamp  : %', TO_CHAR(v_ts, 'DD-MON-YYYY HH24:MI:SS.US');
+    RAISE NOTICE 'Join Date  : %', TO_CHAR(v_join_date, 'DD-MON-YYYY');
+    RAISE NOTICE 'Days Since Join: %', (v_today - v_join_date);
+  END;
+  $$;
+  ```
+
+### %TYPE and %ROWTYPE
+
+- `%TYPE` — variable inherits the data type of a specific **column**
+- `%ROWTYPE` — variable inherits the structure of an entire **table row**
+- Benefit: if the column type changes in the table, your code adapts automatically
+
+```sql
+-- %TYPE example: match salary column's data type
+DO $$
+DECLARE
+  v_sal  employees.salary%TYPE;   -- same type as employees.salary
+BEGIN
+  SELECT salary INTO v_sal
+  FROM employees
+  WHERE employee_id = 101;
+
+  RAISE NOTICE 'Salary: %', v_sal;
+END;
+$$;
+
+-- %ROWTYPE example: fetch an entire row at once
+DO $$
+DECLARE
+  v_emp  employees%ROWTYPE;       -- holds all columns of employees table
+BEGIN
+  SELECT * INTO v_emp
+  FROM employees
+  WHERE employee_id = 101;
+
+  RAISE NOTICE 'Name  : % %', v_emp.first_name, v_emp.last_name;
+  RAISE NOTICE 'Salary: %', v_emp.salary;
+  RAISE NOTICE 'Dept  : %', v_emp.department_id;
+END;
+$$;
+```
+
+---
+
+## 4. Variables & Constants
+
+```mermaid
+flowchart LR
+    A(["DECLARE block"]) --> B["Declare variable<br/>name · type"]
+    B --> C{"Initialized?"}
+    C -->|":= value or DEFAULT"| D["Has initial value"]
+    C -->|"Not specified"| E["NULL by default"]
+    D --> F["BEGIN block"]
+    E --> F
+    F --> G{"CONSTANT?"}
+    G -->|"Yes"| H["Read-only<br/>Cannot reassign"]
+    G -->|"No"| I["Assignable<br/>v_name := 'Alice'"]
+    H --> J(["Used in statements"])
+    I --> J
+    style A fill:#4dabf7,color:#fff
+    style H fill:#ff6b6b,color:#fff
+    style I fill:#69db7c,color:#fff
+```
+
+### Syntax
+
+```sql
+variable_name  data_type;                           -- uninitialized (NULL by default)
+variable_name  data_type := initial_value;          -- initialized with :=
+variable_name  data_type DEFAULT initial_value;     -- alternate init syntax
+variable_name  CONSTANT data_type := value;         -- read-only constant
+variable_name  table_name.column_name%TYPE;         -- type anchored to a table column
+```
+
+### Examples
+
+**Basic declaration, initialization, and assignment:**
+
+```sql
+DO $$
+DECLARE
+  v_name    VARCHAR(50)    := 'Alice';        -- declared and initialized
+  v_age     INTEGER        := 25;             -- integer variable
+  v_salary  NUMERIC(10, 2);                   -- uninitialized → NULL
+  v_pi      CONSTANT NUMERIC := 3.14159;      -- read-only constant
+  v_active  BOOLEAN        := TRUE;
+BEGIN
+  v_salary := 75000.00;                       -- assigned in BEGIN block
+  RAISE NOTICE 'Name   : %', v_name;
+  RAISE NOTICE 'Age    : %', v_age;
+  RAISE NOTICE 'Salary : %', v_salary;
+  RAISE NOTICE 'Pi     : %', v_pi;
+  RAISE NOTICE 'Active : %', v_active;
+END;
+$$;
+```
+
+**NULL check and DEFAULT value:**
+
+```sql
+DO $$
+DECLARE
+  v_discount  NUMERIC := NULL;
+  v_label     TEXT    DEFAULT 'N/A';
+BEGIN
+  IF v_discount IS NULL THEN
+    RAISE NOTICE 'No discount applied. Label: %', v_label;
+  END IF;
+END;
+$$;
+```
+
+**Type-anchored variable (adapts automatically if the column type ever changes):**
+
+```sql
+DO $$
+DECLARE
+  v_emp_name  employees.first_name%TYPE;  -- same type as first_name column
+  v_emp_sal   employees.salary%TYPE;      -- same type as salary column
+BEGIN
+  SELECT first_name, salary INTO v_emp_name, v_emp_sal
+  FROM employees WHERE employee_id = 101;
+  RAISE NOTICE 'Employee: %, Salary: %', v_emp_name, v_emp_sal;
+END;
+$$;
+```
+
+> - Variables are declared in the `DECLARE` block, before `BEGIN`
+> - Use `:=` or `DEFAULT` for initialization; `:=` is preferred in PL/pgSQL
+> - `CONSTANT` variables are read-only — attempting to reassign them raises an error
+> - Uninitialized variables default to `NULL`
+
+---
+
+## 5. Languages in PostgreSQL
+
+```mermaid
+graph TD
+    SQL["SQL Languages in PostgreSQL"]
+    SQL --> DDL["DDL — Data Definition Language<br/>CREATE · ALTER · DROP · TRUNCATE"]
+    SQL --> DML["DML — Data Manipulation Language<br/>INSERT · UPDATE · DELETE · MERGE"]
+    SQL --> DQL["DQL — Data Query Language<br/>SELECT"]
+    SQL --> DCL["DCL — Data Control Language<br/>GRANT · REVOKE"]
+    SQL --> TCL["TCL — Transaction Control Language<br/>BEGIN · COMMIT · ROLLBACK · SAVEPOINT"]
+    DDL --> S["Affects STRUCTURE<br/>(schema-level)"]
+    DML --> D["Affects DATA<br/>(row-level)"]
+    DQL --> R["Retrieves DATA<br/>(read-only)"]
+    DCL --> P["Controls PERMISSIONS<br/>(immediate effect)"]
+    TCL --> T["Groups DML into<br/>atomic units"]
+    style DDL fill:#4dabf7,color:#fff
+    style DML fill:#ffa94d,color:#fff
+    style DQL fill:#69db7c,color:#000
+    style DCL fill:#da77f2,color:#fff
+    style TCL fill:#ff6b6b,color:#fff
+```
+
+### DDL - Data Definition Language
+
+- Defines and manages database **objects**: databases, tables, views, indexes, triggers, functions, etc.
+- Operates on the **structure** of data (schema-level changes)
+- DDL commands in PostgreSQL are **transactional** — they can be rolled back within a transaction block
+
+#### CREATE
+
+**Syntax:**
+
+```sql
+CREATE DATABASE database_name;
+
+CREATE TABLE [IF NOT EXISTS] table_name (
+  column1  datatype  [CONSTRAINT],
+  column2  datatype  [CONSTRAINT],
+  ...
+);
+```
+
+**Example:**
+
+```sql
+-- Create a database
+CREATE DATABASE company_db;
+
+-- Create a table with constraints
+CREATE TABLE employee_details (
+  id      INTEGER        PRIMARY KEY,
+  name    VARCHAR(100)   NOT NULL,
+  salary  NUMERIC(10, 2) DEFAULT 0.00
+);
+
+-- Create only if it doesn't already exist
+CREATE TABLE IF NOT EXISTS employee_details (
+  id      INTEGER,
+  name    VARCHAR(100),
+  salary  NUMERIC(10, 2)
+);
+```
+
+> **Table naming rules in PostgreSQL:**
+>
+> 1. Names may consist of letters, digits, and underscores
+> 2. Identifiers are **case-insensitive** by default — `Employee` = `employee`
+> 3. Use double-quotes to preserve exact case: `"Employee"`
+> 4. SQL reserved keywords (e.g., `select`, `table`) must be quoted if used as names
+> 5. A table must have at least one column
+
+#### ALTER
+
+**Syntax & Examples:**
+
+```sql
+-- Modify a column's data type
+ALTER TABLE employee_details ALTER COLUMN name TYPE CHAR(100);
+ALTER TABLE employee_details ALTER COLUMN name TYPE VARCHAR(200);
+
+-- Add a new column
+ALTER TABLE employee_details ADD COLUMN address VARCHAR(100);
+
+-- Rename a column
+ALTER TABLE employee_details RENAME COLUMN address TO emp_address;
+
+-- Drop a column
+ALTER TABLE employee_details DROP COLUMN emp_address;
+
+-- Rename the table itself
+ALTER TABLE employee_details RENAME TO employees;
+
+-- Add a constraint
+ALTER TABLE employees ADD CONSTRAINT chk_salary CHECK (salary >= 0);
+```
+
+#### TRUNCATE
+
+**Syntax:**
+
+```sql
+TRUNCATE TABLE table_name;
+TRUNCATE TABLE table_name RESTART IDENTITY;  -- also resets auto-increment sequences
+```
+
+**Example:**
+
+```sql
+TRUNCATE TABLE employee_details;
+```
+
+> Removes **all rows** but keeps the table structure intact. Faster than `DELETE` for full clears.
+
+#### DROP
+
+**Syntax:**
+
+```sql
+DROP TABLE [IF EXISTS] table_name;
+DROP DATABASE [IF EXISTS] database_name;
+```
+
+**Example:**
+
+```sql
+DROP TABLE IF EXISTS employee_details;
+DROP DATABASE IF EXISTS company_db;
+```
+
+> `DROP` **permanently deletes** the table and all its data. Use `IF EXISTS` to avoid errors if the object doesn't exist.
+
+### DML - Data Manipulation Language
+
+- Manipulates the **data** (rows) inside tables
+- DML commands are **transactional** — changes can be rolled back before `COMMIT`
+
+#### INSERT
+
+**Syntax:**
+
+```sql
+INSERT INTO table_name VALUES (val1, val2, ...);
+INSERT INTO table_name (col1, col2, ...) VALUES (val1, val2, ...);
+```
+
+**Examples:**
+
+```sql
+-- Insert into all columns (order must match table definition)
+INSERT INTO employee_details VALUES (1, 'Prashant', 10000.00);
+
+-- Insert into specific columns (recommended — column-order independent)
+INSERT INTO employee_details (id, name, salary) VALUES (2, 'Pretti', 20000.00);
+
+-- Insert multiple rows at once
+INSERT INTO employee_details (id, name, salary) VALUES
+  (3, 'Ravi',   35000.00),
+  (4, 'Anjali', 42000.00),
+  (5, 'Suresh', 28000.00);
+```
+
+#### UPDATE
+
+**Syntax:**
+
+```sql
+UPDATE table_name
+SET    column1 = value1 [, column2 = value2 ...]
+WHERE  condition;
+```
+
+**Examples:**
+
+```sql
+-- Update a single field
+UPDATE employee_details SET name = 'Prash' WHERE id = 1;
+
+-- Update multiple fields at once
+UPDATE employee_details SET name = 'Prash', salary = 15000.00 WHERE id = 1;
+
+-- Update all rows (no WHERE — use with caution!)
+UPDATE employee_details SET salary = salary * 1.10;
+```
+
+#### DELETE
+
+**Syntax:**
+
+```sql
+DELETE FROM table_name WHERE condition;
+```
+
+**Examples:**
+
+```sql
+-- Delete a specific row
+DELETE FROM employee_details WHERE id = 1;
+
+-- Delete rows matching a condition
+DELETE FROM employee_details WHERE salary < 5000;
+
+-- Delete all rows (keeps the table — unlike TRUNCATE, this is transactional)
+DELETE FROM employee_details;
+```
+
+#### MERGE (Upsert / Conditional DML — PostgreSQL 15+)
+
+**What it is:** `MERGE` combines INSERT, UPDATE, and DELETE into a single statement based on whether a source row matches a target row. A true SQL-standard upsert.
+
+**Syntax:**
+
+```sql
+MERGE INTO target_table AS t
+USING source_table AS s
+ON    t.key_column = s.key_column
+WHEN MATCHED THEN
+  UPDATE SET t.col1 = s.col1, t.col2 = s.col2
+WHEN NOT MATCHED THEN
+  INSERT (col1, col2) VALUES (s.col1, s.col2)
+WHEN MATCHED AND s.status = 'deleted' THEN
+  DELETE;
+```
+
+**Example — sync a staging table into production:**
+
+```sql
+MERGE INTO employees AS target
+USING staging_employees AS source
+ON    target.employee_id = source.employee_id
+WHEN MATCHED THEN
+  UPDATE SET
+    first_name = source.first_name,
+    salary     = source.salary
+WHEN NOT MATCHED THEN
+  INSERT (employee_id, first_name, salary)
+  VALUES (source.employee_id, source.first_name, source.salary);
+```
+
+> **Note:** For PostgreSQL < 15, use `INSERT ... ON CONFLICT` (covered in Section 12 — Built-in Functions → UPSERT) which provides similar functionality.
+
+#### SELECT Syntax
+
+```sql
+SELECT column1, column2, ...    -- or * for all columns
+FROM   table_name
+[JOIN  other_table ON condition]
+[WHERE condition]
+[GROUP BY column]
+[HAVING group_condition]
+[ORDER BY column [ASC | DESC]]
+[LIMIT  n]
+[OFFSET n];
+```
+
+#### Examples
+
+```sql
+-- All columns, all rows
+SELECT * FROM employee_details;
+
+-- Specific columns only
+SELECT id, name FROM employee_details;
+
+-- Filter with WHERE
+SELECT * FROM employee_details WHERE id = 1;
+SELECT * FROM employee_details WHERE salary > 20000;
+
+-- Pattern matching with LIKE
+SELECT * FROM employee_details WHERE name LIKE 'Pr%';   -- starts with 'Pr'
+SELECT * FROM employee_details WHERE name LIKE '%ant';  -- ends with 'ant'
+
+-- Sort results
+SELECT * FROM employee_details ORDER BY salary DESC;
+SELECT * FROM employee_details ORDER BY name ASC, salary DESC;
+
+-- Limit rows (useful for pagination)
+SELECT * FROM employee_details ORDER BY id LIMIT 10 OFFSET 20;
+
+-- Column aliases
+SELECT name AS employee_name, salary AS monthly_pay
+FROM employee_details;
+
+-- Aggregate functions
+SELECT COUNT(*)    AS total_employees FROM employee_details;
+SELECT MAX(salary) AS highest_salary  FROM employee_details;
+SELECT MIN(salary) AS lowest_salary   FROM employee_details;
+SELECT AVG(salary) AS average_salary  FROM employee_details;
+SELECT SUM(salary) AS total_payroll   FROM employee_details;
+
+-- GROUP BY with HAVING
+SELECT   department_id, COUNT(*) AS headcount
+FROM     employees
+GROUP BY department_id
+HAVING   COUNT(*) > 5
+ORDER BY headcount DESC;
+
+-- INNER JOIN
+SELECT e.name, d.department_name
+FROM   employee_details e
+JOIN   departments d ON e.department_id = d.id;
+
+-- LEFT JOIN (include employees even if they have no department)
+SELECT e.name, d.department_name
+FROM   employee_details e
+LEFT JOIN departments d ON e.department_id = d.id;
+
+-- Subquery
+SELECT name, salary
+FROM   employee_details
+WHERE  salary = (SELECT MAX(salary) FROM employee_details);
+```
+
+### DCL - Data Control Language
+
+- Controls **access permissions** on database objects (tables, schemas, functions, etc.)
+- Changes take effect **immediately** — no `COMMIT` required
+
+#### GRANT
+
+**Syntax:**
+
+```sql
+GRANT privilege [, privilege ...]
+ON    object
+TO    user_or_role;
+```
+
+**Examples:**
+
+```sql
+-- Grant SELECT to a specific user
+GRANT SELECT ON employee_details TO john;
+
+-- Grant multiple privileges to a role
+GRANT SELECT, INSERT, UPDATE ON employee_details TO hr_staff;
+
+-- Grant all privileges
+GRANT ALL PRIVILEGES ON employee_details TO admin_user;
+
+-- Grant on all tables in a schema
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_user;
+
+-- Grant schema usage
+GRANT USAGE ON SCHEMA hr_pkg TO john;
+```
+
+#### REVOKE
+
+**Syntax:**
+
+```sql
+REVOKE privilege [, privilege ...]
+ON     object
+FROM   user_or_role;
+```
+
+**Examples:**
+
+```sql
+-- Revoke SELECT from a user
+REVOKE SELECT ON employee_details FROM john;
+
+-- Revoke all privileges
+REVOKE ALL PRIVILEGES ON employee_details FROM hr_staff;
+
+-- Revoke schema usage
+REVOKE USAGE ON SCHEMA hr_pkg FROM john;
+```
+
+### TCL - Transaction Control Language
+
+- Groups DML statements into a **transaction** — treated as a single all-or-nothing unit of work
+- Ensures **ACID** properties (Atomicity, Consistency, Isolation, Durability)
+
+#### Commands Summary
+
+| Command                      | Description                                       |
+| ---------------------------- | ------------------------------------------------- |
+| `BEGIN`                      | Start a new transaction block                     |
+| `COMMIT`                     | Save all changes made within the transaction      |
+| `ROLLBACK`                   | Undo all changes made since `BEGIN`               |
+| `SAVEPOINT name`             | Set a named checkpoint within the transaction     |
+| `ROLLBACK TO SAVEPOINT name` | Undo changes back to the savepoint only           |
+| `RELEASE SAVEPOINT name`     | Remove the savepoint (changes before it are kept) |
+
+#### ROLLBACK — Undo changes
+
+```sql
+BEGIN;
+
+  DELETE FROM employee_details WHERE id = 1;
+  SELECT * FROM employee_details;     -- row 1 appears gone (within this transaction)
+
+ROLLBACK;
+
+SELECT * FROM employee_details;       -- row 1 is restored
+```
+
+#### COMMIT — Persist changes permanently
+
+```sql
+BEGIN;
+
+  DELETE FROM employee_details WHERE id = 1;
+  UPDATE employee_details SET salary = salary * 1.10 WHERE id = 2;
+
+COMMIT;
+
+SELECT * FROM employee_details;       -- changes are now permanent
+```
+
+#### SAVEPOINT — Partial rollback within a transaction
+
+```sql
+BEGIN;
+
+  INSERT INTO employee_details VALUES (10, 'Test1', 5000.00);
+  SAVEPOINT sp1;                          -- checkpoint after first insert
+
+  INSERT INTO employee_details VALUES (11, 'Test2', 6000.00);
+  ROLLBACK TO SAVEPOINT sp1;              -- undo only the second insert
+
+  INSERT INTO employee_details VALUES (12, 'Test3', 7000.00);
+
+COMMIT;
+
+-- Result: rows 10 and 12 are committed; row 11 was rolled back
+```
+
+---
+
+## 6. Types of Operators
+
+- An **operator** is a symbol that tells PostgreSQL to perform a specific operation on one or more values
+- Operators are used in `SELECT`, `WHERE`, `UPDATE`, `DELETE`, and expressions throughout SQL
+
+```mermaid
+graph LR
+    OP["Operators"]
+    OP --> AR["Arithmetic<br/>+ - * / %"]
+    OP --> CM["Comparison<br/>= > < >= <= != <>"]
+    OP --> LG["Logical<br/>AND · OR · NOT"]
+    OP --> SP["Special<br/>IN · BETWEEN · LIKE<br/>IS NULL · IS NOT NULL"]
+    OP --> ST["Set<br/>UNION · INTERSECT<br/>EXCEPT"]
+    AR --> EX1["salary * 1.1"]
+    CM --> EX2["salary > 50000"]
+    LG --> EX3["dept='IT' AND age>30"]
+    SP --> EX4["salary BETWEEN 30k AND 70k"]
+    ST --> EX5["SELECT uk<br/>UNION<br/>SELECT usa"]
+    style OP fill:#4dabf7,color:#fff
+```
+
+### Operator Categories Overview
+
+| Category   | Operators                                                                              |
+| ---------- | -------------------------------------------------------------------------------------- |
+| Arithmetic | `+`, `-`, `*`, `/`, `%`                                                                |
+| Assignment | `=` (in `SET` clause of `UPDATE`)                                                      |
+| Comparison | `=`, `>`, `<`, `>=`, `<=`, `!=` / `<>`                                                 |
+| Logical    | `AND`, `OR`, `NOT`                                                                     |
+| Special    | `IN`, `NOT IN`, `BETWEEN`, `NOT BETWEEN`, `LIKE`, `NOT LIKE`, `IS NULL`, `IS NOT NULL` |
+| Set        | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`                                            |
+
+---
+
+#### Setup — Sample Table
+
+```sql
+CREATE TABLE employee (
+  id         INTEGER,
+  name       VARCHAR(30),
+  department VARCHAR(30),
+  salary     INTEGER,
+  gender     VARCHAR(10),
+  age        INTEGER,
+  city       VARCHAR(30)
+);
+
+INSERT INTO employee VALUES
+  (1, 'Rizwan',  'IT',      10000, 'Male', 35, 'Hyderabad'),
+  (2, 'Adari',   'HR',      20000, 'Male', 34, 'Mumbai'),
+  (3, 'Akash',   'Finance', 30000, 'Male', 33, 'Bangalore'),
+  (4, 'Khurram', 'IT',      40000, 'Male', 32, 'Hyderabad'),
+  (5, 'Sagar',   'HR',      50000, 'Male', 31, 'Mumbai'),
+  (6, 'Vaibhav', 'Finance', 60000, 'Male', 34, 'Bangalore'),
+  (7, 'Zack',    'IT',      70000, 'Male', 32, 'Hyderabad');
+```
+
+---
+
+### Arithmetic Operators
+
+**Operators:** `+` (add), `-` (subtract), `*` (multiply), `/` (divide), `%` (modulo)
+
+**Syntax:**
+
+```sql
+SELECT expression AS alias FROM table_name;
+```
+
+**Examples:**
+
+```sql
+-- Add 10,000 to each salary (display only, does not update)
+SELECT id, name, salary, salary + 10000 AS increased_salary FROM employee;
+
+-- Double every salary
+SELECT id, name, salary, salary * 2 AS doubled_salary FROM employee;
+
+-- Remaining after division
+SELECT id, name, salary, salary % 3000 AS remainder FROM employee;
+
+-- Calculate annual salary
+SELECT id, name, salary * 12 AS annual_salary FROM employee;
+```
+
+---
+
+### Comparison / Relational Operators
+
+**Operators:** `=`, `>`, `<`, `>=`, `<=`, `!=` (or `<>`)
+
+**Syntax:**
+
+```sql
+SELECT * FROM table_name WHERE column operator value;
+```
+
+**Examples:**
+
+```sql
+-- Equal to
+SELECT * FROM employee WHERE id = 1;
+
+-- Greater than
+SELECT * FROM employee WHERE salary > 30000;
+
+-- Less than or equal to
+SELECT * FROM employee WHERE salary <= 30000;
+
+-- Not equal to
+SELECT * FROM employee WHERE salary != 30000;
+SELECT * FROM employee WHERE salary <> 30000;   -- alternate syntax
+```
+
+---
+
+### Logical Operators
+
+**Operators:** `AND`, `OR`, `NOT`
+
+| Operator | Description                         |
+| -------- | ----------------------------------- |
+| `AND`    | Both conditions must be true        |
+| `OR`     | At least one condition must be true |
+| `NOT`    | Reverses / negates the condition    |
+
+**Examples:**
+
+```sql
+-- AND: department is IT AND gender is Male
+SELECT * FROM employee WHERE department = 'IT' AND gender = 'Male';
+
+-- AND: department is IT AND age is 35
+SELECT * FROM employee WHERE department = 'IT' AND age = 35;
+
+-- OR: department is IT OR age is 35
+SELECT * FROM employee WHERE department = 'IT' OR age = 35;
+
+-- NOT: employees not in Hyderabad
+SELECT * FROM employee WHERE NOT city = 'Hyderabad';
+SELECT * FROM employee WHERE city != 'Hyderabad';    -- equivalent
+
+-- Combined: salary range AND city is not Bangalore
+SELECT * FROM employee
+WHERE (salary >= 30000 AND salary <= 70000)
+  AND city != 'Bangalore';
+```
+
+---
+
+### Special Operators
+
+#### IN / NOT IN
+
+**Syntax:**
+
+```sql
+column IN (val1, val2, ...)
+column NOT IN (val1, val2, ...)
+```
+
+**Examples:**
+
+```sql
+-- Employees in IT or HR department
+SELECT * FROM employee WHERE department IN ('IT', 'HR');
+
+-- Employees NOT in IT or HR
+SELECT * FROM employee WHERE department NOT IN ('IT', 'HR');
+
+-- Delete employees with id 1, 2, or 3
+DELETE FROM employee WHERE id IN (1, 2, 3);
+
+-- Update salaries for employees aged 33 or 34
+UPDATE employee SET salary = salary + 10000 WHERE age IN (33, 34);
+```
+
+#### BETWEEN / NOT BETWEEN
+
+**Syntax:**
+
+```sql
+column BETWEEN lower_value AND upper_value
+column NOT BETWEEN lower_value AND upper_value
+```
+
+> Note: Range is **inclusive** and the lower value must come first.
+
+**Examples:**
+
+```sql
+-- Salary between 30k and 70k (inclusive)
+SELECT * FROM employee WHERE salary BETWEEN 30000 AND 70000;
+
+-- Salary outside that range
+SELECT * FROM employee WHERE salary NOT BETWEEN 30000 AND 70000;
+
+-- Age between 30 and 35
+SELECT * FROM employee WHERE age BETWEEN 30 AND 35;
+```
+
+#### LIKE / NOT LIKE
+
+**Syntax:**
+
+```sql
+column LIKE 'pattern'
+column NOT LIKE 'pattern'
+```
+
+| Wildcard | Meaning                    |
+| -------- | -------------------------- |
+| `%`      | Any sequence of characters |
+| `_`      | Any single character       |
+
+**Examples:**
+
+```sql
+-- Names starting with 'A'
+SELECT * FROM employee WHERE name LIKE 'A%';
+
+-- Names ending with 'h'
+SELECT * FROM employee WHERE name LIKE '%h';
+
+-- Names containing 'a' anywhere
+SELECT * FROM employee WHERE name LIKE '%a%';
+
+-- Names where the second character is 'a'
+SELECT * FROM employee WHERE name LIKE '_a%';
+
+-- Names NOT starting with 'A'
+SELECT * FROM employee WHERE name NOT LIKE 'A%';
+```
+
+#### IS NULL / IS NOT NULL
+
+```sql
+-- Find employees with no city recorded
+SELECT * FROM employee WHERE city IS NULL;
+
+-- Find employees who have a city recorded
+SELECT * FROM employee WHERE city IS NOT NULL;
+```
+
+---
+
+### Set Operators
+
+Set operators combine results of two or more `SELECT` statements. Both queries must return the **same number of columns** with **compatible data types**.
+
+| Operator    | Description                                                      |
+| ----------- | ---------------------------------------------------------------- |
+| `UNION`     | Combines results, returns **distinct** rows only                 |
+| `UNION ALL` | Combines results, keeps **all rows including duplicates**        |
+| `INTERSECT` | Returns rows that appear in **both** result sets                 |
+| `EXCEPT`    | Returns rows in the **first** set that are **not** in the second |
+
+**Setup:**
+
+```sql
+CREATE TABLE employee_uk (
+  employee_id INTEGER, first_name VARCHAR(20), last_name VARCHAR(20),
+  gender VARCHAR(10), department VARCHAR(20)
+);
+INSERT INTO employee_uk VALUES
+  (1,'Pranaya','Rout','Male','IT'),   (2,'Priyanka','Dewangan','Female','IT'),
+  (3,'Preety','Tiwary','Female','HR'),(4,'Subrat','Sahoo','Male','HR'),
+  (5,'Anurag','Mohanty','Male','IT'), (6,'Rajesh','Pradhan','Male','HR'),
+  (7,'Hina','Sharma','Female','IT');
+
+CREATE TABLE employee_usa (
+  employee_id INTEGER, first_name VARCHAR(20), last_name VARCHAR(20),
+  gender VARCHAR(10), department VARCHAR(20)
+);
+INSERT INTO employee_usa VALUES
+  (1,'James','Pattrick','Male','IT'),  (2,'Priyanka','Dewangan','Female','IT'),
+  (3,'Sara','Taylor','Female','HR'),   (4,'Subrat','Sahoo','Male','HR'),
+  (5,'Sushanta','Jena','Male','HR'),   (6,'Mahesh','Sindhey','Female','HR'),
+  (7,'Hina','Sharma','Female','IT');
+```
+
+**Examples:**
+
+```sql
+-- UNION: unique employees from both offices
+SELECT * FROM employee_uk
+UNION
+SELECT * FROM employee_usa;
+
+-- UNION ALL: all employees including duplicates
+SELECT * FROM employee_uk
+UNION ALL
+SELECT * FROM employee_usa;
+
+-- INTERSECT: employees who work in BOTH offices
+SELECT * FROM employee_uk
+INTERSECT
+SELECT * FROM employee_usa;
+
+-- EXCEPT: employees only in UK office (not in USA)
+SELECT * FROM employee_uk
+EXCEPT
+SELECT * FROM employee_usa;
+```
+
+---
+
+## 7. Types of Constraints
+
+```mermaid
+graph TD
+    C["Constraints"]
+    C --> PK["PRIMARY KEY<br/>Unique + NOT NULL<br/>Auto-creates index"]
+    C --> FK["FOREIGN KEY<br/>Referential integrity<br/>ON DELETE CASCADE/SET NULL"]
+    C --> NN["NOT NULL<br/>Column must have a value"]
+    C --> UQ["UNIQUE<br/>No duplicate values<br/>Allows multiple NULLs"]
+    C --> CK["CHECK<br/>Custom boolean rule<br/>e.g. salary >= 0"]
+    C --> DF["DEFAULT<br/>Fallback value<br/>e.g. CURRENT_TIMESTAMP"]
+    C --> EX["EXCLUSION<br/>No overlapping ranges<br/>Requires GiST index"]
+    PK --> T1["employees.employee_id"]
+    FK --> T2["employees.dept_id<br/>→ departments.id"]
+    EX --> T3["Room bookings<br/>no overlapping dates"]
+    style PK fill:#ff6b6b,color:#fff
+    style FK fill:#ffa94d,color:#fff
+    style UQ fill:#74c0fc,color:#000
+    style EX fill:#da77f2,color:#fff
+```
+
+### What is a Constraint?
+
+A **constraint** is a rule enforced on a table column (or a group of columns) to ensure the **accuracy, validity, and integrity** of the data stored in the database.
+
+- Constraints are set at the **schema level** — the database itself rejects any INSERT, UPDATE, or DELETE that would violate them
+- They can be defined **inline** (next to the column definition) or as a **table-level** declaration at the end of `CREATE TABLE`
+- Most constraints can also be added to, or removed from, an existing table using `ALTER TABLE`
+- PostgreSQL supports **named constraints** (using `CONSTRAINT constraint_name ...`) which makes it easier to identify and drop them later
+
+**Two levels of constraint definition:**
+
+```
+Column-level  → defined beside a single column  → applies to that column only
+Table-level   → defined after all columns       → can span multiple columns (composite)
+```
+
+### Constraints Overview
+
+| Constraint    | Purpose                                                      |         Allows NULL?         |
+| ------------- | ------------------------------------------------------------ | :--------------------------: |
+| `PRIMARY KEY` | Uniquely identifies every row                                |              No              |
+| `FOREIGN KEY` | Links a column to a row in another table                     |       Yes (by default)       |
+| `NOT NULL`    | Column must always have a value                              |              No              |
+| `UNIQUE`      | All values in the column must be distinct                    | Yes (multiple NULLs allowed) |
+| `CHECK`       | Value must satisfy a custom boolean expression               |             Yes              |
+| `DEFAULT`     | Provides a fallback value when none is supplied              |             Yes              |
+| `EXCLUSION`   | No two rows may overlap according to a given operator (GiST) |             Yes              |
+
+---
+
+### PRIMARY KEY
+
+#### Theory
+
+- A **primary key** is the **unique identifier** for each row in a table
+- It combines two rules: the value must be **unique** across all rows AND it must **never be NULL**
+- Every table should have exactly **one** primary key (PostgreSQL enforces this)
+- Internally, PostgreSQL automatically creates a **unique B-tree index** on the primary key column(s) for fast lookups
+- A primary key can be **single-column** (simple) or **multi-column** (composite) — a composite PK is used when no single column uniquely identifies a row, but a _combination_ of columns does
+
+**Real-world analogy:** Think of it like an Aadhaar number or Employee ID — no two people can share the same one, and everyone must have one.
+
+#### Syntax
+
+```sql
+-- Inline (column-level)
+column_name datatype PRIMARY KEY
+
+-- Table-level (required for composite PKs)
+CONSTRAINT constraint_name PRIMARY KEY (column1 [, column2 ...])
+```
+
+#### Example
+
+```sql
+-- Simple primary key
+CREATE TABLE employees (
+  employee_id  INTEGER      PRIMARY KEY,
+  first_name   VARCHAR(50)  NOT NULL,
+  last_name    VARCHAR(50)  NOT NULL
+);
+
+-- Composite primary key — neither order_id nor product_id alone is unique,
+-- but the combination of both is
+CREATE TABLE order_items (
+  order_id    INTEGER,
+  product_id  INTEGER,
+  quantity    INTEGER,
+  CONSTRAINT pk_order_items PRIMARY KEY (order_id, product_id)
+);
+
+-- Add primary key to an existing table
+ALTER TABLE employees ADD CONSTRAINT pk_emp PRIMARY KEY (employee_id);
+```
+
+> - A table can have only **one** primary key
+> - Automatically creates a unique index — no need to create one manually
+> - For auto-incrementing IDs, use `SERIAL` or `GENERATED ALWAYS AS IDENTITY`
+
+---
+
+### FOREIGN KEY
+
+#### Theory
+
+- A **foreign key** (FK) links a column in one table (the **child table**) to the **primary key** (or unique key) of another table (the **parent / referenced table**)
+- It enforces **referential integrity** — you cannot insert a value in the FK column that doesn't exist in the parent table, and you cannot delete a parent row that still has child rows pointing to it (unless a delete action is specified)
+- This is how relational databases model **relationships between entities** (e.g., an Employee _belongs to_ a Department)
+
+**Real-world analogy:** A `department_id` column in the `employees` table must refer to a real department that actually exists in the `departments` table. You can't assign an employee to a department that doesn't exist.
+
+**ON DELETE behaviour options:**
+
+| Option        | What happens to child rows when the parent row is deleted |
+| ------------- | --------------------------------------------------------- |
+| `NO ACTION`   | Error is raised (default)                                 |
+| `RESTRICT`    | Error is raised (checked immediately, not deferred)       |
+| `CASCADE`     | Child rows are automatically deleted                      |
+| `SET NULL`    | FK column in child rows is set to `NULL`                  |
+| `SET DEFAULT` | FK column in child rows is set to its default value       |
+
+#### Syntax
+
+```sql
+-- Inline
+column_name datatype REFERENCES parent_table(parent_column)
+  [ON DELETE {CASCADE | SET NULL | RESTRICT | NO ACTION}]
+
+-- Table-level
+CONSTRAINT constraint_name FOREIGN KEY (column)
+  REFERENCES parent_table(parent_column)
+  [ON DELETE {CASCADE | SET NULL | RESTRICT | NO ACTION}]
+```
+
+#### Example
+
+```sql
+CREATE TABLE departments (
+  department_id    INTEGER PRIMARY KEY,
+  department_name  VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE employees (
+  employee_id    INTEGER PRIMARY KEY,
+  name           VARCHAR(100),
+  department_id  INTEGER,
+  CONSTRAINT fk_dept
+    FOREIGN KEY (department_id)
+    REFERENCES departments(department_id)
+    ON DELETE SET NULL    -- if a department is deleted, employee's dept becomes NULL
+);
+
+-- ON DELETE CASCADE: deleting a department also deletes all its employees
+CREATE TABLE employees_v2 (
+  employee_id    INTEGER PRIMARY KEY,
+  name           VARCHAR(100),
+  department_id  INTEGER REFERENCES departments(department_id) ON DELETE CASCADE
+);
+
+-- Add FK to an existing table
+ALTER TABLE employees
+  ADD CONSTRAINT fk_dept
+  FOREIGN KEY (department_id) REFERENCES departments(department_id);
+
+-- Remove a FK
+ALTER TABLE employees DROP CONSTRAINT fk_dept;
+```
+
+---
+
+### NOT NULL
+
+#### Theory
+
+- By default, any column in PostgreSQL can store `NULL` — meaning the value is **unknown or missing**
+- The **NOT NULL** constraint forces a column to **always have a value**; an attempt to insert or update with `NULL` in that column will be rejected immediately
+- Use NOT NULL on columns that are **logically required** — e.g., a person's name, an order's date, a product's price
+- `NULL` is not the same as `0`, `FALSE`, or an empty string `''` — it means _no value at all_
+
+**Real-world analogy:** A registration form field marked as "required" — the form won't submit unless you fill it in.
+
+#### Syntax
+
+```sql
+column_name datatype NOT NULL
+```
+
+#### Example
+
+```sql
+CREATE TABLE employees (
+  employee_id  INTEGER      NOT NULL,   -- must always have an ID
+  first_name   VARCHAR(50)  NOT NULL,   -- name is always required
+  last_name    VARCHAR(50)  NOT NULL,
+  email        VARCHAR(100)            -- optional — can be NULL
+);
+
+-- Add NOT NULL to an existing column
+-- (all existing rows must already have a non-NULL value, or this will fail)
+ALTER TABLE employees ALTER COLUMN first_name SET NOT NULL;
+
+-- Remove NOT NULL (make column nullable again)
+ALTER TABLE employees ALTER COLUMN email DROP NOT NULL;
+```
+
+> `NOT NULL` is one of the **most commonly used constraints** and should be applied to every column that must have a value to make business sense.
+
+---
+
+### UNIQUE
+
+#### Theory
+
+- The **UNIQUE** constraint ensures that **no two rows** can have the same value in the specified column (or combination of columns)
+- Unlike PRIMARY KEY, a UNIQUE column **can contain NULL** — and PostgreSQL treats each `NULL` as distinct (so multiple NULLs are allowed in a unique column)
+- A table can have **multiple UNIQUE constraints** across different columns
+- PostgreSQL automatically creates a **unique index** to enforce this constraint efficiently
+- A **composite unique constraint** means the _combination_ of the specified columns must be unique, even if the individual columns repeat
+
+**Real-world analogy:** An email address in a user accounts table — two users can't register with the same email, but a user without an email yet (NULL) is still allowed.
+
+#### Syntax
+
+```sql
+-- Inline
+column_name datatype UNIQUE
+
+-- Table-level (supports composite)
+CONSTRAINT constraint_name UNIQUE (column1 [, column2 ...])
+```
+
+#### Example
+
+```sql
+CREATE TABLE employees (
+  employee_id  INTEGER      PRIMARY KEY,
+  email        VARCHAR(100) UNIQUE,    -- each email must be unique
+  phone        VARCHAR(20)  UNIQUE     -- each phone must be unique too
+);
+
+-- Composite unique: same person can attend different events,
+-- and same event can have different attendees,
+-- but one person cannot register for the same event twice
+CREATE TABLE registrations (
+  event_id  INTEGER,
+  user_id   INTEGER,
+  CONSTRAINT uq_registration UNIQUE (event_id, user_id)
+);
+
+-- Add UNIQUE to an existing column
+ALTER TABLE employees ADD CONSTRAINT uq_email UNIQUE (email);
+
+-- Remove a UNIQUE constraint
+ALTER TABLE employees DROP CONSTRAINT uq_email;
+```
+
+---
+
+### CHECK
+
+#### Theory
+
+- A **CHECK** constraint allows you to define a **custom validation rule** using any boolean expression
+- Before any INSERT or UPDATE, PostgreSQL evaluates the expression — if it returns `FALSE`, the operation is rejected; if it returns `TRUE` or `NULL`, it is allowed
+- Use CHECK constraints to enforce **business rules** directly at the database level (not just in application code), so they are enforced regardless of which application or user modifies the data
+- CHECK constraints can reference **one column** (inline) or **multiple columns** in the same row (table-level)
+
+**Real-world analogy:** A minimum age requirement on a registration form — if you enter an age below 18, the system rejects it.
+
+#### Syntax
+
+```sql
+-- Inline
+column_name datatype CONSTRAINT constraint_name CHECK (boolean_expression)
+
+-- Table-level (can reference multiple columns)
+CONSTRAINT constraint_name CHECK (boolean_expression)
+```
+
+#### Example
+
+```sql
+CREATE TABLE employees (
+  employee_id  INTEGER        PRIMARY KEY,
+  name         VARCHAR(100)   NOT NULL,
+  salary       NUMERIC(10, 2) CONSTRAINT chk_salary CHECK (salary >= 0),
+  age          INTEGER        CONSTRAINT chk_age    CHECK (age BETWEEN 18 AND 65),
+  gender       VARCHAR(10)    CONSTRAINT chk_gender CHECK (gender IN ('Male', 'Female', 'Other'))
+);
+
+-- Multi-column CHECK: end date must be after start date
+CREATE TABLE projects (
+  project_id  INTEGER PRIMARY KEY,
+  name        VARCHAR(100),
+  start_date  DATE,
+  end_date    DATE,
+  CONSTRAINT chk_dates CHECK (end_date > start_date)
+);
+
+-- Add CHECK to an existing table
+ALTER TABLE employees ADD CONSTRAINT chk_salary CHECK (salary >= 0);
+
+-- Remove a CHECK constraint
+ALTER TABLE employees DROP CONSTRAINT chk_salary;
+```
+
+> CHECK constraints make your **database self-defending** — even if a bug in application code tries to save bad data, the database will reject it.
+
+---
+
+### DEFAULT
+
+#### Theory
+
+- A **DEFAULT** constraint specifies the value that PostgreSQL automatically inserts into a column **when no value is provided** in an INSERT statement
+- Without a DEFAULT, omitting a column in an INSERT results in `NULL` (assuming the column is nullable)
+- Defaults are useful for **timestamps** (auto-record when a row was created), **status flags** (`is_active = TRUE`), **initial counters**, etc.
+- The default value can be a **literal** (`0`, `'N/A'`, `TRUE`) or a **function call** (`CURRENT_TIMESTAMP`, `gen_random_uuid()`)
+- DEFAULT is **not** a validation constraint — it doesn't prevent explicit insertion of any value, including `NULL`
+
+**Real-world analogy:** A new employee joining a company is automatically assigned an "Active" status — you don't have to specify it every time; it's the assumed starting state.
+
+#### Syntax
+
+```sql
+column_name datatype DEFAULT default_value_or_expression
+```
+
+#### Example
+
+```sql
+CREATE TABLE employees (
+  employee_id  INTEGER        PRIMARY KEY,
+  name         VARCHAR(100)   NOT NULL,
+  salary       NUMERIC(10, 2) DEFAULT 0.00,            -- starts at 0
+  is_active    BOOLEAN        DEFAULT TRUE,             -- active by default
+  created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP -- auto-set to now
+);
+
+-- Inserting without providing defaulted columns
+INSERT INTO employees (employee_id, name) VALUES (1, 'Alice');
+-- Result: salary = 0.00, is_active = TRUE, created_at = current time
+
+-- You can still override a default explicitly
+INSERT INTO employees (employee_id, name, salary, is_active)
+VALUES (2, 'Bob', 55000.00, FALSE);
+
+-- Change the default value on an existing column
+ALTER TABLE employees ALTER COLUMN salary SET DEFAULT 30000.00;
+
+-- Remove the default (column becomes NULL if not provided)
+ALTER TABLE employees ALTER COLUMN salary DROP DEFAULT;
+```
+
+> - DEFAULT **does not prevent** a user from explicitly inserting `NULL` — add `NOT NULL` alongside `DEFAULT` if the column must always have a value
+> - `DEFAULT CURRENT_TIMESTAMP` is extremely common for `created_at` / `updated_at` audit columns
+
+---
+
+### EXCLUSION
+
+#### Theory
+
+- An **EXCLUSION constraint** is a generalisation of the UNIQUE constraint — instead of requiring that two rows are never **equal** on certain columns, it requires that no two rows **overlap** according to a specified operator
+- Uniqueness is just one special case of exclusion (using the `=` operator); exclusion supports any operator that works with a GiST or SP-GiST index (e.g., `&&` for range overlap, `=` for equality)
+- Exclusion constraints are evaluated during `INSERT` and `UPDATE`; if any existing row satisfies the exclusion condition with the new row, the operation is rejected
+- They require the `btree_gist` extension for mixing equality operators (`=`) with range operators in the same constraint
+- Most commonly used with **range types** (`daterange`, `tsrange`, `numrange`, `int4range`) to prevent **scheduling conflicts** and **double-bookings**
+
+**Real-world analogy:** A hotel room booking system — Room 101 cannot be booked by two guests whose stay periods overlap. A UNIQUE constraint can't express "no overlapping ranges", but an EXCLUSION constraint with `&&` (overlaps) can.
+
+**How it differs from UNIQUE:**
+
+| Constraint  | Blocks when...                                     | Operator used  |
+| ----------- | -------------------------------------------------- | -------------- |
+| `UNIQUE`    | Two rows have the **same** value                   | `=`            |
+| `EXCLUSION` | Two rows **overlap** according to a given operator | Any (&&, =, …) |
+
+> Exclusion constraints require a **GiST index** (created automatically). For columns that use equality (`=`) alongside range operators, install the `btree_gist` extension first.
+
+#### Syntax
+
+```sql
+-- Enable btree_gist (once per database, needed for = + range mix)
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- Table-level exclusion constraint
+CONSTRAINT constraint_name EXCLUDE USING gist (
+  column1 WITH operator1,
+  column2 WITH operator2
+)
+```
+
+#### Example 1 — Prevent overlapping room bookings
+
+```sql
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TABLE room_bookings (
+  booking_id  SERIAL         PRIMARY KEY,
+  room_no     INTEGER        NOT NULL,
+  guest_name  VARCHAR(100)   NOT NULL,
+  stay_period DATERANGE      NOT NULL,
+
+  -- No two rows may have the same room_no AND overlapping stay_period
+  CONSTRAINT no_overlap EXCLUDE USING gist (
+    room_no     WITH =,
+    stay_period WITH &&
+  )
+);
+
+-- This insert succeeds
+INSERT INTO room_bookings (room_no, guest_name, stay_period)
+VALUES (101, 'Alice', '[2026-03-01, 2026-03-05]');
+
+-- This insert succeeds — different room
+INSERT INTO room_bookings (room_no, guest_name, stay_period)
+VALUES (102, 'Bob', '[2026-03-01, 2026-03-05]');
+
+-- This insert FAILS — same room, overlapping dates
+INSERT INTO room_bookings (room_no, guest_name, stay_period)
+VALUES (101, 'Carol', '[2026-03-03, 2026-03-07]');
+-- ERROR: conflicting key value violates exclusion constraint "no_overlap"
+```
+
+#### Example 2 — Prevent overlapping employee shifts
+
+```sql
+CREATE TABLE shifts (
+  shift_id     SERIAL       PRIMARY KEY,
+  employee_id  INTEGER      NOT NULL,
+  shift_period TSRANGE      NOT NULL,
+
+  -- One employee cannot have two overlapping shifts
+  CONSTRAINT no_shift_overlap EXCLUDE USING gist (
+    employee_id  WITH =,
+    shift_period WITH &&
+  )
+);
+
+INSERT INTO shifts (employee_id, shift_period)
+VALUES (5, '[2026-03-10 08:00, 2026-03-10 16:00]');
+
+-- Overlapping shift for the same employee — rejected
+INSERT INTO shifts (employee_id, shift_period)
+VALUES (5, '[2026-03-10 14:00, 2026-03-10 22:00]');
+-- ERROR: conflicting key value violates exclusion constraint "no_shift_overlap"
+```
+
+#### Managing Exclusion Constraints
+
+```sql
+-- View existing exclusion constraints on a table
+SELECT conname, contype, consrc
+FROM pg_constraint
+WHERE conrelid = 'room_bookings'::regclass AND contype = 'x';
+
+-- Drop an exclusion constraint
+ALTER TABLE room_bookings DROP CONSTRAINT no_overlap;
+```
+
+> - Use `[lower, upper)` (half-open) range literals to avoid edge-case overlaps at boundaries
+> - The GiST index created by the exclusion constraint also **speeds up range queries** on that column
+> - For numeric or integer ranges without a range type column, use `int4range`, `numrange`, or `int8range`
+
+---
+
+## 8. Database Design & Normalization
+
+### What is Normalization?
+
+**Normalization** is the process of structuring a relational database to minimize data redundancy and dependency. Poor normalization leads to three types of anomalies:
+
+- **Insert anomaly:** You cannot record some facts without recording others
+- **Update anomaly:** Changing one fact requires updating multiple rows
+- **Delete anomaly:** Deleting one record accidentally deletes unrelated information
+
+Normalization is organized into increasingly strict **Normal Forms (NF)**.
+
+---
+
+### First Normal Form (1NF)
+
+**Rule:** Each column contains atomic (indivisible) values. No repeating groups or multi-value columns. Every row is unique (has a primary key).
+
+**Violation:**
+
+| order_id | customer | products                    |
+| -------- | -------- | --------------------------- |
+| 1        | Alice    | "Widget, Gadget, Doohickey" |
+| 2        | Bob      | "Widget"                    |
+
+The `products` column stores a comma-separated list — you cannot query "find all orders containing Widget" efficiently. **Fix:** create a separate `order_items` table.
+
+```sql
+-- 1NF Fix
+CREATE TABLE orders (
+  order_id  INT PRIMARY KEY,
+  customer  VARCHAR(50)
+);
+CREATE TABLE order_items (
+  order_id  INT REFERENCES orders(order_id),
+  product   VARCHAR(50),
+  PRIMARY KEY (order_id, product)
+);
+```
+
+---
+
+### Second Normal Form (2NF)
+
+**Rule:** Must be in 1NF AND every non-key column must depend on the **entire** primary key (no partial dependencies on a composite PK).
+
+**Violation** — Table with composite PK `(order_id, product_id)`:
+
+| order_id | product_id | quantity | product_name | customer_name |
+| -------- | ---------- | -------- | ------------ | ------------- |
+| 1        | 101        | 2        | Widget       | Alice         |
+
+`product_name` depends only on `product_id` (not the full PK). `customer_name` depends only on `order_id`. Both are partial dependencies. **Fix:** Move `product_name` to a `products` table, `customer_name` to an `orders` table.
+
+---
+
+### Third Normal Form (3NF)
+
+**Rule:** Must be in 2NF AND no non-key column depends on another non-key column (no transitive dependencies).
+
+**Violation:**
+
+| employee_id | department_id | department_name | department_location |
+| ----------- | ------------- | --------------- | ------------------- |
+| 1           | 10            | IT              | Floor 3             |
+| 2           | 10            | IT              | Floor 3             |
+
+`department_name` and `department_location` depend on `department_id`, not on `employee_id`. This is a transitive dependency: `employee_id → department_id → department_name`. If IT moves to Floor 4, you must update every employee row in IT. **Fix:** Move department columns to a separate `departments` table.
+
+---
+
+### BCNF (Boyce-Codd Normal Form)
+
+A stricter version of 3NF. For every functional dependency `X → Y`, X must be a superkey. BCNF resolves edge cases involving overlapping composite keys. Most well-designed 3NF schemas satisfy BCNF automatically.
+
+---
+
+### Denormalization
+
+**Denormalization** is the deliberate introduction of redundancy to improve read performance. It contradicts normalization but is sometimes necessary for high-read, performance-critical applications.
+
+**When to denormalize:**
+
+- Pre-joined data for dashboards
+- Storing computed values directly (e.g., `order_total` on the order row instead of recomputing from `order_items` every time)
+- Avoiding slow joins on very large tables
+
+```mermaid
+graph LR
+    N["Normalized<br/>3NF Design"] -->|Read performance bottleneck| D["Denormalized<br/>Redundant columns"]
+    D --> P["Faster Reads<br/>Fewer JOINs"]
+    D --> W["⚠️ Update complexity<br/>Data can drift out of sync"]
+    N --> I["Data integrity<br/>Single source of truth"]
+    N --> S["Slower complex reads<br/>More JOINs required"]
+```
+
+**The rule:** Normalize first for correctness. Denormalize selectively for performance based on **measured** bottlenecks — not speculation.
+
+---
+
+### Surrogate vs Natural Keys
+
+A **natural key** uses real-world data as the primary key (e.g., email address, passport number).
+
+A **surrogate key** is system-generated with no business meaning — typically an auto-incrementing integer (`SERIAL`, `BIGSERIAL`) or a UUID.
+
+| Aspect            | Natural Key                | Surrogate Key   |
+| ----------------- | -------------------------- | --------------- |
+| Business meaning  | Yes                        | No              |
+| Immutable?        | Not always (emails change) | Always          |
+| FK size           | Can be large (string)      | Small (integer) |
+| Index performance | Variable                   | Consistent      |
+| Privacy concern   | Exposes business data      | None            |
+
+**Best practice:** Always use surrogate keys as primary keys. Natural values can still have UNIQUE constraints for business rule enforcement, but they make poor primary keys because they can change.
+
+---
+
+## 9. JOINs
+
+```mermaid
+graph TD
+    J["JOIN Types"]
+    J --> IJ["INNER JOIN<br/>Only matching rows<br/>from BOTH tables"]
+    J --> LJ["LEFT JOIN<br/>All rows from LEFT<br/>+ matched rows from right<br/>(NULL if no match)"]
+    J --> RJ["RIGHT JOIN<br/>All rows from RIGHT<br/>+ matched rows from left<br/>(NULL if no match)"]
+    J --> FJ["FULL OUTER JOIN<br/>All rows from BOTH<br/>(NULLs on unmatched sides)"]
+    J --> SJ["SELF JOIN<br/>Table joined to itself<br/>e.g. employee → manager"]
+    J --> CJ["CROSS JOIN<br/>Cartesian product<br/>m × n rows"]
+    J --> NJ["NATURAL JOIN<br/>Auto-joins on same-named<br/>columns (avoid in production)"]
+    IJ --> U1["✅ Most common type"]
+    LJ --> U2["✅ Find orphan records:<br/>WHERE right.pk IS NULL"]
+    FJ --> U3["✅ Compare two datasets"]
+    CJ --> U4["⚠️ Can produce huge results"]
+    style IJ fill:#69db7c,color:#000
+    style LJ fill:#4dabf7,color:#fff
+    style RJ fill:#74c0fc,color:#000
+    style FJ fill:#ffa94d,color:#fff
+    style CJ fill:#ff6b6b,color:#fff
+```
+
+### What is a JOIN?
+
+A **JOIN** combines rows from two or more tables based on a related column between them. JOINs are the primary mechanism for querying data spread across multiple tables in a relational database.
+
+**Setup — Sample Tables used in all examples below:**
+
+```sql
+CREATE TABLE departments (
+  department_id    INTEGER      PRIMARY KEY,
+  department_name  VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE employees (
+  employee_id    INTEGER      PRIMARY KEY,
+  first_name     VARCHAR(50)  NOT NULL,
+  department_id  INTEGER      REFERENCES departments(department_id),
+  salary         NUMERIC(10,2)
+);
+
+INSERT INTO departments VALUES
+  (10, 'IT'),
+  (20, 'HR'),
+  (30, 'Finance'),
+  (40, 'Marketing');   -- no employees assigned here
+
+INSERT INTO employees VALUES
+  (1, 'Alice',   10, 80000),
+  (2, 'Bob',     20, 55000),
+  (3, 'Carol',   10, 90000),
+  (4, 'David',   30, 70000),
+  (5, 'Eve',     NULL, 60000);  -- no department assigned
+```
+
+**JOIN Types at a glance:**
+
+| JOIN Type         | Returns                                                                            |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `INNER JOIN`      | Only rows that match in **both** tables                                            |
+| `LEFT JOIN`       | All rows from the **left** table + matching right rows (NULLs for no match)        |
+| `RIGHT JOIN`      | All rows from the **right** table + matching left rows (NULLs for no match)        |
+| `FULL OUTER JOIN` | All rows from **both** tables (NULLs wherever no match)                            |
+| `NATURAL JOIN`    | Implicit join on all columns with the **same name**                                |
+| `SELF JOIN`       | A table joined to **itself**                                                       |
+| `CROSS JOIN`      | Every row of the left table paired with every row of the right (Cartesian product) |
+
+---
+
+### INNER JOIN
+
+#### Theory
+
+- Returns only the rows where there is a **matching value** in both tables on the join condition
+- Rows from either table that have no match are **excluded** from the result
+- This is the most commonly used join type
+- `JOIN` without any keyword defaults to `INNER JOIN`
+
+**Syntax:**
+
+```sql
+SELECT columns
+FROM   table1
+INNER JOIN table2 ON table1.column = table2.column;
+```
+
+**Example:**
+
+```sql
+-- Only employees who have a valid department (Eve is excluded — NULL dept)
+SELECT e.employee_id, e.first_name, d.department_name, e.salary
+FROM   employees e
+INNER JOIN departments d ON e.department_id = d.department_id;
+```
+
+**Result:**
+
+| employee_id | first_name | department_name | salary |
+| ----------- | ---------- | --------------- | ------ |
+| 1           | Alice      | IT              | 80000  |
+| 2           | Bob        | HR              | 55000  |
+| 3           | Carol      | IT              | 90000  |
+| 4           | David      | Finance         | 70000  |
+
+> Eve (no department) and Marketing (no employees) are both excluded — neither side has a match.
+
+---
+
+### LEFT JOIN
+
+#### Theory
+
+- Returns **all rows from the left table**, and the matching rows from the right table
+- If a left-table row has **no match** in the right table, the right-table columns are filled with `NULL`
+- Also called **LEFT OUTER JOIN**
+- Use when you want to keep all records from the primary (left) table regardless of whether a related row exists
+
+**Syntax:**
+
+```sql
+SELECT columns
+FROM   table1
+LEFT JOIN table2 ON table1.column = table2.column;
+```
+
+**Example:**
+
+```sql
+-- All employees, plus their department (NULL if unassigned)
+SELECT e.employee_id, e.first_name, d.department_name
+FROM   employees e
+LEFT JOIN departments d ON e.department_id = d.department_id;
+```
+
+**Result:**
+
+| employee_id | first_name | department_name |
+| ----------- | ---------- | --------------- |
+| 1           | Alice      | IT              |
+| 2           | Bob        | HR              |
+| 3           | Carol      | IT              |
+| 4           | David      | Finance         |
+| 5           | Eve        | NULL            |
+
+```sql
+-- Find employees with NO department assigned
+SELECT e.employee_id, e.first_name
+FROM   employees e
+LEFT JOIN departments d ON e.department_id = d.department_id
+WHERE  d.department_id IS NULL;
+```
+
+> This "NULL filter" pattern (`WHERE right_table.pk IS NULL`) is a common way to find **unmatched / orphan** records.
+
+---
+
+### RIGHT JOIN
+
+#### Theory
+
+- Returns **all rows from the right table**, and the matching rows from the left table
+- If a right-table row has **no match** in the left table, the left-table columns are filled with `NULL`
+- Also called **RIGHT OUTER JOIN**
+- Less common than LEFT JOIN — most queries can be rewritten as a LEFT JOIN by swapping table order; use RIGHT JOIN when the table order is fixed
+
+**Syntax:**
+
+```sql
+SELECT columns
+FROM   table1
+RIGHT JOIN table2 ON table1.column = table2.column;
+```
+
+**Example:**
+
+```sql
+-- All departments, plus their employees (NULL if no employees in that dept)
+SELECT e.first_name, d.department_id, d.department_name
+FROM   employees e
+RIGHT JOIN departments d ON e.department_id = d.department_id;
+```
+
+**Result:**
+
+| first_name | department_id | department_name |
+| ---------- | ------------- | --------------- |
+| Alice      | 10            | IT              |
+| Carol      | 10            | IT              |
+| Bob        | 20            | HR              |
+| David      | 30            | Finance         |
+| NULL       | 40            | Marketing       |
+
+```sql
+-- Find departments with NO employees
+SELECT d.department_id, d.department_name
+FROM   employees e
+RIGHT JOIN departments d ON e.department_id = d.department_id
+WHERE  e.employee_id IS NULL;
+```
+
+---
+
+### FULL OUTER JOIN
+
+#### Theory
+
+- Returns **all rows from both tables**
+- Where there is a match, the row is combined normally
+- Where there is **no match on either side**, the missing columns are filled with `NULL`
+- Useful for finding records that exist in one table but not the other (or comparing two datasets)
+
+**Syntax:**
+
+```sql
+SELECT columns
+FROM   table1
+FULL OUTER JOIN table2 ON table1.column = table2.column;
+```
+
+**Example:**
+
+```sql
+-- All employees AND all departments — NULLs wherever there's no match
+SELECT e.first_name, d.department_name
+FROM   employees e
+FULL OUTER JOIN departments d ON e.department_id = d.department_id;
+```
+
+**Result:**
+
+| first_name | department_name |
+| ---------- | --------------- |
+| Alice      | IT              |
+| Carol      | IT              |
+| Bob        | HR              |
+| David      | Finance         |
+| Eve        | NULL            |
+| NULL       | Marketing       |
+
+```sql
+-- Find ALL unmatched records from both sides at once
+SELECT e.first_name, d.department_name
+FROM   employees e
+FULL OUTER JOIN departments d ON e.department_id = d.department_id
+WHERE  e.employee_id IS NULL OR d.department_id IS NULL;
+```
+
+---
+
+### NATURAL JOIN
+
+#### Theory
+
+- Automatically joins two tables on **all columns that share the same name and data type** — no explicit `ON` clause needed
+- Convenient shorthand, but **fragile** — adding a same-named column to either table later changes the join condition silently
+- Not recommended in production code; prefer explicit `INNER JOIN ... ON` for clarity and safety
+- If there are no common column names, it produces a **CROSS JOIN** (Cartesian product)
+
+**Syntax:**
+
+```sql
+SELECT columns
+FROM   table1
+NATURAL JOIN table2;
+```
+
+**Example:**
+
+```sql
+-- Joins on 'department_id' automatically (the only shared column name)
+SELECT employee_id, first_name, department_name
+FROM   employees
+NATURAL JOIN departments;
+-- Equivalent to: INNER JOIN departments ON employees.department_id = departments.department_id
+```
+
+> Avoid NATURAL JOIN in production — use explicit JOIN conditions for maintainability and predictability.
+
+---
+
+### SELF JOIN
+
+#### Theory
+
+- A **self join** joins a table to **itself** — useful for querying hierarchical or recursive relationships stored in the same table (e.g., employee → manager, category → parent category)
+- Because both sides refer to the same table, you **must use aliases** to distinguish them
+- Any join type (INNER, LEFT, etc.) can be used as a self join
+
+**Syntax:**
+
+```sql
+SELECT a.column, b.column
+FROM   table_name a
+JOIN   table_name b ON a.related_column = b.column;
+```
+
+**Setup — employees table with a manager column:**
+
+```sql
+ALTER TABLE employees ADD COLUMN manager_id INTEGER REFERENCES employees(employee_id);
+
+UPDATE employees SET manager_id = 3 WHERE employee_id IN (1, 2);   -- Alice & Bob report to Carol
+UPDATE employees SET manager_id = 4 WHERE employee_id = 5;         -- Eve reports to David
+-- Carol and David have no manager (top level)
+```
+
+**Example:**
+
+```sql
+-- Show each employee alongside their manager's name
+SELECT e.first_name  AS employee,
+       m.first_name  AS manager
+FROM   employees e
+LEFT JOIN employees m ON e.manager_id = m.employee_id;
+```
+
+**Result:**
+
+| employee | manager |
+| -------- | ------- |
+| Alice    | Carol   |
+| Bob      | Carol   |
+| Carol    | NULL    |
+| David    | NULL    |
+| Eve      | David   |
+
+```sql
+-- Find employees who earn more than their manager
+SELECT e.first_name AS employee,   e.salary AS emp_salary,
+       m.first_name AS manager,    m.salary AS mgr_salary
+FROM   employees e
+JOIN   employees m ON e.manager_id = m.employee_id
+WHERE  e.salary > m.salary;
+```
+
+---
+
+### CROSS JOIN
+
+#### Theory
+
+- Produces the **Cartesian product** — every row in the left table is paired with every row in the right table
+- If the left table has `m` rows and the right has `n` rows, the result has `m × n` rows
+- No `ON` condition is used
+- Useful for generating all combinations (e.g., sizes × colours for a product catalogue), but can produce enormous result sets if used carelessly
+
+**Syntax:**
+
+```sql
+SELECT columns
+FROM   table1
+CROSS JOIN table2;
+```
+
+**Example:**
+
+```sql
+-- Pair every employee with every department (4 employees × 4 departments = 16 rows)
+SELECT e.first_name, d.department_name
+FROM   employees e
+CROSS JOIN departments d
+ORDER BY e.first_name, d.department_name;
+```
+
+---
+
+### JOIN with Multiple Conditions and Aggregates
+
+```sql
+-- Average salary per department (only departments that have employees)
+SELECT d.department_name,
+       COUNT(e.employee_id)  AS headcount,
+       ROUND(AVG(e.salary), 2) AS avg_salary,
+       MAX(e.salary)           AS top_salary
+FROM   departments d
+INNER JOIN employees e ON d.department_id = e.department_id
+GROUP BY d.department_name
+ORDER BY avg_salary DESC;
+
+-- Three-table join: orders → order_items → products
+SELECT o.order_id, c.customer_name, p.product_name, oi.quantity
+FROM   orders o
+JOIN   customers  c  ON o.customer_id  = c.customer_id
+JOIN   order_items oi ON o.order_id    = oi.order_id
+JOIN   products    p  ON oi.product_id = p.product_id
+WHERE  o.order_date >= CURRENT_DATE - INTERVAL '30 days';
+```
+
+> - Always use **table aliases** when joining (`e`, `d`) to keep queries readable
+> - Join on **indexed columns** (primary keys / foreign keys) for best performance
+> - For large datasets, `EXPLAIN ANALYZE` your join queries to verify the planner is using the indexes
+
+---
+
+## 10. Aggregations & Grouping
+
+### What is Aggregation?
+
+**Aggregation** is the process of computing a single summary value from a group of rows. Instead of retrieving individual records, you retrieve insights — totals, averages, counts — across sets of data.
+
+Think of it this way: your database has 50,000 order records. A business analyst does not need to see all 50,000 rows. They need to know: "How much revenue did each product category generate this month?" Aggregation answers that question by collapsing many rows into one meaningful number per group.
+
+Aggregation is central to every reporting feature you will ever build — dashboards, analytics, summaries, leaderboards, billing reports.
+
+---
+
+### Aggregate Functions
+
+#### COUNT
+
+`COUNT` returns the number of rows matching a condition. It has two important variants that behave very differently.
+
+`COUNT(*)` counts every row in the result set, **including** rows where some columns are `NULL`.
+
+`COUNT(column_name)` counts only rows where that specific column is **not NULL**. This distinction is extremely important and a frequent source of bugs.
+
+```sql
+-- Total number of employees
+SELECT COUNT(*) AS total_employees FROM employees;
+
+-- Number of employees who have an email on file (NULL emails excluded)
+SELECT COUNT(email) AS employees_with_email FROM employees;
+
+-- Number of distinct departments represented
+SELECT COUNT(DISTINCT department_id) AS active_departments FROM employees;
+```
+
+**Interview trap:** "What is the difference between COUNT(_) and COUNT(column)?" — COUNT(_) includes NULLs, COUNT(column) does not. If 10 employees have no email, COUNT(\*) and COUNT(email) will differ by 10.
+
+---
+
+#### SUM, AVG, MIN, MAX
+
+These functions operate on numeric (or date) columns and **ignore NULL values** in their calculations.
+
+`SUM` returns the total. `AVG` returns the arithmetic mean. `MIN` and `MAX` return the smallest and largest values respectively.
+
+```sql
+-- Payroll summary
+SELECT
+  SUM(salary)  AS total_payroll,
+  AVG(salary)  AS average_salary,
+  MIN(salary)  AS lowest_salary,
+  MAX(salary)  AS highest_salary
+FROM employees;
+
+-- NULL behavior: if 3 out of 10 employees have NULL salary,
+-- AVG is computed over the 7 non-NULL values only — this can be misleading
+-- Safe version: treat NULL salary as 0
+SELECT AVG(COALESCE(salary, 0)) AS avg_including_zeros FROM employees;
+```
+
+**Common mistake:** Using `AVG` on a column with NULL values without realising NULLs are silently excluded. If employees with no salary set should count as 0, wrap with `COALESCE(salary, 0)` before averaging.
+
+---
+
+### GROUP BY
+
+#### What It Is and Why It Exists
+
+`GROUP BY` transforms aggregate functions from "give me one number for the whole table" into "give me one number per group". It collapses all rows that share the same value in the specified column(s) into a single result row, then applies the aggregate function to each group.
+
+Without `GROUP BY`, `SELECT department_id, AVG(salary)` would be nonsensical — the database would not know which department's average to show. `GROUP BY department_id` says: "group all rows with the same department_id together, then compute AVG(salary) for each group."
+
+```sql
+-- Average salary per department
+SELECT
+  department_id,
+  COUNT(*)      AS headcount,
+  AVG(salary)   AS avg_salary,
+  MAX(salary)   AS top_salary
+FROM employees
+GROUP BY department_id
+ORDER BY avg_salary DESC;
+```
+
+#### The Golden Rule of GROUP BY
+
+**Every column in your SELECT list must either be in the GROUP BY clause OR wrapped in an aggregate function.** This rule exists because once you group rows, individual row values lose meaning — only the group identity and aggregated values are meaningful.
+
+```sql
+-- WRONG: first_name is not in GROUP BY and not aggregated
+SELECT department_id, first_name, AVG(salary)
+FROM employees
+GROUP BY department_id;  -- ERROR
+
+-- CORRECT
+SELECT department_id, AVG(salary)
+FROM employees
+GROUP BY department_id;
+
+-- ALSO CORRECT: aggregate first_name
+SELECT department_id, STRING_AGG(first_name, ', ') AS names, AVG(salary)
+FROM employees
+GROUP BY department_id;
+```
+
+#### Multi-Column GROUP BY
+
+You can group by multiple columns. Each unique _combination_ of those column values forms a separate group.
+
+```sql
+-- Headcount per department per gender
+SELECT
+  department_id,
+  gender,
+  COUNT(*) AS headcount
+FROM employees
+GROUP BY department_id, gender
+ORDER BY department_id, gender;
+```
+
+---
+
+### HAVING
+
+#### What It Is — The Filter for Groups
+
+`HAVING` is to `GROUP BY` what `WHERE` is to individual rows. It filters **groups** based on a condition applied to the aggregated result. You use `HAVING` when your filter condition involves an aggregate function.
+
+The reason `WHERE` cannot do this is fundamental: `WHERE` filters rows **before** grouping happens, before aggregates are even computed. `HAVING` filters **after** grouping, when aggregate values exist.
+
+```sql
+-- Departments with more than 5 employees (filter on aggregate result)
+SELECT department_id, COUNT(*) AS headcount
+FROM employees
+GROUP BY department_id
+HAVING COUNT(*) > 5
+ORDER BY headcount DESC;
+
+-- Departments where average salary exceeds 70,000
+SELECT department_id, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department_id
+HAVING AVG(salary) > 70000;
+```
+
+#### WHERE vs HAVING — The Key Difference
+
+```sql
+-- WHERE filters individual rows BEFORE grouping
+-- HAVING filters groups AFTER aggregation
+SELECT department_id, COUNT(*) AS headcount
+FROM employees
+WHERE employment_type = 'FULL_TIME'   -- row-level filter, runs before GROUP BY
+GROUP BY department_id
+HAVING COUNT(*) > 3;                   -- group-level filter, runs after GROUP BY
+```
+
+---
+
+### SQL Query Logical Execution Order
+
+This is one of the most important concepts for writing correct SQL. SQL is **not** executed in the order it is written. The logical execution order is:
+
+```mermaid
+flowchart TD
+    A["1. FROM + JOIN<br/>Identify source tables"] --> B["2. WHERE<br/>Filter individual rows"]
+    B --> C["3. GROUP BY<br/>Group the filtered rows"]
+    C --> D["4. HAVING<br/>Filter groups"]
+    D --> E["5. SELECT<br/>Compute output columns"]
+    E --> F["6. DISTINCT<br/>Remove duplicates"]
+    F --> G["7. ORDER BY<br/>Sort result"]
+    G --> H["8. LIMIT / OFFSET<br/>Page result"]
+    H --> I["Final Result Set"]
+```
+
+**Why this matters — the alias rule:**
+
+At the time WHERE is evaluated (step 2), SELECT has not run yet (step 5). This is why you **cannot use a SELECT alias in a WHERE clause**.
+
+```sql
+-- WRONG: alias 'annual_salary' doesn't exist when WHERE runs
+SELECT salary * 12 AS annual_salary
+FROM employees
+WHERE annual_salary > 600000;  -- ERROR: column "annual_salary" does not exist
+
+-- CORRECT: repeat the expression
+SELECT salary * 12 AS annual_salary
+FROM employees
+WHERE salary * 12 > 600000;
+
+-- ALSO CORRECT: use a subquery or CTE
+SELECT * FROM (
+  SELECT salary * 12 AS annual_salary FROM employees
+) sub
+WHERE annual_salary > 600000;
+```
+
+You **CAN** use aliases in ORDER BY because ORDER BY runs after SELECT. This is a commonly tested exception.
+
+**Interview perspective:** "Why can't you use a WHERE clause on an aggregate?" → Because WHERE runs before aggregation. Use HAVING instead. "Why can't you use a SELECT alias in WHERE?" → Because SELECT runs after WHERE in logical execution order.
+
+---
+
+### Practical Scenario — Aggregations
+
+You are building a sales dashboard for an e-commerce platform. The business team wants total revenue per product category this month, only for categories with more than 100 orders, sorted by revenue descending.
+
+```sql
+SELECT
+  p.category,
+  COUNT(oi.order_id)           AS total_orders,
+  SUM(oi.quantity * oi.price)  AS total_revenue,
+  AVG(oi.price)                AS avg_item_price
+FROM order_items oi
+JOIN products p ON oi.product_id = p.product_id
+JOIN orders   o ON oi.order_id   = o.order_id
+WHERE o.order_date >= DATE_TRUNC('month', CURRENT_DATE)
+GROUP BY p.category
+HAVING COUNT(oi.order_id) > 100
+ORDER BY total_revenue DESC;
+```
+
+**Session Recap:** Aggregation compresses many rows into meaningful summaries. `GROUP BY` divides data into groups for per-group aggregation. Every SELECT column must be in GROUP BY or aggregated. `HAVING` filters groups after aggregation — `WHERE` cannot do this. Understanding the logical execution order prevents a whole class of common errors. Always use `COALESCE` when aggregating nullable columns to avoid silently skewed results.
+
+---
+
+## 11. Subqueries
+
+```mermaid
+graph TD
+    SQ["Subquery Types"]
+    SQ --> SC["Scalar Subquery<br/>Returns one value<br/>Used in SELECT / WHERE"]
+    SQ --> DT["Derived Table<br/>Returns a table<br/>Used in FROM clause"]
+    SQ --> CO["Correlated Subquery<br/>Refs outer query columns<br/>Runs once per outer row"]
+    SQ --> EX["EXISTS Subquery<br/>Returns TRUE/FALSE<br/>Stops at first match"]
+    SQ --> IN["IN Subquery<br/>Returns a list<br/>full list loaded into memory"]
+    SC --> E1["WHERE salary =<br/>(SELECT MAX(salary)<br/>FROM employees)"]
+    DT --> E2["FROM (SELECT ...<br/>GROUP BY ...) AS t"]
+    CO --> E3["WHERE salary ><br/>(SELECT AVG(salary)<br/>FROM e WHERE dept=outer.dept)"]
+    EX --> E4["WHERE EXISTS<br/>(SELECT 1 FROM orders<br/>WHERE orders.cust_id = c.id)"]
+    style SQ fill:#4dabf7,color:#fff
+    style CO fill:#ffa94d,color:#fff
+    style EX fill:#69db7c,color:#000
+```
+
+### What is a Subquery?
+
+A **subquery** (also called an inner query or nested query) is a complete SQL `SELECT` statement embedded inside another SQL statement. The outer query uses the result of the inner query as though it were a table, a value, or a list of values.
+
+Think of it like a two-step research process: first you run a background query to find some preliminary information, then you use that information in your main question. For example: "Find all employees who earn more than the company average." The "company average" requires its own query first — that is the subquery.
+
+Subqueries can appear in the `SELECT`, `FROM`, `WHERE`, or `HAVING` clause. Each placement has a different name and behavior.
+
+---
+
+### Scalar Subquery
+
+A **scalar subquery** returns exactly **one value** (one row, one column). It can appear anywhere a single value is expected — in a SELECT list, a WHERE condition, or a HAVING clause.
+
+```sql
+-- Find employees who earn more than the company-wide average salary
+SELECT first_name, salary
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees);
+-- The subquery returns a single number, compared against each employee's salary
+
+-- Show each employee's salary alongside the company average
+SELECT
+  first_name,
+  salary,
+  (SELECT AVG(salary) FROM employees)             AS company_avg,
+  salary - (SELECT AVG(salary) FROM employees)    AS diff_from_avg
+FROM employees;
+```
+
+**When to use:** When you need a single computed value for comparison. Scalar subqueries are clean and readable for simple cases.
+
+**Common mistake:** Not handling the case where the subquery might return NULL (e.g., if the table is empty). Always consider `COALESCE` wrapping.
+
+---
+
+### Subquery in FROM (Derived Table)
+
+When a subquery appears in the `FROM` clause, it acts like a **temporary table** for the duration of the query. PostgreSQL requires you to give it an alias.
+
+```sql
+-- Find departments where average salary is above the company average
+SELECT dept_summary.department_id, dept_summary.avg_sal
+FROM (
+  SELECT department_id, AVG(salary) AS avg_sal
+  FROM employees
+  GROUP BY department_id
+) AS dept_summary
+WHERE dept_summary.avg_sal > (SELECT AVG(salary) FROM employees);
+```
+
+This is equivalent to what you would accomplish with a CTE (Section 23), but inline. CTEs are generally more readable for complex cases.
+
+---
+
+### Correlated Subquery
+
+A **correlated subquery** references a column from the **outer query**. Unlike a regular subquery that runs once, a correlated subquery runs **once per row** of the outer query — making it potentially expensive on large tables.
+
+```sql
+-- Find employees who earn more than the average in their OWN department
+SELECT e.first_name, e.salary, e.department_id
+FROM employees e
+WHERE e.salary > (
+  SELECT AVG(salary)
+  FROM employees
+  WHERE department_id = e.department_id  -- references outer query's e.department_id
+);
+```
+
+Here, for every outer row, the inner query recomputes `AVG(salary)` for that specific department. If you have 10,000 employees, the inner query runs 10,000 times.
+
+**Performance note:** Correlated subqueries are often the culprit in slow queries. The above example is better rewritten as a JOIN with a derived table — the per-department average is only computed once:
+
+```sql
+-- More efficient: compute department averages once, then join
+SELECT e.first_name, e.salary, e.department_id
+FROM employees e
+JOIN (
+  SELECT department_id, AVG(salary) AS dept_avg
+  FROM employees
+  GROUP BY department_id
+) dept_avgs ON e.department_id = dept_avgs.department_id
+WHERE e.salary > dept_avgs.dept_avg;
+```
+
+---
+
+### EXISTS vs IN
+
+Both `EXISTS` and `IN` can check whether a related record exists, but they work differently and have different performance characteristics.
+
+**`IN` with a subquery** returns the full result set of the subquery, then checks if the outer value appears in that list.
+
+```sql
+-- Find employees who are also assigned as managers
+SELECT first_name FROM employees
+WHERE employee_id IN (
+  SELECT DISTINCT manager_id FROM employees WHERE manager_id IS NOT NULL
+);
+```
+
+**`EXISTS`** does not return the full result set. It stops as soon as it finds the **first matching row** and returns TRUE — short-circuit evaluation. It is often more efficient when the subquery returns many rows.
+
+```sql
+-- Same query with EXISTS
+SELECT e.first_name FROM employees e
+WHERE EXISTS (
+  SELECT 1 FROM employees sub
+  WHERE sub.manager_id = e.employee_id
+);
+-- SELECT 1 is a convention — EXISTS only cares whether a row exists, not what it contains
+```
+
+#### The NULL Trap with NOT IN
+
+This is one of the most common silent bugs in SQL. If the subquery in `NOT IN` returns **any NULL values**, the entire condition evaluates to `UNKNOWN` for every outer row — returning an empty result set.
+
+```sql
+-- DANGEROUS: if manager_id contains any NULL, this returns zero rows
+SELECT first_name FROM employees
+WHERE employee_id NOT IN (SELECT manager_id FROM employees);
+-- 5 NOT IN (1, 2, NULL) = TRUE AND TRUE AND UNKNOWN = UNKNOWN ≠ TRUE
+
+-- SAFE: explicitly exclude NULLs from the subquery
+SELECT first_name FROM employees
+WHERE employee_id NOT IN (
+  SELECT manager_id FROM employees WHERE manager_id IS NOT NULL
+);
+
+-- SAFEST: use NOT EXISTS (NULL-safe by design)
+SELECT e.first_name FROM employees e
+WHERE NOT EXISTS (
+  SELECT 1 FROM employees sub WHERE sub.manager_id = e.employee_id
+);
+```
+
+**Interview perspective:** "When would you use EXISTS over IN?" → When the subquery could return NULLs (especially with NOT IN), when the subquery returns many rows (EXISTS short-circuits), or when you only care whether matching rows exist, not what they contain.
+
+---
+
+### Practical Scenario — Subqueries
+
+You are building a "top performer" report. Find all employees whose salary exceeds the average salary of their own department, with how much they exceed it by, limited to top 10.
+
+```sql
+SELECT
+  e.first_name || ' ' || e.last_name    AS employee_name,
+  d.department_name,
+  e.salary,
+  dept_avg.avg_salary                    AS dept_avg,
+  e.salary - dept_avg.avg_salary         AS above_average_by
+FROM employees e
+JOIN departments d    ON e.department_id = d.department_id
+JOIN (
+  SELECT department_id, AVG(salary) AS avg_salary
+  FROM employees
+  GROUP BY department_id
+) dept_avg ON e.department_id = dept_avg.department_id
+WHERE e.salary > dept_avg.avg_salary
+ORDER BY above_average_by DESC
+LIMIT 10;
+```
+
+**Session Recap:** Subqueries are complete SELECT statements nested inside another query. Scalar subqueries return a single value. Derived table subqueries in FROM act as temporary tables. Correlated subqueries execute once per outer row and can be expensive — prefer JOINs with derived tables when possible. `EXISTS` is safer and often faster than `IN`, especially with NULLs. The `NOT IN` / NULL trap is one of the most common silent bugs in SQL — always filter `IS NOT NULL` in the subquery or use `NOT EXISTS`.
+
+---
+
+## 12. Built-in Functions
+
+```mermaid
+graph TD
+    BF["Built-in Functions"]
+    BF --> NF["Numeric<br/>ROUND · CEIL · FLOOR<br/>ABS · MOD · POWER"]
+    BF --> SF["String<br/>CONCAT · LENGTH · UPPER<br/>TRIM · SUBSTRING · REPLACE<br/>SPLIT_PART · STRING_AGG"]
+    BF --> DF["Date / Time<br/>NOW() · CURRENT_DATE<br/>EXTRACT · DATE_TRUNC<br/>AGE · TO_CHAR"]
+    BF --> CF["Conditional<br/>COALESCE · NULLIF<br/>CASE · GREATEST · LEAST"]
+    BF --> UP["UPSERT<br/>INSERT ON CONFLICT<br/>DO UPDATE / DO NOTHING"]
+    NF --> E1["ROUND(salary/12.0, 2)"]
+    SF --> E2["UPPER(first_name)"]
+    DF --> E3["DATE_TRUNC('month', NOW())"]
+    CF --> E4["COALESCE(bonus, 0)"]
+    UP --> E5["ON CONFLICT (email)<br/>DO UPDATE SET ..."]
+    style BF fill:#4dabf7,color:#fff
+    style CF fill:#ffa94d,color:#fff
+    style UP fill:#ff6b6b,color:#fff
+```
+
+### Numeric Functions
+
+Built-in functions let you transform and compute data within SQL queries without pulling data into your application layer. Doing transformations in SQL is almost always more efficient because you process data at the source rather than transferring rows to your application.
+
+```sql
+-- ROUND: round to specified decimal places
+SELECT ROUND(salary / 12.0, 2)  AS monthly_salary FROM employees;
+SELECT ROUND(3.14159, 2);        -- → 3.14
+
+-- CEIL / CEILING: round up to nearest integer
+SELECT CEIL(4.1);    -- → 5
+SELECT CEIL(4.9);    -- → 5
+
+-- FLOOR: round down to nearest integer
+SELECT FLOOR(4.9);   -- → 4
+SELECT FLOOR(-4.1);  -- → -5  (floor goes more negative)
+
+-- ABS: absolute value (ignore sign)
+SELECT ABS(-1500);   -- → 1500
+-- Use case: finding magnitude of difference regardless of direction
+SELECT ABS(e.salary - m.salary) AS salary_gap
+FROM employees e JOIN employees m ON e.manager_id = m.employee_id;
+
+-- MOD / %: remainder after division
+SELECT MOD(17, 5);  -- → 2
+SELECT 17 % 5;      -- → 2 (PostgreSQL shorthand)
+-- Use case: even/odd detection, cyclic assignments
+SELECT employee_id, MOD(employee_id, 2) AS is_even FROM employees;
+
+-- POWER and SQRT
+SELECT POWER(2, 10);  -- → 1024
+SELECT SQRT(144);     -- → 12
+```
+
+---
+
+### String Functions
+
+String manipulation is essential for every backend application — formatting names, cleaning user input, building dynamic text, extracting information from strings.
+
+```sql
+-- CONCAT: join strings together (ignores NULLs)
+SELECT CONCAT(first_name, ' ', last_name) AS full_name FROM employees;
+
+-- || operator: same as CONCAT but propagates NULLs
+SELECT first_name || ' ' || last_name AS full_name FROM employees;
+-- NULL behavior: 'Alice' || NULL = NULL
+-- CONCAT('Alice', NULL, 'Smith') = 'AliceSmith' (skips NULL)
+
+-- LENGTH: number of characters
+SELECT first_name, LENGTH(first_name) AS name_length FROM employees;
+
+-- UPPER / LOWER: change case
+SELECT UPPER('hello world');  -- → HELLO WORLD
+SELECT LOWER('ALICE');        -- → alice
+-- Use for case-insensitive comparisons, normalizing user input before storage
+
+-- TRIM: remove whitespace (or specified characters from edges)
+SELECT TRIM('   hello   ');           -- → 'hello'
+SELECT TRIM(LEADING '0' FROM '007');  -- → '7'
+SELECT LTRIM('   spaces');            -- removes only left whitespace
+SELECT RTRIM('spaces   ');            -- removes only right whitespace
+
+-- SUBSTRING: extract part of a string
+SELECT SUBSTRING('Hello World' FROM 7 FOR 5);   -- → 'World'
+SELECT SUBSTRING('2026-03-10' FROM 1 FOR 4);    -- → '2026' (year extraction)
+
+-- REPLACE: substitute all occurrences of a substring
+SELECT REPLACE('Hello World', 'World', 'PostgreSQL');  -- → 'Hello PostgreSQL'
+-- Use case: sanitizing data, bulk text corrections in UPDATE statements
+
+-- SPLIT_PART: split by a delimiter and return the Nth part
+SELECT SPLIT_PART('john.doe@company.com', '@', 1);  -- → 'john.doe'
+SELECT SPLIT_PART('john.doe@company.com', '@', 2);  -- → 'company.com'
+
+-- POSITION / STRPOS: find the 1-based position of a substring
+SELECT STRPOS('hello world', 'world');  -- → 7
+
+-- LPAD / RPAD: pad string to a fixed length
+SELECT LPAD('42', 6, '0');   -- → '000042'  (e.g., invoice numbers)
+SELECT RPAD('Alice', 10);    -- → 'Alice     '
+
+-- STRING_AGG: aggregate multiple rows into one delimited string
+SELECT department_id,
+       STRING_AGG(first_name, ', ' ORDER BY first_name) AS members
+FROM employees
+GROUP BY department_id;
+```
+
+---
+
+### Date and Time Functions
+
+Date/time handling is notoriously tricky in databases. Timezone mismatches, DST changes, and date arithmetic errors are among the most common production bugs.
+
+```sql
+-- Current date and time
+SELECT NOW();               -- current timestamp with timezone
+SELECT CURRENT_TIMESTAMP;   -- same as NOW()
+SELECT CURRENT_DATE;        -- date portion only (e.g., 2026-03-10)
+SELECT CURRENT_TIME;        -- time portion only
+
+-- EXTRACT: get a specific component from a date/timestamp
+SELECT EXTRACT(YEAR   FROM hire_date)     AS hire_year  FROM employees;
+SELECT EXTRACT(MONTH  FROM hire_date)     AS hire_month FROM employees;
+SELECT EXTRACT(DOW    FROM CURRENT_DATE); -- day of week (0=Sunday, 6=Saturday)
+SELECT EXTRACT(EPOCH  FROM NOW());        -- seconds since Unix epoch (useful for APIs)
+
+-- DATE_TRUNC: truncate to a time precision boundary
+SELECT DATE_TRUNC('month', CURRENT_DATE);  -- → first day of current month
+SELECT DATE_TRUNC('year',  CURRENT_DATE);  -- → Jan 1 of current year
+SELECT DATE_TRUNC('hour',  NOW());         -- → current hour with :00:00
+-- Golden use case: grouping time-series data by day, week, or month
+SELECT DATE_TRUNC('month', created_at) AS month, COUNT(*) AS new_users
+FROM users
+GROUP BY DATE_TRUNC('month', created_at)
+ORDER BY month;
+
+-- Date arithmetic with INTERVAL
+SELECT CURRENT_DATE + INTERVAL '30 days';        -- 30 days from now
+SELECT CURRENT_DATE - INTERVAL '1 year';         -- 1 year ago
+SELECT hire_date + INTERVAL '90 days' AS probation_end FROM employees;
+
+-- AGE: human-readable interval between two dates
+SELECT AGE(CURRENT_DATE, hire_date) AS tenure FROM employees;
+-- → e.g., "3 years 2 months 15 days"
+SELECT EXTRACT(YEAR FROM AGE(CURRENT_DATE, birth_date)) AS age_years FROM users;
+
+-- TO_CHAR: format a date/timestamp as a string
+SELECT TO_CHAR(CURRENT_DATE, 'DD Mon YYYY');        -- → '10 Mar 2026'
+SELECT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS');     -- → '2026-03-10 14:30:00'
+
+-- TO_DATE / TO_TIMESTAMP: parse string to date
+SELECT TO_DATE('10-03-2026', 'DD-MM-YYYY');
+SELECT TO_TIMESTAMP('2026-03-10 14:30:00', 'YYYY-MM-DD HH24:MI:SS');
+```
+
+**Critical best practice:** Store timestamps with timezone (`TIMESTAMPTZ`) for any event-time data when your users are in multiple time zones. Store all times as UTC internally and convert to local time in the application layer. A timezone-naive bug in production is extremely difficult to correct after the fact.
+
+---
+
+### Conditional Functions
+
+These functions let you express conditional logic directly inside SQL — eliminating many application-layer transformations.
+
+```sql
+-- COALESCE: return the first non-NULL value in the list
+SELECT COALESCE(phone, mobile, 'No contact') AS best_contact FROM customers;
+-- Returns phone if not NULL, else mobile if not NULL, else 'No contact'
+-- This is the most-used function for NULL handling in real applications
+
+-- NULLIF: return NULL if two values are equal — prevents division-by-zero
+SELECT total_sales / NULLIF(total_orders, 0) AS avg_order_value FROM daily_stats;
+-- If total_orders = 0, NULLIF returns NULL → division becomes NULL instead of error
+
+-- CASE (expression form — inline conditional, usable in SELECT lists)
+SELECT
+  first_name,
+  salary,
+  CASE
+    WHEN salary > 100000 THEN 'Senior'
+    WHEN salary >  60000 THEN 'Mid-Level'
+    WHEN salary >  30000 THEN 'Junior'
+    ELSE 'Intern'
+  END AS salary_band
+FROM employees;
+
+-- Conditional aggregation — extremely powerful pattern
+SELECT
+  department_id,
+  COUNT(*)                                        AS total,
+  COUNT(CASE WHEN gender = 'Female' THEN 1 END)  AS female_count,
+  COUNT(CASE WHEN gender = 'Male'   THEN 1 END)  AS male_count,
+  ROUND(
+    100.0 * COUNT(CASE WHEN gender = 'Female' THEN 1 END) / COUNT(*),
+    1
+  ) AS female_pct
+FROM employees
+GROUP BY department_id;
+
+-- GREATEST / LEAST: return largest/smallest from a list of values
+SELECT GREATEST(100, 200, 150);   -- → 200
+SELECT LEAST(100, 200, 150);      -- → 100
+-- Use case: cap a discount at maximum 50%
+SELECT LEAST(discount_pct, 50) AS capped_discount FROM orders;
+```
+
+---
+
+### UPSERT — INSERT ON CONFLICT
+
+**UPSERT** means "update if exists, insert if not" — a common atomic operation in every backend application. In PostgreSQL, this is `INSERT ... ON CONFLICT`.
+
+The traditional SELECT-then-INSERT-or-UPDATE pattern has a **race condition**: between your SELECT and your INSERT, another process might insert the same record. UPSERT solves this atomically in a single statement.
+
+```sql
+-- Track daily page view counts: increment if today's record exists, else insert
+INSERT INTO page_views (page_id, view_date, view_count)
+VALUES (42, CURRENT_DATE, 1)
+ON CONFLICT (page_id, view_date)
+DO UPDATE SET view_count = page_views.view_count + 1;
+
+-- ON CONFLICT DO NOTHING: silently ignore duplicate inserts
+INSERT INTO email_subscriptions (email)
+VALUES ('user@example.com')
+ON CONFLICT (email) DO NOTHING;
+
+-- Update multiple columns; use EXCLUDED to reference the attempted new values
+INSERT INTO products (sku, name, price, updated_at)
+VALUES ('SKU-001', 'Widget Pro', 29.99, NOW())
+ON CONFLICT (sku)
+DO UPDATE SET
+  name       = EXCLUDED.name,
+  price      = EXCLUDED.price,
+  updated_at = EXCLUDED.updated_at;
+-- EXCLUDED refers to the row that would have been inserted (the new values)
+```
+
+**When to use:** Syncing data from external sources, building idempotent API endpoints (same request can be safely sent multiple times), incrementing counters, maintaining "latest-record" caches.
+
+**Common mistake:** Forgetting which constraint to reference in `ON CONFLICT`. You must specify the column(s) forming the unique/primary key constraint — PostgreSQL needs to know what "conflict" means.
+
+---
+
+## 13. Indexes & Performance
+
+### What is an Index and Why Does It Exist?
+
+Imagine your `users` table has 10 million rows. You run `SELECT * FROM users WHERE email = 'alice@example.com'`. Without an index, PostgreSQL must read **every single row** in the table, comparing the email field one by one. This is called a **full table scan** (sequential scan). For 10 million rows, this could take seconds.
+
+An **index** is a separate data structure, maintained by the database alongside the table, that allows the database to locate rows matching a condition without reading every row. Think of a book index at the back: instead of reading every page to find where "PostgreSQL" is mentioned, you look up the index and jump directly to those pages.
+
+**Indexes come at a cost:**
+
+- They consume additional disk space
+- Every INSERT, UPDATE, or DELETE must also update all relevant indexes
+- Too many indexes on a write-heavy table can significantly slow down writes
+
+This is why indiscriminately adding indexes is wrong — index design requires careful thought about your query patterns.
+
+---
+
+### B-Tree Index (Default)
+
+PostgreSQL's default index type is the **B-Tree (Balanced Tree)**. When you write `CREATE INDEX idx_email ON users(email)`, you get a B-Tree index.
+
+A B-Tree is a self-balancing tree structure where every leaf node is at the same depth. The tree is sorted, meaning it supports:
+
+- **Equality:** `WHERE email = 'alice@example.com'` → O(log n)
+- **Range:** `WHERE salary BETWEEN 50000 AND 100000` → O(log n + k)
+- **Sorting:** `ORDER BY salary` can use the index, avoiding a sort step
+- **Prefix match:** `WHERE name LIKE 'Ali%'` (only `%` at the end, not the beginning)
+
+```sql
+-- Create a standard B-Tree index
+CREATE INDEX idx_employees_email ON employees(email);
+
+-- Index on a frequently filtered column
+CREATE INDEX idx_orders_customer_id ON orders(customer_id);
+
+-- Partial index: only index rows matching a condition (smaller, faster to maintain)
+CREATE INDEX idx_active_users ON users(email)
+WHERE is_active = TRUE;
+-- Only active users are indexed — much smaller if most users are inactive
+```
+
+```mermaid
+graph TD
+    Root["Root Node<br/>50 | 100"] --> L1["20 | 35"]
+    Root --> M1["60 | 80"]
+    Root --> R1["110 | 150"]
+    L1 --> L2["10 | 15"]
+    L1 --> L3["25 | 30"]
+    L1 --> L4["36 | 45"]
+    style Root fill:#4a90d9,color:#fff
+    style L2 fill:#90d9a0
+    style L3 fill:#90d9a0
+    style L4 fill:#90d9a0
+```
+
+---
+
+### Composite Index
+
+A **composite index** covers multiple columns and is useful when queries filter or sort on combinations of columns.
+
+```sql
+-- Optimize queries like: WHERE department_id = 10 AND salary > 50000
+CREATE INDEX idx_emp_dept_salary ON employees(department_id, salary);
+```
+
+**Critical rule: column order matters.** The index is usable only when the query filters on the **leading (leftmost)** column(s).
+
+With `idx_emp_dept_salary(department_id, salary)`:
+
+- `WHERE department_id = 10` ✅ uses index (leftmost column)
+- `WHERE department_id = 10 AND salary > 50000` ✅ fully uses index
+- `WHERE salary > 50000` ❌ does NOT use index (skips leftmost column)
+
+This is the **left-prefix rule**. Design composite indexes so the most selective or most-frequently-filtered column comes first.
+
+---
+
+### Index Selectivity
+
+**Selectivity** measures how many distinct values a column has relative to total rows. A highly selective column has many distinct values (like email — nearly unique per row). A low-selectivity column has few distinct values (like a `status` column with 3 values).
+
+Indexes on low-selectivity columns are often **not used** by the query planner because it can be faster to scan the whole table than to use an index that still points to half the rows.
+
+```sql
+-- High selectivity = excellent index candidate
+CREATE INDEX idx_email ON users(email);   -- nearly every value is unique
+
+-- Low selectivity = poor index candidate, planner may ignore it
+CREATE INDEX idx_gender ON users(gender); -- only ~3 distinct values
+-- For 1M users a gender filter returns ~330K rows — sequential scan may be faster
+```
+
+---
+
+### Covering Index (Index-Only Scan)
+
+A **covering index** includes all columns needed by a query. When all required columns are in the index, PostgreSQL can satisfy the query entirely from the index without touching the actual table — an **index-only scan** — which is the fastest possible read path.
+
+```sql
+-- Query: SELECT email, created_at FROM users WHERE is_active = TRUE
+-- Covering index includes filter column + all selected columns
+CREATE INDEX idx_active_users_covering ON users(is_active, email, created_at);
+-- PostgreSQL never needs to access the heap table — everything is in the index
+```
+
+---
+
+### EXPLAIN and EXPLAIN ANALYZE
+
+Before and after adding an index, use `EXPLAIN` to see the query plan and `EXPLAIN ANALYZE` to see actual runtime statistics.
+
+```sql
+-- EXPLAIN: shows estimated plan (does NOT execute the query)
+EXPLAIN SELECT * FROM employees WHERE department_id = 10;
+
+-- EXPLAIN ANALYZE: executes the query and shows actual vs estimated stats
+EXPLAIN ANALYZE SELECT * FROM employees WHERE department_id = 10;
+
+-- Full diagnostic version
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+SELECT * FROM employees WHERE department_id = 10;
+```
+
+**Reading the output — key terms:**
+
+- `Seq Scan` — full table scan. Bad for large tables.
+- `Index Scan` — uses an index, still fetches non-indexed columns from table.
+- `Index Only Scan` — uses a covering index, never touches the table. Best.
+- `cost=0.00..X.XX` — estimated cost (startup..total). Lower is better.
+- `actual time=X..X` — real wall-clock time (only in ANALYZE).
+- `Nested Loop, Hash Join, Merge Join` — join algorithms chosen by planner.
+
+```sql
+-- Verify your new index is being used
+EXPLAIN ANALYZE SELECT * FROM employees WHERE email = 'alice@example.com';
+-- Should show: Index Scan using idx_employees_email
+-- If it shows Seq Scan, the planner decided index was slower
+-- (small table, low selectivity, or stale statistics — try running ANALYZE first)
+```
+
+---
+
+### When NOT to Use Indexes
+
+1. **Low-selectivity columns** (gender, boolean flags with mostly one value) — planner often ignores them
+2. **Very small tables** — a full scan of 200 rows is faster than B-Tree traversal
+3. **Write-heavy columns** — columns updated constantly cause high index maintenance overhead
+4. **Columns not in WHERE, JOIN, or ORDER BY** — they will never be used by any query
+
+**The rule of thumb:** Add indexes to columns that appear in `WHERE`, `JOIN ON`, or `ORDER BY` in your frequent or slow queries. Then verify with `EXPLAIN ANALYZE` that the index is actually being used.
+
+```mermaid
+flowchart LR
+    Q["Query:<br/>WHERE email = 'x'"] --> P[Query Planner]
+    P --> D{"Index<br/>exists?"}
+    D -->|Yes + high selectivity| I["Index Scan<br/>O(log n)<br/>Fast"]
+    D -->|No or low selectivity| S["Sequential Scan<br/>O(n)<br/>Reads all rows"]
+    I --> R[Result]
+    S --> R
+```
+
+**Session Recap:** An index is a separate sorted data structure enabling direct row access, avoiding full table scans. B-Tree supports equality, range, and prefix patterns. Composite index column order matters — leftmost columns must be in your filter. High selectivity equals a good index candidate. Covering indexes eliminate table I/O entirely. Always verify with EXPLAIN ANALYZE before and after.
+
+---
+
+## 14. Transactions & Concurrency (Extended)
+
+> The basic TCL commands (BEGIN, COMMIT, ROLLBACK, SAVEPOINT) are covered in Section 4. This section covers the critical advanced topics: ACID deep dive, isolation levels, locking, and deadlocks.
+
+### ACID Properties — Deep Dive
+
+**ACID** is the set of properties that guarantee database transactions are processed reliably. Every design decision in PostgreSQL's engine is driven by maintaining ACID.
+
+**Atomicity** means a transaction is all-or-nothing. If you transfer $100 from Account A to Account B — debit A, credit B — atomicity guarantees that either both steps happen or neither does. You will never have a state where A was debited but B wasn't credited. PostgreSQL achieves this with Write-Ahead Logging (WAL) — changes are logged before they are applied, so incomplete transactions can be rolled back on crash recovery.
+
+**Consistency** means a transaction brings the database from one valid state to another valid state, respecting all defined rules — constraints, cascades, triggers. You cannot commit a transaction that would leave the database in an invalid state (e.g., a foreign key pointing to a non-existent row).
+
+**Isolation** means concurrent transactions see the database as if they were running serially — one at a time. The degree of isolation is configurable (isolation levels below). Without isolation, concurrent transactions can interfere in ways that produce incorrect results.
+
+**Durability** means once a transaction is committed, it stays committed even if the server crashes immediately after. PostgreSQL syncs the WAL to disk before acknowledging a commit. The WAL is replayed on restart to recover all committed transactions.
+
+---
+
+### Transaction Isolation Levels
+
+**Isolation levels** define how much one in-progress transaction can "see" the changes made by another concurrent in-progress transaction. Stronger isolation means better data correctness but lower concurrency; weaker isolation means higher concurrency but possible anomalies.
+
+#### The Three Concurrency Anomalies
+
+**Dirty Read:** Transaction A reads data that Transaction B has modified but **not yet committed**. If B then rolls back, A has read data that never actually existed — "phantom money."
+
+**Non-Repeatable Read:** Transaction A reads a row. Transaction B updates and commits that row. A reads the same row again and gets a **different value**. The same SELECT returns different results within the same transaction.
+
+**Phantom Read:** Transaction A queries a set of rows matching a condition. Transaction B inserts a new row matching that condition. A queries again and sees a new **"phantom" row** that wasn't there before.
+
+| Isolation Level  | Dirty Read   | Non-Repeatable Read | Phantom Read |
+| ---------------- | ------------ | ------------------- | ------------ |
+| READ UNCOMMITTED | Possible ❌  | Possible ❌         | Possible ❌  |
+| READ COMMITTED   | Prevented ✅ | Possible ❌         | Possible ❌  |
+| REPEATABLE READ  | Prevented ✅ | Prevented ✅        | Possible ❌  |
+| SERIALIZABLE     | Prevented ✅ | Prevented ✅        | Prevented ✅ |
+
+> **PostgreSQL note:** PostgreSQL does not actually implement READ UNCOMMITTED differently from READ COMMITTED. The minimum isolation you ever get in PostgreSQL is READ COMMITTED.
+
+```mermaid
+graph TD
+    A["READ UNCOMMITTED<br/>Lowest isolation<br/>Fastest"] --> B["READ COMMITTED<br/>Default in PostgreSQL"]
+    B --> C["REPEATABLE READ<br/>Snapshot isolation"]
+    C --> D["SERIALIZABLE<br/>Highest isolation<br/>Slowest - may abort"]
+    style A fill:#ff6b6b,color:#fff
+    style B fill:#ffa94d,color:#fff
+    style C fill:#74c0fc,color:#fff
+    style D fill:#69db7c,color:#fff
+```
+
+```sql
+-- Set isolation level for a transaction
+BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;
+-- ... statements ...
+COMMIT;
+
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+-- ... statements ...
+COMMIT;
+
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+-- ... statements ...
+COMMIT;
+
+-- Check current isolation level
+SHOW transaction_isolation;
+```
+
+**READ COMMITTED (PostgreSQL default):** Each statement sees a snapshot of committed data as of the moment that statement began. Two SELECT statements in the same transaction can return different results if another transaction committed between them (non-repeatable read is possible). Suitable for most web applications.
+
+**REPEATABLE READ:** The entire transaction sees a snapshot taken at its start. If another transaction commits changes to a row you've already read, your transaction still sees the old version. Prevents dirty reads and non-repeatable reads. Use for transactions that need a consistent view of data (reports, exports).
+
+**SERIALIZABLE:** Transactions execute as if they ran one at a time, serially. PostgreSQL uses Serializable Snapshot Isolation (SSI) — a sophisticated algorithm that detects and aborts transactions that would produce non-serializable results. Use for financial transactions where even phantom reads are unacceptable. Requires retry logic in application code since transactions can be aborted.
+
+---
+
+### Locks
+
+**Locks** are mechanisms that prevent conflicting concurrent operations on the same data.
+
+#### Row-Level Locks
+
+```sql
+-- FOR UPDATE: lock selected rows, preventing other transactions from modifying them
+-- Classic pattern: read-then-update without race conditions
+BEGIN;
+SELECT * FROM accounts WHERE account_id = 101 FOR UPDATE;
+-- Other transactions trying to UPDATE this row will WAIT here
+UPDATE accounts SET balance = balance - 100 WHERE account_id = 101;
+COMMIT;
+
+-- FOR SHARE: allows other readers but blocks writers
+SELECT * FROM products WHERE product_id = 1 FOR SHARE;
+
+-- NOWAIT: fail immediately if lock cannot be acquired (don't block)
+SELECT * FROM orders WHERE order_id = 55 FOR UPDATE NOWAIT;
+-- Raises: ERROR: could not obtain lock on row
+
+-- SKIP LOCKED: skip already-locked rows (concurrent job queue pattern)
+SELECT * FROM job_queue
+WHERE status = 'pending'
+LIMIT 10
+FOR UPDATE SKIP LOCKED;
+-- Returns up to 10 unlocked pending jobs — standard pattern for worker processes
+```
+
+#### Table-Level Locks
+
+Most DDL operations acquire table-level locks. The most important is `ACCESS EXCLUSIVE` — acquired by `ALTER TABLE`, `DROP TABLE`, `TRUNCATE`. This blocks ALL other operations on the table.
+
+**Real-world concern:** Running `ALTER TABLE ... ADD COLUMN` on a large production table acquires `ACCESS EXCLUSIVE` and blocks all reads and writes until complete. Zero-downtime migrations on large tables require careful planning: add nullable columns (no rewrite needed), use `DEFAULT` that can be pre-set, or use tools like `pg_repack`.
+
+---
+
+### Deadlocks
+
+A **deadlock** occurs when two or more transactions are each waiting for the other to release a lock, creating a circular dependency. Neither can proceed, so PostgreSQL detects the deadlock and terminates one of the transactions with: `ERROR: deadlock detected`.
+
+```mermaid
+sequenceDiagram
+    participant T1 as Transaction 1
+    participant A as Account A
+    participant B as Account B
+    participant T2 as Transaction 2
+
+    T1->>A: LOCK Account A (FOR UPDATE)
+    T2->>B: LOCK Account B (FOR UPDATE)
+    T1->>B: Waiting for Account B...
+    T2->>A: Waiting for Account A...
+    Note over T1,T2: DEADLOCK! PostgreSQL kills one transaction
+```
+
+**How to prevent deadlocks:**
+
+1. **Always acquire locks in the same order.** If all transactions lock Account A before Account B, there is no cycle possible.
+2. **Keep transactions short.** The longer a transaction holds locks, the more likely conflicts arise.
+3. **Use NOWAIT or SKIP LOCKED** where appropriate to fail fast rather than wait.
+4. **Handle deadlock errors in application code.** PostgreSQL aborts one transaction (SQLSTATE `'40P01'`) — your code must catch this and retry.
+
+```sql
+-- Checking for blocking sessions
+SELECT
+  blocking.pid,
+  blocking.query AS blocking_query,
+  blocked.pid    AS blocked_pid,
+  blocked.query  AS blocked_query
+FROM pg_stat_activity blocked
+JOIN pg_stat_activity blocking
+  ON blocking.pid = ANY(pg_blocking_pids(blocked.pid))
+WHERE blocked.wait_event_type = 'Lock';
+```
+
+**Session Recap:** ACID properties are the bedrock guarantees of reliable transactions. Isolation levels trade off data correctness against concurrency — most apps use READ COMMITTED, financial apps benefit from SERIALIZABLE. Row-level locks enable controlled concurrent access patterns. `SKIP LOCKED` is the key to building scalable job queues. Deadlocks are inevitable in high-concurrency systems — find them with EXPLAIN, prevent them with consistent lock ordering, and handle them with application retries.
+
+---
+
+## 15. Views
+
+```mermaid
+graph TD
+    V["View Types"]
+    V --> RV["Regular View<br/>Stored SQL query<br/>No data stored"]
+    V --> UV["Updatable View<br/>Allows INSERT/UPDATE/DELETE<br/>WITH CHECK OPTION"]
+    V --> MV["Materialized View<br/>Physically stores results<br/>Manual REFRESH needed"]
+    V --> SV["Security View<br/>Hides sensitive columns<br/>Grant access to view only"]
+    RV --> R1["SELECT always runs<br/>underlying query"]
+    UV --> R2["Simple views only<br/>(single table, no DISTINCT)"]
+    MV --> R3["Fast reads<br/>Data can be stale<br/>REFRESH CONCURRENTLY"]
+    SV --> R4["GRANT on view<br/>REVOKE on base table"]
+    style RV fill:#4dabf7,color:#fff
+    style MV fill:#ffa94d,color:#fff
+    style UV fill:#69db7c,color:#000
+    style SV fill:#da77f2,color:#fff
+```
+
+### What is a View?
+
+A **view** is a stored SQL query that you can reference by name as if it were a table. When you query a view, PostgreSQL executes the underlying query and returns the results. The view itself stores no data — it is a reusable, named query.
+
+Think of a view as a window into the data. The data itself lives in base tables, but the view defines a specific perspective: a filtered subset, a join of multiple tables, or a computed presentation of raw data.
+
+**Why views exist:**
+
+- **Simplification:** Complex joins and calculations are written once in the view, then queried simply
+- **Security:** You can grant users access to a view without exposing the underlying base tables or sensitive columns
+- **Abstraction:** Your application queries `v_active_employees` rather than a complex 5-table join — if the join logic needs to change, you update the view, not every application query
+- **Backward compatibility:** If you restructure tables, you can create views that mimic the old structure so existing queries still work
+
+---
+
+### Creating and Using Views
+
+```sql
+-- Create a view: active employees with department name
+CREATE OR REPLACE VIEW v_active_employees AS
+SELECT
+  e.employee_id,
+  e.first_name || ' ' || e.last_name  AS full_name,
+  d.department_name,
+  e.salary,
+  e.hire_date
+FROM employees e
+JOIN departments d ON e.department_id = d.department_id
+WHERE e.is_active = TRUE;
+
+-- Query exactly like a table
+SELECT * FROM v_active_employees WHERE salary > 60000;
+
+-- Use in a JOIN
+SELECT v.full_name, p.project_name
+FROM v_active_employees v
+JOIN project_assignments pa ON v.employee_id = pa.employee_id
+JOIN projects p             ON pa.project_id  = p.project_id;
+
+-- Drop a view
+DROP VIEW IF EXISTS v_active_employees;
+```
+
+---
+
+### Updatable Views
+
+A simple view over a single table with no aggregation or DISTINCT is **updatable** — you can INSERT, UPDATE, and DELETE through the view.
+
+```sql
+CREATE VIEW v_it_department AS
+SELECT employee_id, first_name, salary, department_id
+FROM employees
+WHERE department_id = 10
+WITH CHECK OPTION;
+-- WITH CHECK OPTION prevents INSERT/UPDATE that would make the row "fall outside" the view
+
+-- These work through the view:
+UPDATE v_it_department SET salary = salary * 1.10 WHERE employee_id = 5;
+-- INSERT with department_id != 10 will be REJECTED by WITH CHECK OPTION
+INSERT INTO v_it_department VALUES (99, 'New Person', 50000, 20);  -- ERROR
+```
+
+Complex views (with JOINs, aggregation, DISTINCT) are **not automatically updatable**. For those, use `INSTEAD OF` triggers.
+
+---
+
+### Materialized Views
+
+A **materialized view** physically stores the result of the query on disk. Unlike a regular view which recomputes on every query, a materialized view reads from cached data. It is dramatically faster to query but the data is only as fresh as the last **REFRESH**.
+
+```sql
+-- Create a materialized view (immediately executes query and stores result)
+CREATE MATERIALIZED VIEW mv_department_summary AS
+SELECT
+  d.department_name,
+  COUNT(e.employee_id)  AS headcount,
+  AVG(e.salary)         AS avg_salary,
+  SUM(e.salary)         AS total_payroll
+FROM departments d
+LEFT JOIN employees e ON d.department_id = e.department_id
+GROUP BY d.department_name;
+
+-- Query is near-instant — reads from stored/cached data
+SELECT * FROM mv_department_summary ORDER BY total_payroll DESC;
+
+-- Refresh: re-execute query and update stored data (blocks reads during refresh)
+REFRESH MATERIALIZED VIEW mv_department_summary;
+
+-- Non-blocking refresh (allows reads during refresh — requires unique index)
+CREATE UNIQUE INDEX ON mv_department_summary(department_name);
+REFRESH MATERIALIZED VIEW CONCURRENTLY mv_department_summary;
+```
+
+**When to use:** Complex aggregation queries that run frequently but can tolerate slightly stale data (dashboard stats refreshed hourly), pre-computed reports joining multiple large tables.
+
+**Common mistake:** Not having a refresh strategy. Stale data in a materialized view causing confusing bugs is extremely common. Use `pg_cron` for scheduled refreshes, or trigger refreshes after significant data changes.
+
+---
+
+### Security via Views
+
+Views are a powerful security tool. Grant specific roles access only to views that expose appropriate columns and rows — never the raw tables.
+
+```sql
+-- Grant read access to HR team (no salary exposure)
+CREATE VIEW v_employee_directory AS
+SELECT employee_id, first_name, last_name, department_id, email
+FROM employees;
+
+GRANT SELECT ON v_employee_directory TO hr_readonly_role;
+-- HR team queries employee directory but can never see salary data
+
+-- Row-level security via view (only see your own department)
+-- Can also be done with PostgreSQL's built-in Row Level Security (RLS) feature
+```
+
+---
+
+## 16. Window Functions
+
+### What is a Window Function?
+
+A **window function** performs a calculation across a set of rows that are related to the current row — its "window" of rows. Unlike `GROUP BY` aggregation which collapses rows into groups, a window function **preserves all original rows** while also computing aggregate-like values spanning multiple rows.
+
+This distinction is crucial: `GROUP BY` gives you one row per group. Window functions give you the same number of rows as the input, with an additional computed column.
+
+Think of it like this: you are looking out a window on a train. As the train moves (you process each row), the window moves with you. You can calculate things about what you see through the window without changing how many windows the train has.
+
+```mermaid
+graph LR
+    A["Regular GROUP BY<br/>100 employees<br/>→ 5 department rows"] -->|Loses individual rows| B["5 Results"]
+    C["Window Function<br/>100 employees<br/>→ 100 rows + rank column"] -->|Preserves all rows| D["100 Results with rank"]
+```
+
+---
+
+### OVER() Clause
+
+Every window function requires an `OVER()` clause, which defines the window — the set of rows considered for each calculation. An empty `OVER()` means the window is the entire result set.
+
+```sql
+-- Running total across ALL rows (window = entire result set)
+SELECT
+  employee_id,
+  salary,
+  SUM(salary) OVER () AS total_payroll
+FROM employees;
+-- Every row gets the SAME total_payroll (sum of all salaries)
+
+-- Each employee's salary as a percentage of total payroll
+SELECT
+  first_name,
+  salary,
+  ROUND(100.0 * salary / SUM(salary) OVER (), 2) AS pct_of_total
+FROM employees;
+```
+
+---
+
+### PARTITION BY
+
+`PARTITION BY` divides rows into groups — the window function is computed within each partition, then resets for the next. Like `GROUP BY` but without collapsing rows.
+
+```sql
+-- Each employee's salary vs their department's average
+SELECT
+  first_name,
+  department_id,
+  salary,
+  AVG(salary) OVER (PARTITION BY department_id)                  AS dept_avg,
+  salary - AVG(salary) OVER (PARTITION BY department_id)         AS diff_from_dept_avg
+FROM employees;
+-- All rows are preserved; each gets its own department's average
+```
+
+---
+
+### ORDER BY Inside OVER() — Running Calculations
+
+Adding `ORDER BY` inside `OVER()` creates a **frame** — an ordered window. Combined with aggregate functions, this produces running totals, cumulative sums, and other progressive calculations.
+
+```sql
+-- Running total of salary (cumulative payroll as we hire more employees)
+SELECT
+  first_name,
+  hire_date,
+  salary,
+  SUM(salary) OVER (ORDER BY hire_date)                              AS running_payroll
+FROM employees;
+
+-- Running total WITHIN each department
+SELECT
+  first_name,
+  department_id,
+  salary,
+  SUM(salary) OVER (PARTITION BY department_id ORDER BY salary DESC) AS cumulative_dept_salary
+FROM employees;
+```
+
+---
+
+### ROW_NUMBER(), RANK(), DENSE_RANK()
+
+These ranking functions assign a number to each row within its partition based on a defined ordering.
+
+**ROW_NUMBER():** Unique sequential integer — no ties, no gaps. Arbitrary ordering for tied rows.
+
+**RANK():** Tied rows get the same rank; the next rank **skips** after a tie: 1, 2, 2, **4**.
+
+**DENSE_RANK():** Tied rows get the same rank; the next rank does **not skip**: 1, 2, 2, **3**.
+
+```sql
+SELECT
+  first_name,
+  department_id,
+  salary,
+  ROW_NUMBER() OVER (PARTITION BY department_id ORDER BY salary DESC) AS row_num,
+  RANK()       OVER (PARTITION BY department_id ORDER BY salary DESC) AS rnk,
+  DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS dense_rnk
+FROM employees;
+```
+
+**Classic interview query — Top 3 earners per department:**
+
+```sql
+SELECT * FROM (
+  SELECT
+    first_name,
+    department_id,
+    salary,
+    DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS dept_rank
+  FROM employees
+) ranked
+WHERE dept_rank <= 3;
+```
+
+Use `DENSE_RANK()` for "top N" because it doesn't skip ranks after ties — you get a clean "top 3" without accidentally missing the 3rd person due to gaps.
+
+---
+
+### LEAD() and LAG()
+
+`LAG()` accesses the value from a **previous** row. `LEAD()` accesses the value from a **subsequent** row. These are essential for period-over-period comparisons.
+
+```sql
+-- Month-over-month revenue comparison
+SELECT
+  month,
+  revenue,
+  LAG(revenue, 1) OVER (ORDER BY month)                    AS prev_month_revenue,
+  revenue - LAG(revenue, 1) OVER (ORDER BY month)          AS mom_change,
+  ROUND(
+    100.0 * (revenue - LAG(revenue, 1) OVER (ORDER BY month))
+    / NULLIF(LAG(revenue, 1) OVER (ORDER BY month), 0),
+    2
+  )                                                         AS pct_change
+FROM monthly_revenue
+ORDER BY month;
+
+-- Salary gap between consecutive employees (ordered by salary)
+SELECT
+  first_name,
+  salary,
+  LEAD(salary) OVER (ORDER BY salary DESC)          AS next_lower_salary,
+  salary - LEAD(salary) OVER (ORDER BY salary DESC) AS salary_gap
+FROM employees;
+```
+
+---
+
+### Window Functions vs GROUP BY
+
+```sql
+-- GROUP BY: collapses to one row per department
+SELECT department_id, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department_id;
+-- Returns 5 rows (one per department)
+
+-- Window Function: preserves all rows, adds department average column
+SELECT employee_id, first_name, department_id, salary,
+       AVG(salary) OVER (PARTITION BY department_id) AS dept_avg
+FROM employees;
+-- Returns 50 rows (one per employee, each with their department's avg)
+```
+
+**When to use which:**
+
+- Use `GROUP BY` when you need summary data (one row per group)
+- Use window functions when you need both detail AND summary in the same row, for rankings, running totals, or period-over-period comparisons
+
+**Interview perspective:** "What is the difference between GROUP BY and PARTITION BY?" → GROUP BY reduces rows to one per group; PARTITION BY defines groups for window functions but preserves all original rows. They serve different purposes and are not interchangeable.
+
+---
+
+### Practical Scenario — Window Functions
+
+For each customer, show their lifetime value, their rank by lifetime value within their country, and their percentage share of their country's total revenue.
+
+```sql
+SELECT
+  c.customer_id,
+  c.name,
+  c.country,
+  SUM(o.total_amount)                                                    AS lifetime_value,
+  RANK() OVER (PARTITION BY c.country ORDER BY SUM(o.total_amount) DESC) AS country_rank,
+  ROUND(
+    100.0 * SUM(o.total_amount)
+    / SUM(SUM(o.total_amount)) OVER (PARTITION BY c.country),
+    2
+  )                                                                       AS pct_of_country
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, c.name, c.country
+ORDER BY c.country, country_rank;
+```
+
+**Session Recap:** Window functions compute values across a set of related rows without collapsing them. `OVER()` defines the window; `PARTITION BY` divides into groups; `ORDER BY` inside OVER creates running calculations. ROW_NUMBER gives unique numbers, RANK skips after ties, DENSE_RANK doesn't skip. LAG/LEAD enable period-over-period comparisons. Combining GROUP BY with window functions on the group totals is extremely powerful for analytics queries.
+
+---
+
+## 17. CTEs & Advanced Querying
+
+### What is a CTE?
+
+A **Common Table Expression (CTE)**, written using the `WITH` keyword, is a named temporary result set you define at the top of a query and reference one or more times within that query. It is like a named subquery you define once and reference as if it were a table.
+
+CTEs solve two problems:
+
+1. **Readability:** Complex queries with multiple levels of subqueries become unreadable. CTEs allow you to name and describe each logical step.
+2. **Reusability:** A subquery result used in multiple places would need to be duplicated. A CTE can be referenced multiple times in the same query.
+
+```sql
+-- Without CTE: nested and hard to read
+SELECT dept.department_id, dept.avg_salary
+FROM (
+  SELECT department_id, AVG(salary) AS avg_salary
+  FROM employees
+  GROUP BY department_id
+) dept
+WHERE dept.avg_salary > (SELECT AVG(salary) FROM employees);
+
+-- With CTE: clear, sequential, named steps
+WITH dept_averages AS (
+  SELECT department_id, AVG(salary) AS avg_salary
+  FROM employees
+  GROUP BY department_id
+),
+company_average AS (
+  SELECT AVG(salary) AS overall_avg FROM employees
+)
+SELECT da.department_id, da.avg_salary
+FROM dept_averages da, company_average ca
+WHERE da.avg_salary > ca.overall_avg;
+```
+
+---
+
+### Multiple CTEs — Step-by-Step Analysis
+
+CTEs can be chained, each building on previous ones:
+
+```sql
+WITH
+-- Step 1: orders from the last 30 days
+recent_orders AS (
+  SELECT order_id, customer_id, total_amount, order_date
+  FROM orders
+  WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'
+),
+-- Step 2: aggregate per customer
+customer_totals AS (
+  SELECT customer_id,
+         COUNT(*)          AS order_count,
+         SUM(total_amount) AS total_spent
+  FROM recent_orders
+  GROUP BY customer_id
+),
+-- Step 3: classify customers by spend
+customer_segments AS (
+  SELECT customer_id, order_count, total_spent,
+    CASE
+      WHEN total_spent > 1000 THEN 'High Value'
+      WHEN total_spent > 200  THEN 'Medium Value'
+      ELSE 'Low Value'
+    END AS segment
+  FROM customer_totals
+)
+-- Final: join back to customer names
+SELECT c.name, cs.segment, cs.total_spent, cs.order_count
+FROM customers c
+JOIN customer_segments cs ON c.customer_id = cs.customer_id
+ORDER BY cs.total_spent DESC;
+```
+
+---
+
+### Recursive CTE
+
+A **recursive CTE** references itself, allowing traversal of hierarchical or graph-like data stored in a relational table. It has two parts combined with `UNION ALL`:
+
+1. **Base case (anchor member):** The starting rows
+2. **Recursive case:** References the CTE itself to find the next level
+
+```sql
+-- Traverse the employee → manager hierarchy
+WITH RECURSIVE hierarchy AS (
+  -- Base case: top-level managers (they have no manager)
+  SELECT employee_id, first_name, manager_id,
+         0             AS level,
+         first_name::TEXT AS path
+  FROM employees
+  WHERE manager_id IS NULL
+
+  UNION ALL
+
+  -- Recursive case: find each employee whose manager is in the current result
+  SELECT e.employee_id, e.first_name, e.manager_id,
+         h.level + 1,
+         h.path || ' → ' || e.first_name
+  FROM employees e
+  JOIN hierarchy h ON e.manager_id = h.employee_id
+  WHERE h.level < 10  -- safety guard against infinite loops / cycles
+)
+SELECT employee_id, first_name, level, path
+FROM hierarchy
+ORDER BY path;
+```
+
+```mermaid
+graph TD
+    CEO["CEO<br/>Level 0"] --> VP1["VP Engineering<br/>Level 1"]
+    CEO --> VP2["VP Sales<br/>Level 1"]
+    VP1 --> M1["Engineering Manager<br/>Level 2"]
+    VP1 --> M2["QA Manager<br/>Level 2"]
+    VP2 --> M3["Sales Manager<br/>Level 2"]
+    M1 --> E1["Engineer 1<br/>Level 3"]
+    M1 --> E2["Engineer 2<br/>Level 3"]
+```
+
+---
+
+### CTE vs Subquery vs Temporary Table
+
+| Feature                | Subquery       | CTE              | Temp Table                   |
+| ---------------------- | -------------- | ---------------- | ---------------------------- |
+| Readability            | Low (nested)   | High (named)     | Medium                       |
+| Reusable in same query | No             | Yes              | Yes                          |
+| Persists after query   | No             | No               | Yes (session)                |
+| Indexable              | No             | No               | Yes                          |
+| Recursive              | No             | Yes              | No                           |
+| Best for               | Simple one-off | Multi-step logic | Very large intermediate sets |
+
+**Use CTE when:** Multiple steps reference the same result, the query has many logical steps, recursion is needed, or readability is paramount.
+
+**Use temp table when:** The intermediate result set is very large and needs indexing for subsequent steps, or the logic spans multiple queries in a transaction.
+
+---
+
+## 18. Control Structures
+
+```mermaid
+flowchart TD
+    S(["START"]) --> IF{"IF condition"}
+    IF -->|TRUE| A["IF block runs"]
+    IF -->|FALSE| EL1{"ELSIF condition?"}
+    EL1 -->|TRUE| B["ELSIF block runs"]
+    EL1 -->|FALSE| EL2{"ELSE exists?"}
+    EL2 -->|YES| C["ELSE block runs"]
+    EL2 -->|NO| D["Nothing runs"]
+    A --> E(["END IF"])
+    B --> E
+    C --> E
+    D --> E
+    E --> CS{"CASE expression"}
+    CS -->|"Matches WHEN 1"| W1["Statements 1"]
+    CS -->|"Matches WHEN 2"| W2["Statements 2"]
+    CS -->|"No match"| WE["ELSE / error"]
+    W1 --> EN(["END CASE"])
+    W2 --> EN
+    WE --> EN
+    style S fill:#4dabf7,color:#fff
+    style IF fill:#ffa94d,color:#fff
+    style CS fill:#ffa94d,color:#fff
+    style E fill:#69db7c,color:#000
+    style EN fill:#69db7c,color:#000
+```
+
+### What are Control Structures?
+
+**Control structures** determine the **flow of execution** in a PL/pgSQL block. Without them, code runs linearly from top to bottom. Control structures let you make **decisions** (branch to different code based on a condition) and are the foundation of any procedural logic.
+
+In PL/pgSQL there are two main decision-making structures:
+
+| Structure       | Purpose                                               |
+| --------------- | ----------------------------------------------------- |
+| `IF/ELSIF/ELSE` | Execute a block of code only when a condition is true |
+| `CASE`          | Choose between multiple discrete values or conditions |
+
+> Control structures only exist in PL/pgSQL blocks (`DO $$...$$` or inside functions/procedures) — they cannot be used in plain SQL.
+
+---
+
+### IF / ELSIF / ELSE
+
+#### Theory
+
+- `IF` checks a **boolean condition** and executes the block only when it evaluates to `TRUE`
+- `ELSIF` (note: **not** `ELSEIF`) provides additional conditions checked in order — the first one that is `TRUE` wins
+- `ELSE` is the **default fallback** — its block runs when none of the above conditions were true
+- Both `ELSIF` and `ELSE` are optional
+- Conditions can use any comparison (`=`, `>`, `<`, `!=`), logical operators (`AND`, `OR`, `NOT`), or any expression that evaluates to a boolean
+
+**Syntax:**
+
+```sql
+IF condition THEN
+  -- statements
+ELSIF other_condition THEN
+  -- statements
+ELSE
+  -- statements
+END IF;
+
+--
+
+DO $$
+DECLARE
+  v_score INTEGER := 75;
+BEGIN
+  IF v_score >= 90 THEN
+    RAISE NOTICE 'Grade: A';
+  ELSIF v_score >= 75 THEN
+    RAISE NOTICE 'Grade: B';
+  ELSIF v_score >= 60 THEN
+    RAISE NOTICE 'Grade: C';
+  ELSE
+    RAISE NOTICE 'Grade: F';
+  END IF;
+END;
+$$;
+```
+
+### CASE Statement
+
+#### Theory
+
+- `CASE` is a cleaner alternative to a long chain of `IF/ELSIF` when you are comparing **one variable against many values** (Simple CASE) or evaluating **independent conditions** (Searched CASE)
+- **Simple CASE** — evaluates one expression and compares it against a list of `WHEN` values; like a switch statement in other languages
+- **Searched CASE** — each `WHEN` clause contains its own full boolean expression, giving maximum flexibility
+- `ELSE` is optional in both forms; if omitted and no `WHEN` matches, PostgreSQL raises an error
+- CASE can also be used **inline inside a SQL query** (as an expression), not just inside PL/pgSQL blocks
+
+**Syntax (Simple CASE):**
+
+```sql
+CASE expression
+  WHEN value1 THEN statements
+  WHEN value2 THEN statements
+  ELSE statements
+END CASE;
+```
+
+**Syntax (Searched CASE):**
+
+```sql
+CASE
+  WHEN condition1 THEN statements
+  WHEN condition2 THEN statements
+  ELSE statements
+END CASE;
+```
+
+```sql
+-- Simple CASE (matches a value)
+DO $$
+DECLARE
+  v_day INTEGER := 3;
+BEGIN
+  CASE v_day
+    WHEN 1 THEN RAISE NOTICE 'Monday';
+    WHEN 2 THEN RAISE NOTICE 'Tuesday';
+    WHEN 3 THEN RAISE NOTICE 'Wednesday';
+    WHEN 4 THEN RAISE NOTICE 'Thursday';
+    WHEN 5 THEN RAISE NOTICE 'Friday';
+    ELSE       RAISE NOTICE 'Weekend';
+  END CASE;
+END;
+$$;
+
+-- Searched CASE (evaluates conditions)
+DO $$
+DECLARE
+  v_salary NUMERIC := 55000;
+BEGIN
+  CASE
+    WHEN v_salary > 100000 THEN RAISE NOTICE 'Band: Senior';
+    WHEN v_salary >  50000 THEN RAISE NOTICE 'Band: Mid';
+    ELSE                        RAISE NOTICE 'Band: Junior';
+  END CASE;
+END;
+$$;
+```
+
+---
+
+## 19. Loops
+
+```mermaid
+graph TD
+    L["PL/pgSQL Loop Types"]
+    L --> BL["Basic LOOP<br/>Runs indefinitely<br/>until EXIT"]
+    L --> WL["WHILE LOOP<br/>Checks condition<br/>BEFORE each iteration"]
+    L --> FR["FOR LOOP<br/>(Integer Range)<br/>FOR i IN 1..10"]
+    L --> FQ["FOR LOOP<br/>(Query Result)<br/>FOR rec IN SELECT ..."]
+    BL --> B1["EXIT WHEN i > 5<br/>CONTINUE WHEN ..."]
+    WL --> W1["WHILE i <= 10 LOOP<br/>  i := i + 1; END LOOP"]
+    FR --> F1["Auto-declares i<br/>Read-only loop var<br/>REVERSE, BY step"]
+    FQ --> F2["Most practical loop<br/>Internally uses cursor<br/>Auto-terminates on no rows"]
+    style BL fill:#ff6b6b,color:#fff
+    style WL fill:#ffa94d,color:#fff
+    style FR fill:#4dabf7,color:#fff
+    style FQ fill:#69db7c,color:#000
+```
+
+### What are Loops?
+
+A **loop** repeats a block of code multiple times. Without loops, you would have to write the same statement hundreds of times to process repetitive data. Loops are essential for batch processing, iterating over query results, building strings, and running calculations.
+
+PL/pgSQL provides four loop types:
+
+| Loop Type               | Best Used When                                              |
+| ----------------------- | ----------------------------------------------------------- |
+| `LOOP ... EXIT WHEN`    | You need full manual control over when to stop              |
+| `WHILE ... LOOP`        | Number of iterations depends on a condition checked upfront |
+| `FOR i IN range LOOP`   | You know the exact numeric range to iterate                 |
+| `FOR rec IN query LOOP` | You want to process each row of a query result              |
+
+> Always ensure a loop has an **exit condition** — an infinite loop will hang your session.
+
+---
+
+### Basic LOOP (with EXIT)
+
+#### Theory
+
+- The simplest loop — runs **indefinitely** until an `EXIT` statement is encountered
+- `EXIT WHEN condition;` exits the loop when the condition becomes `TRUE`
+- You can also use a plain `EXIT;` inside an `IF` block to exit conditionally
+- `CONTINUE WHEN condition;` skips the rest of the current iteration and goes back to the top of the loop
+- Use this when the exit logic is complex and needs to be checked in the middle of the loop body
+
+**Syntax:**
+
+```sql
+LOOP
+  EXIT WHEN condition;   -- checked at the top each iteration
+  -- statements
+END LOOP;
+```
+
+```sql
+DO $$
+DECLARE
+  i INTEGER := 1;
+BEGIN
+  LOOP
+    EXIT WHEN i > 5;
+    RAISE NOTICE 'Count: %', i;
+    i := i + 1;
+  END LOOP;
+END;
+$$;
+```
+
+**`CONTINUE WHEN` — skip odd numbers:**
+
+```sql
+DO $$
+DECLARE
+  i INTEGER := 0;
+BEGIN
+  LOOP
+    i := i + 1;
+    EXIT WHEN i > 10;
+    CONTINUE WHEN MOD(i, 2) <> 0;  -- skip odd numbers
+    RAISE NOTICE 'Even: %', i;
+  END LOOP;
+END;
+$$;
+-- Output: Even: 2, Even: 4, Even: 6, Even: 8, Even: 10
+```
+
+### WHILE LOOP
+
+#### Theory
+
+- Checks the condition **before** each iteration — if the condition is `FALSE` from the start, the loop body never executes
+- Best for situations where you don't know how many iterations are needed, but you know the ongoing condition that must remain true
+- Always ensure the loop variable changes inside the body, otherwise the condition never becomes `FALSE` and the loop runs forever
+
+**Syntax:**
+
+```sql
+WHILE condition LOOP
+  -- statements
+END LOOP;
+```
+
+```sql
+DO $$
+DECLARE
+  i INTEGER := 1;
+BEGIN
+  WHILE i <= 5 LOOP
+    RAISE NOTICE 'While: %', i;
+    i := i + 1;
+  END LOOP;
+END;
+$$;
+```
+
+### FOR LOOP (Integer Range)
+
+#### Theory
+
+- Iterates over an **integer range** from a lower bound to an upper bound (inclusive on both ends)
+- The loop variable (`i`) is automatically declared — you do **not** declare it in the `DECLARE` block
+- Default step is `1`; use `BY n` to step by a different amount (e.g., `FOR i IN 1..10 BY 2`)
+- `REVERSE` counts **down** from the upper bound to the lower bound
+- The loop variable is read-only inside the loop body — you cannot assign to it
+
+**Syntax:**
+
+```sql
+FOR variable IN [REVERSE] lower..upper [BY step] LOOP
+  -- statements
+END LOOP;
+```
+
+```sql
+-- Forward
+DO $$
+BEGIN
+  FOR i IN 1..5 LOOP
+    RAISE NOTICE 'For: %', i;
+  END LOOP;
+END;
+$$;
+
+-- Reverse
+DO $$
+BEGIN
+  FOR i IN REVERSE 5..1 LOOP
+    RAISE NOTICE 'Reverse: %', i;
+  END LOOP;
+END;
+$$;
+```
+
+### FOR LOOP (Query Result)
+
+#### Theory
+
+- Iterates over **every row** returned by a `SELECT` query
+- The record variable is automatically typed to match the shape of the query — no need to declare column variables individually
+- This is the **most practical loop** in PL/pgSQL for processing table data row-by-row
+- If the query returns no rows, the loop body simply never executes (no error)
+- Internally, PostgreSQL opens a cursor for the query and fetches one row per iteration
+
+**Syntax:**
+
+```sql
+FOR record_variable IN query LOOP
+  -- use record_variable.column_name
+END LOOP;
+```
+
+```sql
+DO $$
+BEGIN
+  FOR rec IN SELECT employee_id, first_name FROM employees LOOP
+    RAISE NOTICE 'ID: %, Name: %', rec.employee_id, rec.first_name;
+  END LOOP;
+END;
+$$;
+```
+
+---
+
+## 20. Cursors
+
+```mermaid
+flowchart LR
+    A(["DECLARE cursor_name<br/>CURSOR FOR SELECT ..."]) --> B["OPEN cursor_name"]
+    B --> C["Query executes<br/>Result set ready on server"]
+    C --> D["FETCH cursor_name<br/>INTO rec"]
+    D --> E{"FOUND?"}
+    E -->|"TRUE<br/>(got a row)"| F["Process row<br/>rec.column_name"]
+    F --> D
+    E -->|"FALSE<br/>(no more rows)"| G["EXIT WHEN NOT FOUND"]
+    G --> H["CLOSE cursor_name"]
+    H --> I(["Done"])
+    style A fill:#4dabf7,color:#fff
+    style B fill:#74c0fc,color:#000
+    style E fill:#ffa94d,color:#fff
+    style F fill:#69db7c,color:#000
+    style H fill:#ff6b6b,color:#fff
+    style I fill:#69db7c,color:#000
+```
+
+### What is a Cursor?
+
+A **cursor** is a database object that allows you to retrieve and process query results **one row at a time**, rather than all at once. By default, a `SELECT` query returns its entire result set in one go. A cursor gives you fine-grained, **row-by-row control** over that result set.
+
+**Why use cursors?**
+
+- Process very large result sets without loading all rows into memory simultaneously
+- Apply different logic to each row as it is fetched
+- Pass query results across procedure boundaries
+- Perform operations that depend on values in previous rows
+
+**Cursor lifecycle:**
+
+```
+DECLARE cursor  →  OPEN cursor  →  FETCH row  →  process  →  FETCH next  →  ... →  CLOSE cursor
+```
+
+**Types of cursors in PL/pgSQL:**
+
+| Type                     | Description                                                     |
+| ------------------------ | --------------------------------------------------------------- |
+| **Explicit cursor**      | Manually declared, opened, fetched, and closed                  |
+| **Cursor FOR loop**      | PostgreSQL handles open/fetch/close automatically (recommended) |
+| **Parameterized cursor** | Accepts parameters so the same cursor can run different queries |
+
+> **Special variables inside cursors:**
+>
+> - `FOUND` — set to `TRUE` after a successful `FETCH`, `FALSE` when no more rows remain
+> - `NOT FOUND` — the opposite; commonly used as the `EXIT WHEN` condition
+
+---
+
+### Explicit Cursor
+
+#### Theory
+
+- You fully control every step: `OPEN`, `FETCH`, and `CLOSE`
+- `DECLARE cursor_name CURSOR FOR query;` — defines the cursor (does not run the query yet)
+- `OPEN cursor_name;` — executes the query and positions the cursor before the first row
+- `FETCH cursor_name INTO variables;` — retrieves the next row into the variable(s)
+- `CLOSE cursor_name;` — releases server-side resources; always close when done
+- After the last row is fetched, `FOUND` becomes `FALSE` — use `EXIT WHEN NOT FOUND`
+
+**Syntax:**
+
+```sql
+DECLARE
+  cursor_name CURSOR FOR SELECT ...;
+  rec RECORD;
+BEGIN
+  OPEN cursor_name;
+  LOOP
+    FETCH cursor_name INTO rec;
+    EXIT WHEN NOT FOUND;
+    -- process rec
+  END LOOP;
+  CLOSE cursor_name;
+END;
+```
+
+```sql
+DO $$
+DECLARE
+  emp_cursor CURSOR FOR
+    SELECT employee_id, first_name, salary
+    FROM employees
+    WHERE department_id = 10;
+  rec RECORD;
+BEGIN
+  OPEN emp_cursor;
+  LOOP
+    FETCH emp_cursor INTO rec;
+    EXIT WHEN NOT FOUND;
+    RAISE NOTICE 'ID: %, Name: %, Salary: %', rec.employee_id, rec.first_name, rec.salary;
+  END LOOP;
+  CLOSE emp_cursor;
+END;
+$$;
+```
+
+### Cursor FOR Loop (Recommended)
+
+#### Theory
+
+- The **most concise cursor style** — PostgreSQL automatically handles `OPEN`, `FETCH`, and `CLOSE`
+- The record variable is implicitly declared and typed to the query shape
+- The loop exits automatically when there are no more rows
+- Functionally equivalent to an explicit cursor but far less code — **prefer this in most situations**
+
+**Syntax:**
+
+```sql
+FOR record_variable IN
+  SELECT col1, col2 FROM table WHERE condition
+LOOP
+  -- use record_variable.col1, etc.
+END LOOP;
+```
+
+```sql
+-- PostgreSQL automatically opens, fetches, and closes the cursor
+DO $$
+BEGIN
+  FOR rec IN
+    SELECT employee_id, first_name, salary FROM employees WHERE salary > 50000
+  LOOP
+    RAISE NOTICE 'Name: %, Salary: %', rec.first_name, rec.salary;
+  END LOOP;
+END;
+$$;
+```
+
+### Parameterized Cursor
+
+#### Theory
+
+- A cursor can accept **input parameters**, making it reusable for different sets of data without rewriting the query
+- Parameters are declared in parentheses after the cursor name: `CURSOR (param_name datatype)`
+- The parameters are passed at `OPEN` time: `OPEN cursor_name(value);`
+- This avoids hardcoding filter values in the cursor definition
+
+**Syntax:**
+
+```sql
+DECLARE
+  cursor_name CURSOR (param datatype) FOR
+    SELECT ... WHERE column = param;
+BEGIN
+  OPEN cursor_name(actual_value);
+  ...
+  CLOSE cursor_name;
+END;
+```
+
+```sql
+DO $$
+DECLARE
+  emp_cursor CURSOR (p_dept_id INTEGER) FOR
+    SELECT employee_id, first_name FROM employees WHERE department_id = p_dept_id;
+  rec RECORD;
+BEGIN
+  OPEN emp_cursor(20);
+  LOOP
+    FETCH emp_cursor INTO rec;
+    EXIT WHEN NOT FOUND;
+    RAISE NOTICE 'ID: %, Name: %', rec.employee_id, rec.first_name;
+  END LOOP;
+  CLOSE emp_cursor;
+END;
+$$;
+```
+
+---
+
+## 21. Exceptions & Exception Handling
+
+```mermaid
+flowchart TD
+    B(["BEGIN"])
+    B --> S["Execute statements"]
+    S --> E{"Runtime error<br/>raised?"}
+    E -->|No| OK(["END — success"])
+    E -->|Yes| EX["Jump to EXCEPTION block"]
+    EX --> W{"WHEN clause<br/>matches?"}
+    W -->|"WHEN division_by_zero"| H1["Handle division error"]
+    W -->|"WHEN unique_violation"| H2["Handle duplicate error"]
+    W -->|"WHEN OTHERS"| H3["Catch-all handler"]
+    W -->|"No match"| P(["Error propagates<br/>to caller"])
+    H1 --> R{"RAISE; ?"}
+    H2 --> R
+    H3 --> R
+    R -->|Yes| P
+    R -->|No| OK
+    style B fill:#4dabf7,color:#fff
+    style E fill:#ffa94d,color:#fff
+    style EX fill:#ff6b6b,color:#fff
+    style OK fill:#69db7c,color:#000
+    style P fill:#ff6b6b,color:#fff
+```
+
+### What are Exceptions?
+
+An **exception** is a runtime error that occurs during the execution of a PL/pgSQL block — for example, dividing by zero, querying a non-existent row, or violating a constraint. Without exception handling, any runtime error immediately **aborts** the entire block and rolls back its changes.
+
+Exception handling lets you **catch those errors gracefully**, log them, display a friendly message, or take corrective action — rather than letting the program crash.
+
+**How it works:**
+
+```
+BEGIN
+  -- normal statements
+EXCEPTION
+  WHEN error_name THEN
+    -- recovery logic
+END;
+```
+
+When an error occurs inside `BEGIN`, PostgreSQL immediately **jumps to the `EXCEPTION` block**, checks each `WHEN` clause in order, and executes the first matching handler. If no clause matches, the error propagates upward to the calling block.
+
+**Key diagnostic variables available inside the `EXCEPTION` block:**
+
+| Variable   | Contains                                      |
+| ---------- | --------------------------------------------- |
+| `SQLERRM`  | Human-readable error message string           |
+| `SQLSTATE` | 5-character POSIX error code (e.g. `'23505'`) |
+
+**RAISE levels — not just for errors:**
+
+| Level             | Effect                                                |
+| ----------------- | ----------------------------------------------------- |
+| `RAISE NOTICE`    | Prints a message; execution continues normally        |
+| `RAISE WARNING`   | Prints a warning message; execution continues         |
+| `RAISE EXCEPTION` | Throws a real error; aborts the block (can be caught) |
+
+> **Important:** The `EXCEPTION` block creates an implicit savepoint. If you catch an error and do not re-raise it, the statements that ran before the error are **not rolled back** — only the statement that caused the error is rolled back.
+
+### Common Built-in Exceptions
+
+| Exception               | Trigger Condition                   |
+| ----------------------- | ----------------------------------- |
+| `no_data_found`         | `SELECT INTO` returns no rows       |
+| `too_many_rows`         | `SELECT INTO` returns multiple rows |
+| `division_by_zero`      | Division by zero                    |
+| `unique_violation`      | Duplicate key / unique constraint   |
+| `foreign_key_violation` | FK constraint violated              |
+| `others`                | Catch-all for any other exception   |
+
+### Handling Exceptions
+
+```sql
+DO $$
+DECLARE
+  v_result NUMERIC;
+BEGIN
+  v_result := 10 / 0;
+  RAISE NOTICE 'Result: %', v_result;
+EXCEPTION
+  WHEN division_by_zero THEN
+    RAISE NOTICE 'Error: Cannot divide by zero!';
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Unexpected error: % (Code: %)', SQLERRM, SQLSTATE;
+END;
+$$;
+```
+
+### Raising Custom Exceptions
+
+```sql
+DO $$
+DECLARE
+  v_age INTEGER := -5;
+BEGIN
+  IF v_age < 0 THEN
+    RAISE EXCEPTION 'Age cannot be negative: %', v_age
+      USING ERRCODE = 'P0001';
+  END IF;
+  RAISE NOTICE 'Age: %', v_age;
+END;
+$$;
+```
+
+### NO_DATA_FOUND Example
+
+```sql
+DO $$
+DECLARE
+  v_name employees.first_name%TYPE;
+BEGIN
+  SELECT first_name INTO v_name
+  FROM employees
+  WHERE employee_id = 9999;
+  RAISE NOTICE 'Found: %', v_name;
+EXCEPTION
+  WHEN no_data_found THEN
+    RAISE NOTICE 'Employee not found.';
+END;
+$$;
+```
+
+### Re-Raising Exceptions
+
+Sometimes you want to **catch** an exception (to log it), but then **re-raise** it so the caller still sees the error. Use `RAISE;` (with no arguments) to re-throw the current exception unchanged.
+
+```sql
+DO $$
+BEGIN
+  -- some operation that might fail
+  INSERT INTO employees(employee_id, first_name) VALUES (1, 'Alice');
+EXCEPTION
+  WHEN unique_violation THEN
+    -- log the error, then re-raise
+    RAISE NOTICE 'Duplicate insert attempted — logging and re-raising.';
+    RAISE;  -- re-throws unique_violation to the outer caller
+END;
+$$;
+```
+
+### GET STACKED DIAGNOSTICS
+
+`GET STACKED DIAGNOSTICS` lets you extract **rich diagnostic information** about the caught exception — far more than just `SQLERRM` and `SQLSTATE`. This is essential for proper error logging.
+
+```sql
+DO $$
+DECLARE
+  v_state      TEXT;
+  v_msg        TEXT;
+  v_detail     TEXT;
+  v_hint       TEXT;
+  v_context    TEXT;
+BEGIN
+  PERFORM 1 / 0;  -- trigger division_by_zero
+EXCEPTION
+  WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS
+      v_state   = RETURNED_SQLSTATE,
+      v_msg     = MESSAGE_TEXT,
+      v_detail  = PG_EXCEPTION_DETAIL,
+      v_hint    = PG_EXCEPTION_HINT,
+      v_context = PG_EXCEPTION_CONTEXT;
+
+    RAISE NOTICE 'SQLSTATE : %', v_state;
+    RAISE NOTICE 'Message  : %', v_msg;
+    RAISE NOTICE 'Detail   : %', v_detail;
+    RAISE NOTICE 'Hint     : %', v_hint;
+    RAISE NOTICE 'Context  : %', v_context;
+END;
+$$;
+```
+
+| Diagnostic Item        | Description                                   |
+| ---------------------- | --------------------------------------------- |
+| `RETURNED_SQLSTATE`    | 5-char error code (same as `SQLSTATE`)        |
+| `MESSAGE_TEXT`         | Primary error message (same as `SQLERRM`)     |
+| `PG_EXCEPTION_DETAIL`  | Detailed error message (if provided)          |
+| `PG_EXCEPTION_HINT`    | Hint text (if provided by PostgreSQL)         |
+| `PG_EXCEPTION_CONTEXT` | Call stack context — where the error occurred |
+
+> Use `GET STACKED DIAGNOSTICS` in production stored procedures to build a proper audit/error log table instead of letting errors silently disappear.
+
+---
+
+## 22. Stored Procedures
+
+```mermaid
+graph LR
+    APP["Application"] -->|"CALL update_salary(101, 10)"| PROC["Stored Procedure"]
+    PROC --> IN_P["IN params<br/>(read-only input)"]
+    PROC --> OUT_P["OUT params<br/>(output to caller)"]
+    PROC --> INOUT_P["INOUT params<br/>(both ways)"]
+    PROC --> TX["Can COMMIT /<br/>ROLLBACK inside body"]
+    PROC --> DB[("Database<br/>Executes SQL logic")]
+    DB --> PROC
+    PROC -.->|"returns via OUT/INOUT"| APP
+    style PROC fill:#4dabf7,color:#fff
+    style DB fill:#ffa94d,color:#fff
+    style TX fill:#ff6b6b,color:#fff
+```
+
+### What is a Stored Procedure?
+
+A **stored procedure** is a named, precompiled block of PL/pgSQL code stored on the database server that can be called by name at any time. Procedures encapsulate repetitive business logic (salary updates, order processing, data cleansing) so client applications don't need to reimplement it.
+
+**Procedures vs. Functions — key differences:**
+
+| Feature             | Stored Procedure                   | Function                     |
+| ------------------- | ---------------------------------- | ---------------------------- |
+| Returns value?      | No (use `OUT` params for output)   | Yes — always returns a value |
+| Used in SQL?        | No — called with `CALL`            | Yes — usable in `SELECT`     |
+| Transaction control | Can use `COMMIT`/`ROLLBACK` inside | Cannot control transactions  |
+| Purpose             | Execute actions / side effects     | Compute and return a result  |
+
+**Parameter modes:**
+
+| Mode    | Direction     | Description                                                  |
+| ------- | ------------- | ------------------------------------------------------------ |
+| `IN`    | Caller → Proc | Read-only input value (default if not specified)             |
+| `OUT`   | Proc → Caller | Output value written by the procedure, read by the caller    |
+| `INOUT` | Both ways     | Caller passes a value in; procedure may modify and return it |
+
+> Stored procedures are called with `CALL procedure_name(args)`. They were introduced in **PostgreSQL 11**; earlier versions only had functions.
+
+### Creating a Procedure
+
+```sql
+CREATE OR REPLACE PROCEDURE update_salary(
+  p_emp_id   INTEGER,
+  p_percent  NUMERIC
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE employees
+  SET salary = salary * (1 + p_percent / 100)
+  WHERE employee_id = p_emp_id;
+
+  IF NOT FOUND THEN
+    RAISE NOTICE 'Employee % not found.', p_emp_id;
+  ELSE
+    RAISE NOTICE 'Salary updated for employee %.', p_emp_id;
+  END IF;
+END;
+$$;
+```
+
+### Calling a Procedure
+
+```sql
+CALL update_salary(101, 10);
+```
+
+### Procedure with OUT Parameter
+
+```sql
+CREATE OR REPLACE PROCEDURE get_employee_name(
+  p_emp_id  IN  INTEGER,
+  p_name    OUT VARCHAR
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  SELECT first_name INTO p_name
+  FROM employees
+  WHERE employee_id = p_emp_id;
+END;
+$$;
+
+-- Calling with OUT parameter
+DO $$
+DECLARE
+  v_name VARCHAR;
+BEGIN
+  CALL get_employee_name(101, v_name);
+  RAISE NOTICE 'Name: %', v_name;
+END;
+$$;
+```
+
+### Procedure with INOUT Parameter
+
+`INOUT` means the caller passes a value **in**, and the procedure can **modify and return** it.
+
+```sql
+CREATE OR REPLACE PROCEDURE apply_tax(
+  p_amount  INOUT NUMERIC,
+  p_rate    IN    NUMERIC DEFAULT 0.18
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  p_amount := p_amount + (p_amount * p_rate);  -- modify in place
+END;
+$$;
+
+-- Call: pass a value in, get the result back in the same variable
+DO $$
+DECLARE
+  v_price NUMERIC := 1000.00;
+BEGIN
+  CALL apply_tax(v_price);  -- v_price is both input and output
+  RAISE NOTICE 'Price after tax: %', v_price;  -- 1180.00
+END;
+$$;
+```
+
+### Transaction Control Inside a Procedure
+
+Unlike functions, **stored procedures can issue `COMMIT` and `ROLLBACK`** inside their body. This allows multi-step batch operations where intermediate commits are needed.
+
+```sql
+CREATE OR REPLACE PROCEDURE process_batch_payments()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  rec RECORD;
+BEGIN
+  FOR rec IN SELECT payment_id, amount FROM pending_payments LOOP
+    -- process each payment
+    UPDATE accounts SET balance = balance - rec.amount
+    WHERE account_id = rec.account_id;
+
+    UPDATE pending_payments SET status = 'processed'
+    WHERE payment_id = rec.payment_id;
+
+    COMMIT;  -- commit after each payment — allowed inside procedures
+  END LOOP;
+END;
+$$;
+
+CALL process_batch_payments();
+```
+
+> **Important:** When a procedure issues `COMMIT` or `ROLLBACK`, it cannot be called from inside a transaction block that the caller started. Call it directly with `CALL` or inside its own transaction.
+
+### Dropping a Procedure
+
+```sql
+DROP PROCEDURE IF EXISTS update_salary(INTEGER, NUMERIC);
+```
+
+---
+
+## 23. Functions
+
+```mermaid
+graph TD
+    F["Functions"]
+    F --> SC["Scalar<br/>RETURNS single value<br/>used in SELECT / WHERE"]
+    F --> TB["Table Function<br/>RETURNS TABLE(...)<br/>or RETURNS SETOF"]
+    F --> TR["Trigger Function<br/>RETURNS TRIGGER<br/>called by trigger"]
+    F --> SQ["SQL Function<br/>LANGUAGE sql<br/>STABLE / IMMUTABLE"]
+    F --> SD["SECURITY DEFINER<br/>Runs as owner<br/>privilege escalation"]
+    SC --> V["Volatility"]
+    V --> V1["VOLATILE — default<br/>may differ each call"]
+    V --> V2["STABLE — same result<br/>per query"]
+    V --> V3["IMMUTABLE — always<br/>same result (cacheable)"]
+    style F fill:#4dabf7,color:#fff
+    style SD fill:#ff6b6b,color:#fff
+    style V3 fill:#69db7c,color:#000
+```
+
+### What is a Function?
+
+A **function** is a named, stored block of PL/pgSQL (or SQL/Python/etc.) code that **computes and returns a value**. Unlike procedures, functions can be embedded directly in SQL expressions — inside `SELECT`, `WHERE`, `ORDER BY`, and other clauses.
+
+**Function categories in PostgreSQL:**
+
+| Category             | Returns                              | Example                           |
+| -------------------- | ------------------------------------ | --------------------------------- |
+| **Scalar function**  | A single value                       | `get_full_name()` → `'John Doe'`  |
+| **Table function**   | A set of rows (`RETURNS TABLE(...)`) | `get_dept_employees()` → rows     |
+| **Trigger function** | `TRIGGER` type                       | Called automatically by a trigger |
+
+**Volatility categories** — PostgreSQL uses these to decide if it can cache or optimize function calls:
+
+| Category    | Meaning                                                                            |
+| ----------- | ---------------------------------------------------------------------------------- |
+| `VOLATILE`  | May return different results on each call; can have side effects (default)         |
+| `STABLE`    | Returns the same result for the same args within a single query/statement          |
+| `IMMUTABLE` | Always returns the same result for the same args; no side effects (most cacheable) |
+
+> Mark functions `STABLE` or `IMMUTABLE` when accurate to allow PostgreSQL to optimize queries that call them.
+
+**`RETURNS TABLE` vs `SETOF`:**
+
+- `RETURNS TABLE(col1 type, col2 type)` — defines named output columns; use with `RETURN QUERY`
+- `RETURNS SETOF tablename` — returns full rows of an existing table type
+
+### Scalar Function
+
+```sql
+CREATE OR REPLACE FUNCTION get_full_name(
+  p_first  VARCHAR,
+  p_last   VARCHAR
+)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN p_first || ' ' || p_last;
+END;
+$$;
+
+-- Usage in SQL
+SELECT get_full_name('John', 'Doe');
+```
+
+### Function with Conditional Logic
+
+```sql
+CREATE OR REPLACE FUNCTION calculate_bonus(p_emp_id INTEGER)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_salary  NUMERIC;
+  v_bonus   NUMERIC;
+BEGIN
+  SELECT salary INTO v_salary FROM employees WHERE employee_id = p_emp_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Employee % not found', p_emp_id;
+  END IF;
+
+  v_bonus := CASE
+    WHEN v_salary > 100000 THEN v_salary * 0.20
+    WHEN v_salary >  50000 THEN v_salary * 0.15
+    ELSE                        v_salary * 0.10
+  END;
+
+  RETURN v_bonus;
+END;
+$$;
+
+SELECT calculate_bonus(101);
+```
+
+### Table-Returning Function
+
+```sql
+CREATE OR REPLACE FUNCTION get_dept_employees(p_dept_id INTEGER)
+RETURNS TABLE(emp_id INTEGER, emp_name VARCHAR, emp_salary NUMERIC)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+    SELECT employee_id, first_name, salary
+    FROM employees
+    WHERE department_id = p_dept_id;
+END;
+$$;
+
+SELECT * FROM get_dept_employees(10);
+```
+
+### RETURNS SETOF — Return Multiple Rows of an Existing Type
+
+`RETURNS SETOF tablename` returns full rows matching an existing table's type. Good for wrapping complex WHERE logic into a reusable function.
+
+```sql
+CREATE OR REPLACE FUNCTION get_high_earners(p_threshold NUMERIC)
+RETURNS SETOF employees        -- returns full rows of the employees table
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+    SELECT * FROM employees WHERE salary > p_threshold ORDER BY salary DESC;
+END;
+$$;
+
+-- Use like a table:
+SELECT employee_id, first_name, salary FROM get_high_earners(80000);
+```
+
+### SQL-Language Function
+
+For simple queries that don't need procedural logic, use `LANGUAGE sql` — shorter, cleaner, and PostgreSQL can inline-optimize them.
+
+```sql
+CREATE OR REPLACE FUNCTION get_dept_count(p_dept_id INTEGER)
+RETURNS BIGINT
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT COUNT(*) FROM employees WHERE department_id = p_dept_id;
+$$;
+
+SELECT get_dept_count(10);
+```
+
+### SECURITY DEFINER vs SECURITY INVOKER
+
+By default, functions run with the **privileges of the caller** (`SECURITY INVOKER`). With `SECURITY DEFINER`, the function runs with the **privileges of its creator** — useful for granting limited, controlled access to restricted tables.
+
+```sql
+-- Only the function creator needs SELECT on salary_audit;
+-- the caller does not need direct table access.
+CREATE OR REPLACE FUNCTION get_my_salary_history(p_emp_id INTEGER)
+RETURNS TABLE(changed_at TIMESTAMP, old_salary NUMERIC, new_salary NUMERIC)
+LANGUAGE sql
+SECURITY DEFINER  -- runs as the function owner, not the caller
+AS $$
+  SELECT changed_at, old_salary, new_salary
+  FROM salary_audit
+  WHERE emp_id = p_emp_id;
+$$;
+```
+
+> **Security warning:** `SECURITY DEFINER` functions are a privilege escalation boundary. Always validate input, never concatenate user input into SQL, and keep them narrow in scope.
+
+### Dropping a Function
+
+```sql
+DROP FUNCTION IF EXISTS get_full_name(VARCHAR, VARCHAR);
+```
+
+---
+
+## 24. Packages & Schemas
+
+```mermaid
+graph TD
+    PG_SRV["PostgreSQL Server"]
+    PG_SRV --> DB1["Database: company_db"]
+    PG_SRV --> DB2["Database: analytics_db"]
+    DB1 --> PUB["Schema: public<br/>(default)"]
+    DB1 --> HR["Schema: hr_pkg"]
+    DB1 --> FIN["Schema: finance"]
+    PUB --> T1["Table: employees"]
+    PUB --> T2["View: active_employees"]
+    HR --> T3["Function: get_salary()"]
+    HR --> T4["Procedure: raise_salary()"]
+    HR --> T5["Table: employees<br/>(different from public.employees)"]
+    FIN --> T6["Table: invoices"]
+    FIN --> T7["Function: calc_tax()"]
+    style PG_SRV fill:#4dabf7,color:#fff
+    style HR fill:#ffa94d,color:#fff
+    style FIN fill:#ffa94d,color:#fff
+    style PUB fill:#69db7c,color:#000
+```
+
+### What is a Schema?
+
+A **schema** is a named **namespace** inside a database that organizes objects (tables, views, functions, procedures, sequences, types) into logical groups. Every database object belongs to exactly one schema.
+
+**Why use schemas?**
+
+- **Organisation** — group related objects together (e.g., all HR objects under `hr`, all finance objects under `finance`)
+- **Access control** — grant permissions at the schema level rather than object by object
+- **Avoid naming conflicts** — two schemas can each have a table named `employees` without conflict
+- **Multi-tenancy** — create one schema per tenant in a shared database
+
+**Schema vs. Database:**
+
+| Concept  | Description                                                      |
+| -------- | ---------------------------------------------------------------- |
+| Database | Top-level container; a PostgreSQL server can host many databases |
+| Schema   | Namespace inside a database; a database can contain many schemas |
+| Object   | Table, function, view, etc. — always belongs to one schema       |
+
+**Default schema:** Every database has a `public` schema created by default. Objects created without a schema prefix go into `public`.
+
+**Search path:** PostgreSQL uses `search_path` to resolve unqualified names. When you write `SELECT * FROM employees`, PostgreSQL looks in each schema on the search path in order until it finds a match.
+
+> **Note:** PostgreSQL does not have Oracle-style packages. **Schemas** serve as the organizational equivalent — they group related tables, functions, procedures, and types under a named namespace.
+
+### Creating and Using a Schema
+
+```sql
+-- Create a schema to group related objects
+CREATE SCHEMA hr_pkg;
+
+-- Function inside the schema
+CREATE OR REPLACE FUNCTION hr_pkg.get_salary(p_emp_id INTEGER)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_sal NUMERIC;
+BEGIN
+  SELECT salary INTO v_sal FROM employees WHERE employee_id = p_emp_id;
+  RETURN COALESCE(v_sal, 0);
+END;
+$$;
+
+-- Procedure inside the schema
+CREATE OR REPLACE PROCEDURE hr_pkg.raise_salary(p_emp_id INTEGER, p_amount NUMERIC)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE employees SET salary = salary + p_amount WHERE employee_id = p_emp_id;
+END;
+$$;
+
+-- Access via schema.object_name
+SELECT hr_pkg.get_salary(101);
+CALL hr_pkg.raise_salary(101, 5000);
+```
+
+### Schema Search Path
+
+```sql
+-- Call schema members without prefix by setting the search path
+SET search_path TO hr_pkg, public;
+
+SELECT get_salary(101);    -- resolves to hr_pkg.get_salary
+```
+
+---
+
+## 25. Triggers
+
+```mermaid
+flowchart TD
+    APP(["Application runs<br/>INSERT / UPDATE / DELETE"])
+    APP --> TM{"Trigger timing?"}
+    TM -->|"BEFORE"| BF["BEFORE trigger fires<br/>Can modify NEW<br/>Can cancel operation<br/>(return NULL)"]
+    BF --> DML["DML executes on table"]
+    TM -->|"INSTEAD OF"| IO["INSTEAD OF fires<br/>(views only)<br/>Replaces DML entirely"]
+    IO --> CV["Custom logic runs<br/>on base tables"]
+    DML --> AF{"AFTER trigger?"}
+    AF -->|Yes| AT["AFTER trigger fires<br/>NEW & OLD read-only<br/>Used for audit logs"]
+    AF -->|No| DONE(["Done"])
+    AT --> DONE
+    CV --> DONE
+    style BF fill:#ffa94d,color:#fff
+    style AT fill:#4dabf7,color:#fff
+    style IO fill:#da77f2,color:#fff
+    style DONE fill:#69db7c,color:#000
+```
+
+### What is a Trigger?
+
+A **trigger** is a special function that **automatically fires** in response to a data modification event (`INSERT`, `UPDATE`, or `DELETE`) on a table or view. You don't call triggers directly — PostgreSQL calls them for you when the specified event occurs.
+
+**Common real-world use cases:**
+
+- **Audit logging** — record who changed what and when (e.g., log salary changes)
+- **Auto-populate columns** — automatically set `created_at` or `updated_at` timestamps
+- **Data validation** — enforce business rules too complex for a simple constraint
+- **Cascading updates** — keep summary/denormalised tables in sync
+- **Preventing illegal operations** — block deletions of certain records
+
+**Two-step process in PostgreSQL:**
+
+1. Create a **trigger function** (must return `TRIGGER`)
+2. Bind the function to a table using `CREATE TRIGGER`
+
+**`NEW` and `OLD` record variables:**
+
+| Variable | Available in       | Contains                      |
+| -------- | ------------------ | ----------------------------- |
+| `NEW`    | `INSERT`, `UPDATE` | The row **after** the change  |
+| `OLD`    | `UPDATE`, `DELETE` | The row **before** the change |
+
+- In a `BEFORE` trigger, you can **modify** `NEW` before the row is written (e.g., auto-set a timestamp)
+- In an `AFTER` trigger, both `NEW` and `OLD` are read-only — the change has already happened
+
+> **Row-level vs. Statement-level:**
+>
+> - `FOR EACH ROW` — fires once for every row affected; `NEW`/`OLD` are available
+> - `FOR EACH STATEMENT` — fires once per SQL statement regardless of rows affected; `NEW`/`OLD` are `NULL`
+
+### Trigger Events
+
+| Timing               | Description                           |
+| -------------------- | ------------------------------------- |
+| `BEFORE`             | Fires before the DML operation        |
+| `AFTER`              | Fires after the DML operation         |
+| `INSTEAD OF`         | Fires instead of the DML (views only) |
+| `FOR EACH ROW`       | Executes once per affected row        |
+| `FOR EACH STATEMENT` | Executes once per SQL statement       |
+
+### Step 1: Create the Trigger Function
+
+```sql
+CREATE OR REPLACE FUNCTION log_salary_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO salary_audit(emp_id, old_salary, new_salary, changed_at)
+  VALUES (NEW.employee_id, OLD.salary, NEW.salary, CURRENT_TIMESTAMP);
+  RETURN NEW;
+END;
+$$;
+```
+
+### Step 2: Attach the Trigger to a Table
+
+```sql
+CREATE TRIGGER trg_salary_change
+AFTER UPDATE OF salary ON employees
+FOR EACH ROW
+EXECUTE FUNCTION log_salary_change();
+```
+
+### BEFORE Insert Trigger Example
+
+```sql
+CREATE OR REPLACE FUNCTION set_created_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.created_at := CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_set_created_at
+BEFORE INSERT ON employees
+FOR EACH ROW
+EXECUTE FUNCTION set_created_at();
+```
+
+### Trigger with WHEN Condition
+
+The `WHEN` clause on a `CREATE TRIGGER` makes the trigger fire only when a specific condition is true — avoiding unnecessary function calls.
+
+```sql
+-- Only fire the audit trigger when salary actually changes
+CREATE TRIGGER trg_salary_change_conditional
+AFTER UPDATE OF salary ON employees
+FOR EACH ROW
+WHEN (OLD.salary IS DISTINCT FROM NEW.salary)  -- skip if salary didn't change
+EXECUTE FUNCTION log_salary_change();
+```
+
+> `IS DISTINCT FROM` handles NULLs correctly — `NULL IS DISTINCT FROM NULL` is `FALSE`, whereas `NULL <> NULL` is `NULL` (indeterminate).
+
+### Statement-Level Trigger
+
+A **statement-level trigger** fires once per SQL statement, regardless of how many rows were affected. Useful for audit logging when you only need to know _that_ a statement ran, not which rows.
+
+```sql
+CREATE OR REPLACE FUNCTION log_bulk_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO audit_log(table_name, operation, changed_at)
+  VALUES (TG_TABLE_NAME, TG_OP, CURRENT_TIMESTAMP);
+  RETURN NULL;  -- statement-level triggers must return NULL
+END;
+$$;
+
+CREATE TRIGGER trg_bulk_update
+AFTER UPDATE ON employees
+FOR EACH STATEMENT  -- fires once per UPDATE statement, not per row
+EXECUTE FUNCTION log_bulk_update();
+```
+
+### INSTEAD OF Trigger (on Views)
+
+`INSTEAD OF` triggers intercept DML on a view and let you define custom logic — making non-updatable views writable.
+
+```sql
+-- A view joining employees and departments
+CREATE VIEW employee_details_view AS
+  SELECT e.employee_id, e.first_name, e.salary, d.department_name
+  FROM   employees e
+  JOIN   departments d ON e.department_id = d.department_id;
+
+-- INSTEAD OF trigger to handle INSERT on the view
+CREATE OR REPLACE FUNCTION insert_employee_via_view()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_dept_id INTEGER;
+BEGIN
+  -- Look up the department id from the name
+  SELECT department_id INTO v_dept_id
+  FROM departments WHERE department_name = NEW.department_name;
+
+  INSERT INTO employees(employee_id, first_name, salary, department_id)
+  VALUES (NEW.employee_id, NEW.first_name, NEW.salary, v_dept_id);
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_insert_employee_view
+INSTEAD OF INSERT ON employee_details_view
+FOR EACH ROW
+EXECUTE FUNCTION insert_employee_via_view();
+
+-- Now you can INSERT through the view:
+INSERT INTO employee_details_view(employee_id, first_name, salary, department_name)
+VALUES (10, 'Frank', 65000, 'IT');
+```
+
+### Managing Triggers
+
+```sql
+-- Disable a trigger
+ALTER TABLE employees DISABLE TRIGGER trg_salary_change;
+
+-- Enable a trigger
+ALTER TABLE employees ENABLE TRIGGER trg_salary_change;
+
+-- Drop a trigger
+DROP TRIGGER IF EXISTS trg_salary_change ON employees;
+
+-- List all triggers on a table
+SELECT trigger_name, event_manipulation, action_timing, action_orientation
+FROM   information_schema.triggers
+WHERE  event_object_table = 'employees';
+```
+
+---
+
+## 26. Collections
+
+```mermaid
+graph TD
+    C["PostgreSQL Collections"]
+    C --> ARR["Arrays<br/>INTEGER[] · TEXT[]<br/>1-based indexing"]
+    C --> JSN["JSONB<br/>Semi-structured data<br/>Binary storage"]
+    ARR --> A1["Access: arr[1]"]
+    ARR --> A2["Slice: arr[2:4]"]
+    ARR --> A3["ANY(arr) for membership"]
+    ARR --> A4["unnest() → rows"]
+    JSN --> J1["-> key (returns JSONB)"]
+    JSN --> J2["->> key (returns TEXT)"]
+    JSN --> J3["@> subset check"]
+    JSN --> J4["GIN index for fast queries"]
+    JSN --> J5["jsonb_set() for updates"]
+    ARR -.->|"Use when:<br/>small fixed list<br/>per-row property (tags)"| ARR
+    JSN -.->|"Use when:<br/>variable schema<br/>API payloads<br/>product configs"| JSN
+    style C fill:#4dabf7,color:#fff
+    style ARR fill:#74c0fc,color:#000
+    style JSN fill:#ffa94d,color:#fff
+```
+
+### What are Collections / Arrays?
+
+In PostgreSQL, a **collection** is a variable that holds **multiple values** of the same type. PostgreSQL's primary collection type is the **array** — a built-in, first-class data type that any column, variable, or function can use.
+
+**Key characteristics of PostgreSQL arrays:**
+
+- **1-based indexing** — the first element is at index `1`, not `0`
+- **Any data type** — arrays of integers, text, dates, custom composite types, even arrays of arrays (multi-dimensional)
+- **Variable length** — you don't declare a fixed size; the array grows as you append elements
+- **Native syntax** — declare with `[]`, construct with `ARRAY[...]`, access with `arr[i]`, slice with `arr[start:end]`
+
+**When to use arrays (vs. a separate table):**
+
+| Use Arrays When...                                   | Use a Separate Table When...                      |
+| ---------------------------------------------------- | ------------------------------------------------- |
+| The list is small and belongs to one parent row      | The list can be large or grow unboundedly         |
+| You don't need to join or filter on list elements    | You need to JOIN, index, or query inside the list |
+| The data is truly a property of the row (e.g., tags) | Each item is an entity with its own attributes    |
+
+> Arrays violate **1NF** (First Normal Form) since they store multiple values in one column. Use them pragmatically for genuinely list-like attributes (tags, phone numbers, roles) where normalization would add complexity without benefit.
+
+### Declaring and Using Arrays
+
+```sql
+DO $$
+DECLARE
+  v_nums   INTEGER[] := ARRAY[10, 20, 30, 40, 50];
+  v_names  TEXT[]    := ARRAY['Alice', 'Bob', 'Carol'];
+BEGIN
+  -- Access by index (1-based)
+  RAISE NOTICE 'First number : %', v_nums[1];
+  RAISE NOTICE 'Second name  : %', v_names[2];
+
+  -- Append an element
+  v_nums := v_nums || 60;
+  RAISE NOTICE 'Array length : %', array_length(v_nums, 1);
+
+  -- Slice: elements 2 to 4
+  RAISE NOTICE 'Slice        : %', v_nums[2:4];
+END;
+$$;
+```
+
+### Iterating with FOREACH
+
+```sql
+DO $$
+DECLARE
+  v_colors TEXT[] := ARRAY['Red', 'Green', 'Blue'];
+  v_color  TEXT;
+BEGIN
+  FOREACH v_color IN ARRAY v_colors LOOP
+    RAISE NOTICE 'Color: %', v_color;
+  END LOOP;
+END;
+$$;
+```
+
+### Arrays in Table Columns
+
+```sql
+CREATE TABLE projects (
+  project_id  INTEGER,
+  name        VARCHAR(100),
+  tags        TEXT[]          -- array column
+);
+
+INSERT INTO projects VALUES (1, 'Website', ARRAY['html', 'css', 'js']);
+INSERT INTO projects VALUES (2, 'API',     ARRAY['python', 'rest']);
+
+-- Check if element exists
+SELECT * FROM projects WHERE 'python' = ANY(tags);
+
+-- Expand array into individual rows
+SELECT project_id, unnest(tags) AS tag FROM projects;
+```
+
+### Useful Array Functions
+
+| Function                    | Description                        |
+| --------------------------- | ---------------------------------- |
+| `array_length(arr, dim)`    | Length of array in given dimension |
+| `array_append(arr, elem)`   | Append element to end of array     |
+| `array_prepend(elem, arr)`  | Prepend element to start of array  |
+| `array_cat(arr1, arr2)`     | Concatenate two arrays             |
+| `unnest(arr)`               | Expand array into a set of rows    |
+| `elem = ANY(arr)`           | True if element exists in array    |
+| `array_position(arr, elem)` | Index of first matching element    |
+
+---
+
+### JSONB — Semi-Structured Data in PostgreSQL
+
+`JSONB` is PostgreSQL's **binary JSON** type — it stores JSON data in a decomposed binary format that enables indexing and efficient querying. It is one of PostgreSQL's most powerful features, bridging relational and document-store capabilities.
+
+**`JSON` vs `JSONB`:**
+
+| Feature            | `JSON`                                    | `JSONB`                             |
+| ------------------ | ----------------------------------------- | ----------------------------------- |
+| Storage            | Stores text as-is                         | Parsed binary format                |
+| Insert speed       | Faster (no parsing overhead)              | Slightly slower (parses on write)   |
+| Query/index speed  | Slow (re-parses on every read)            | Fast (binary; supports GIN indexes) |
+| Key ordering       | Preserves original key order              | Does NOT preserve key order         |
+| Duplicate keys     | Keeps last                                | Keeps last (same)                   |
+| **Recommendation** | Use only when you need exact text storage | **Use JSONB for almost everything** |
+
+```sql
+-- Create a table with JSONB column
+CREATE TABLE products (
+  product_id  INTEGER PRIMARY KEY,
+  name        VARCHAR(100),
+  attributes  JSONB          -- flexible schema for product specs
+);
+
+INSERT INTO products VALUES
+  (1, 'Laptop',     '{"brand": "Dell",  "ram_gb": 16, "storage_gb": 512, "tags": ["electronics", "computer"]}'),
+  (2, 'Headphones', '{"brand": "Sony",  "wireless": true, "tags": ["electronics", "audio"]}'),
+  (3, 'Desk',       '{"material": "wood", "width_cm": 140, "tags": ["furniture"]}');
+
+-- Access a top-level key (returns JSONB)
+SELECT name, attributes -> 'brand' AS brand FROM products;
+
+-- Access a top-level key as TEXT (use ->> for text output)
+SELECT name, attributes ->> 'brand' AS brand FROM products;
+
+-- Access nested value
+SELECT attributes -> 'ram_gb' AS ram FROM products WHERE product_id = 1;
+
+-- Filter by JSONB field value
+SELECT name FROM products WHERE attributes ->> 'brand' = 'Dell';
+
+-- Check if key exists (? operator)
+SELECT name FROM products WHERE attributes ? 'wireless';
+
+-- Check if any of a list of keys exist (?| operator)
+SELECT name FROM products WHERE attributes ?| ARRAY['wireless', 'ram_gb'];
+
+-- Check if JSONB contains a sub-object (@> operator)
+SELECT name FROM products WHERE attributes @> '{"brand": "Sony"}';
+
+-- Query inside a JSONB array
+SELECT name FROM products WHERE attributes -> 'tags' @> '["audio"]';
+
+-- Update a JSONB field (jsonb_set)
+UPDATE products
+SET attributes = jsonb_set(attributes, '{ram_gb}', '32')
+WHERE product_id = 1;
+
+-- Add a new key
+UPDATE products
+SET attributes = attributes || '{"in_stock": true}'
+WHERE product_id = 1;
+
+-- Remove a key (- operator)
+UPDATE products
+SET attributes = attributes - 'in_stock'
+WHERE product_id = 1;
+```
+
+**JSONB operators at a glance:**
+
+| Operator      | Description                             | Example                            |
+| ------------- | --------------------------------------- | ---------------------------------- |
+| `->  'key'`   | Get JSON value (returns JSONB)          | `attributes -> 'brand'`            |
+| `->> 'key'`   | Get JSON value as TEXT                  | `attributes ->> 'brand'`           |
+| `#>  '{a,b}'` | Get nested value (returns JSONB)        | `attributes #> '{address,city}'`   |
+| `#>> '{a,b}'` | Get nested value as TEXT                | `attributes #>> '{address,city}'`  |
+| `@>` json     | Does left contain right? (subset check) | `attributes @> '{"brand":"Sony"}'` |
+| `<@` json     | Is left contained in right?             | `'{"a":1}' <@ attributes`          |
+| `?` key       | Does key exist?                         | `attributes ? 'wireless'`          |
+| `\|\|` json   | Concatenate / merge two JSONB objects   | `attributes \|\| '{"new":"val"}'`  |
+| `-` key       | Remove a key                            | `attributes - 'brand'`             |
+
+**GIN Index on JSONB — for fast queries:**
+
+```sql
+-- A GIN index allows fast @>, ?, ?|, ?& queries on JSONB
+CREATE INDEX idx_products_attrs ON products USING GIN (attributes);
+
+-- This query now uses the index instead of a full table scan:
+SELECT name FROM products WHERE attributes @> '{"brand": "Sony"}';
+```
+
+> **When to use JSONB:** User preferences, product configurations, API payloads, settings objects, and any data where the schema varies per row. For fixed-schema data, normal columns outperform JSONB on query speed and storage efficiency.
+
+---
+
+## 27. Backend Integration — Node.js Perspective
+
+```mermaid
+flowchart LR
+    CLIENT["Node.js App"] --> POOL["pg.Pool<br/>(Connection Pool)"]
+    POOL --> PG[("PostgreSQL Server")]
+    CLIENT --> QRY{"Query type"}
+    QRY -->|"Simple read"| RQ["pool.query()<br/>Parameterized SQL<br/>$1 $2 prevents injection"]
+    QRY -->|"Transaction"| TX["client = pool.connect()<br/>client.query('BEGIN')<br/>... statements ...<br/>client.query('COMMIT')"]
+    QRY -->|"Bulk / batch"| BK["Multiple statements<br/>inside BEGIN/COMMIT"]
+    RQ --> PG
+    TX --> PG
+    BK --> PG
+    PG --> RS["Result rows"]
+    RS --> CLIENT
+    TX -->|"Error"| RB["client.query('ROLLBACK')"]
+    RB --> PG
+    style POOL fill:#4dabf7,color:#fff
+    style TX fill:#ffa94d,color:#fff
+    style RB fill:#ff6b6b,color:#fff
+    style PG fill:#69db7c,color:#000
+```
+
+### SQL Injection
+
+**SQL injection is the most critical security vulnerability in database-backed applications.** It occurs when user-supplied input is embedded directly into a SQL query string, allowing an attacker to modify the query's logic.
+
+```javascript
+// NEVER DO THIS — SQL INJECTION VULNERABILITY
+const email = req.body.email;
+// Attacker sends: ' OR '1'='1
+const query = `SELECT * FROM users WHERE email = '${email}'`;
+// Results in: SELECT * FROM users WHERE email = '' OR '1'='1'
+// Returns ALL users — complete authentication bypass
+
+// ALWAYS DO THIS — parameterized query ($1, $2, ...)
+const result = await pool.query(
+  "SELECT * FROM users WHERE email = $1",
+  [email] // email is treated as pure data, never as SQL code
+);
+```
+
+**Why parameterized queries are safe:** The SQL structure is sent to the server first (pre-compiled). The parameters are sent separately as pure data values. The database engine never interprets parameters as SQL syntax — there is no way for user input to escape the data context.
+
+---
+
+### Connection Pooling
+
+Opening a new database connection is expensive — it involves network round trips, authentication, and memory allocation. For a web server handling 100 requests per second, a new connection per request would be catastrophic.
+
+**Connection pooling** maintains a pool of pre-established connections that are reused across requests.
+
+```javascript
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  max: 20, // maximum connections in pool
+  min: 2, // keep 2 connections warm at all times
+  idleTimeoutMillis: 30000, // close idle connections after 30s
+  connectionTimeoutMillis: 5000, // throw error if cannot connect in 5s
+});
+
+// pool.query() automatically borrows a connection, uses it, returns it
+const result = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
+```
+
+**Common mistake:** Creating a new `Pool` on every request, or using a single `Client` (direct connection) instead of `Pool`. Always create the pool once at application startup and reuse it for the lifetime of the process.
+
+---
+
+### Transactions in Backend Code
+
+```javascript
+// Correct pattern: use a dedicated client from the pool for transactions
+const client = await pool.connect();
+try {
+  await client.query("BEGIN");
+
+  await client.query(
+    "UPDATE accounts SET balance = balance - $1 WHERE account_id = $2",
+    [amount, fromAccountId]
+  );
+
+  await client.query(
+    "UPDATE accounts SET balance = balance + $1 WHERE account_id = $2",
+    [amount, toAccountId]
+  );
+
+  await client.query("COMMIT");
+} catch (error) {
+  await client.query("ROLLBACK");
+  throw error; // re-throw so the caller knows the transaction failed
+} finally {
+  client.release(); // ALWAYS release the connection back to the pool
+}
+```
+
+**Critical:** You must use a single `client` (not `pool.query`) for transactions. Each call to `pool.query` can use a different connection — `BEGIN` and `COMMIT` must happen on the same connection.
+
+---
+
+### ORM vs Raw SQL
+
+| Aspect                 | ORM (Prisma, TypeORM)        | Raw SQL                       |
+| ---------------------- | ---------------------------- | ----------------------------- |
+| Development speed      | Faster for CRUD              | Slower                        |
+| Complex queries        | Often awkward                | Full control                  |
+| Performance            | Can generate inefficient SQL | You control exactly what runs |
+| Migrations             | Built-in tooling             | Manual or with tools          |
+| Debugging              | Harder (generated SQL)       | Easier (exact queries)        |
+| SQL knowledge required | Lower                        | High                          |
+
+**Pragmatic recommendation:** Use an ORM for standard CRUD operations. Drop to raw SQL for complex queries, reports, and performance-critical paths. Never let the ORM be an excuse not to learn SQL — you will always need to write SQL directly at some point in your career.
+
+---
+
+### Pagination at Scale
+
+```sql
+-- OFFSET pagination (simple but slow at large offsets)
+SELECT * FROM products ORDER BY id LIMIT 20 OFFSET 1000000;
+-- Problem: PostgreSQL reads and discards the first 1,000,000 rows!
+-- Performance degrades linearly as the page number increases.
+
+-- KEYSET pagination (efficient, scales to any depth)
+-- First page:
+SELECT * FROM products ORDER BY id LIMIT 20;
+
+-- Next page (after seeing last id = 450):
+SELECT * FROM products WHERE id > 450 ORDER BY id LIMIT 20;
+-- Jumps directly via index — no discarded rows, O(log n) regardless of page
+```
+
+**Keyset pagination** is the correct approach for large datasets. Instead of OFFSET (which forces reading all previous rows), you remember the last seen value of the sort key and use it as a WHERE filter. The sort column must be indexed. This is the standard approach for infinite scroll and high-volume API pagination.
+
+---
+
+## 28. Interview Preparation
+
+### 25 SQL Interview Questions — Beginner to 3 YOE Level
+
+---
+
+#### Beginner Level (1–8)
+
+**Q1. What is the difference between DELETE, TRUNCATE, and DROP?**
+
+`DELETE` removes specific rows matching a WHERE clause; it is transactional (can be rolled back) and fires row-level triggers. `TRUNCATE` removes all rows from a table at once — faster because it does not log individual row deletions, and also transactional in PostgreSQL. `DROP` removes the entire table structure including all data, indexes, and constraints permanently.
+
+**Q2. What is the difference between WHERE and HAVING?**
+
+`WHERE` filters individual rows from the base table **before** aggregation. `HAVING` filters groups **after** aggregation with `GROUP BY`. You use HAVING when your filter condition references an aggregate function (COUNT, SUM, AVG). You cannot reference an aggregate in WHERE because WHERE runs before GROUP BY in the logical execution order.
+
+**Q3. What is a PRIMARY KEY?**
+
+A primary key uniquely identifies each row in a table. It automatically enforces two constraints: the value must be unique across all rows AND must never be NULL. A table can have only one primary key. PostgreSQL automatically creates a unique B-Tree index on the primary key column(s).
+
+**Q4. What is a FOREIGN KEY?**
+
+A foreign key is a column in one table that references the PRIMARY KEY of another table. It enforces referential integrity — you cannot insert a value in the FK column that does not exist in the referenced table, and you cannot delete a parent row that has child rows referencing it (unless `ON DELETE CASCADE` or `ON DELETE SET NULL` are configured).
+
+**Q5. What is the difference between INNER JOIN and LEFT JOIN?**
+
+INNER JOIN returns only rows where there is a match in both tables. LEFT JOIN returns all rows from the left table — if a left row has no match in the right table, the right columns are NULL. LEFT JOIN is used when you want to keep records from the primary table even when no related records exist.
+
+**Q6. What is NULL and how is it different from 0 or an empty string?**
+
+NULL represents the absence of any value — "unknown" or "not applicable." Zero (0) is a valid numeric value. Empty string (`''`) is a valid string of zero length. NULL is not equal to anything, including itself — `NULL = NULL` is `UNKNOWN`, not `TRUE`. You must use `IS NULL` or `IS NOT NULL` to check for NULL.
+
+**Q7. What is the difference between COUNT(\*) and COUNT(column)?**
+
+`COUNT(*)` counts all rows including those with NULL values in any column. `COUNT(column_name)` counts only rows where that specific column is NOT NULL. If 10 employees have no email, `COUNT(*)` and `COUNT(email)` will differ by 10.
+
+**Q8. What is a UNIQUE constraint versus a PRIMARY KEY?**
+
+Both enforce uniqueness. PRIMARY KEY additionally prohibits NULL values (one per table). A UNIQUE constraint allows NULL values (multiple NULLs are permitted since each NULL is considered distinct) and a table can have multiple UNIQUE constraints. Both automatically create a unique index.
+
+---
+
+#### Intermediate Level (9–17)
+
+**Q9. Explain the SQL query logical execution order.**
+
+FROM/JOIN → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY → LIMIT/OFFSET. This explains why you cannot use a SELECT alias in WHERE (WHERE runs before SELECT), but you can use it in ORDER BY (runs after SELECT).
+
+**Q10. What is the difference between a correlated and a non-correlated subquery?**
+
+A non-correlated subquery executes once and its result is used by the outer query. A correlated subquery references a column from the outer query and re-executes once per row of the outer query — making it potentially expensive. Correlated subqueries can usually be rewritten as JOINs with a derived table for better performance.
+
+**Q11. What is the NOT IN with NULL values trap?**
+
+If the subquery in `NOT IN` returns any NULL values, the entire NOT IN condition evaluates to UNKNOWN for all rows — effectively returning an empty result set. `5 NOT IN (1, 2, NULL)` = `TRUE AND TRUE AND UNKNOWN` = `UNKNOWN`. The fix: add `WHERE column IS NOT NULL` inside the subquery, or use `NOT EXISTS` which is NULL-safe.
+
+**Q12. What is an index and when should you NOT use one?**
+
+An index is a separate data structure enabling fast row lookup by maintaining a sorted copy of specified column values with pointers to rows. Avoid indexes on: low-selectivity columns (few distinct values), very small tables, frequently updated columns (high write overhead), and columns not used in WHERE/JOIN/ORDER BY.
+
+**Q13. What are the ACID properties?**
+
+Atomicity — transaction is all-or-nothing. Consistency — transaction leaves the database in a valid state. Isolation — concurrent transactions do not interfere with each other. Durability — committed data survives crashes.
+
+**Q14. What is the difference between RANK(), DENSE_RANK(), and ROW_NUMBER()?**
+
+ROW_NUMBER assigns a unique sequential number with no ties and no gaps. RANK assigns the same rank to tied rows but skips ranks after a tie (1, 2, 2, **4**). DENSE_RANK assigns the same rank to tied rows but does not skip ranks (1, 2, 2, **3**).
+
+**Q15. What is a View and what is a Materialized View?**
+
+A view is a stored query that executes every time it is queried — stores no data, always returns current data. A materialized view physically stores the query result and requires an explicit `REFRESH` to update. Use materialized views when the underlying query is expensive and slightly stale data is acceptable.
+
+**Q16. What isolation level would you choose for a bank transfer?**
+
+At minimum REPEATABLE READ to prevent non-repeatable reads (reading the balance changing between two reads in the same transaction). For maximum correctness, SERIALIZABLE prevents all anomalies. The trade-off is increased lock contention and potential serialization failures that require retries.
+
+**Q17. What is a deadlock and how do you prevent it?**
+
+A deadlock occurs when two transactions each hold a lock the other needs, creating a circular wait. PostgreSQL resolves deadlocks by aborting one transaction. Prevention: always acquire locks in the same order across transactions, keep transactions short, use NOWAIT to fail fast, and implement retry logic for SQLSTATE `'40P01'`.
+
+---
+
+#### Advanced / 3 YOE Level (18–25)
+
+**Q18. What is the difference between EXISTS and IN for performance?**
+
+EXISTS short-circuits — it stops scanning as soon as one matching row is found. IN builds the full result set before checking membership. EXISTS is generally faster when the subquery returns many rows or when NULLs might be present. EXISTS is always safer with NOT IN scenarios involving NULLs.
+
+**Q19. Explain MVCC (Multi-Version Concurrency Control) in PostgreSQL.**
+
+PostgreSQL uses MVCC to allow concurrent transactions without blocking each other. Instead of locking rows for reads, PostgreSQL keeps multiple versions of each row — each transaction sees a consistent snapshot as of its start time. Old row versions are cleaned up by the `VACUUM` process. This is why reads in PostgreSQL never block writes and writes never block reads.
+
+**Q20. What is the difference between a covering index and a regular index?**
+
+A regular index must fetch non-indexed columns from the table heap (an extra I/O step). A covering index includes all columns needed by the query, so PostgreSQL can satisfy the entire query from the index alone (index-only scan) — the fastest possible read path.
+
+**Q21. When would you use a CTE vs a temporary table?**
+
+Use a CTE for readability, logical decomposition, and recursion — CTEs are cleaned up automatically. Use a temporary table when the intermediate result set is large enough to benefit from indexing, or when you need to reference the result across multiple subsequent queries or statements.
+
+**Q22. How does the query planner decide whether to use an index?**
+
+The planner uses statistics (`pg_stats`) to estimate row counts and cost of different access methods, choosing the lowest-cost plan. A low-selectivity column leads the planner to estimate the index still requires too many heap fetches — making a sequential scan cheaper. Outdated statistics cause poor plans; run `ANALYZE` to refresh statistics.
+
+**Q23. What is SKIP LOCKED and when would you use it?**
+
+`FOR UPDATE SKIP LOCKED` causes a SELECT to skip rows already locked by other transactions rather than waiting. This is the standard pattern for a concurrent job queue in PostgreSQL — multiple workers select pending jobs simultaneously, each getting different rows because locked rows are skipped, preventing two workers from processing the same job.
+
+**Q24. Explain the difference between OLTP and OLAP and how it affects design decisions.**
+
+OLTP handles high-volume, fast transactional queries (individual lookups and writes). OLAP handles complex analytical queries over large datasets. OLTP designs favour normalization and fast individual row lookups. OLAP designs favour denormalization and pre-aggregation. Running heavy OLAP queries on an OLTP database degrades performance — production architectures often separate them with read replicas or a dedicated data warehouse.
+
+**Q25. What is the N+1 query problem and how do you solve it?**
+
+The N+1 problem occurs when your application executes 1 query to get N records, then N additional queries (one per record) to fetch related data. Example: 1 query for 100 orders, then 100 queries for each order's customer. The solution: use a JOIN to fetch all needed data in a single query, or use ORM eager loading. N+1 is the most common database performance problem in ORM-based applications.
+
+---
+
+### 5 Scenario-Based Debugging Problems
+
+**Scenario 1 — Phantom NULL Results**
+
+You run `SELECT * FROM employees WHERE department_id NOT IN (SELECT dept_id FROM excluded_depts)` and get **zero rows**, even though most employees are not in the excluded list.
+
+**Diagnosis:** `excluded_depts` contains at least one NULL in `dept_id`. `NOT IN (..., NULL, ...)` evaluates to UNKNOWN for every row. **Fix:** Add `WHERE dept_id IS NOT NULL` inside the subquery, or rewrite with `NOT EXISTS`.
+
+---
+
+**Scenario 2 — Slow Query After Bulk Data Load**
+
+A query that normally runs in 2ms takes 8 seconds the morning after a bulk import of 2 million rows.
+
+**Diagnosis:** The query planner uses statistics to decide access methods. After a large data load, statistics are stale — the planner may be making wrong decisions. **Fix:** Run `ANALYZE orders;` to refresh statistics, then verify with `EXPLAIN ANALYZE`.
+
+---
+
+**Scenario 3 — Intermittent "deadlock detected" Error**
+
+Your application intermittently throws `ERROR: deadlock detected` during checkout processing.
+
+**Diagnosis:** Two concurrent checkout transactions are acquiring locks in different orders — creating a circular wait. **Fix:** Ensure all transactions acquire locks in a consistent order (e.g., always lock inventory before cart). Add retry logic in the application for SQLSTATE `'40P01'`.
+
+---
+
+**Scenario 4 — "Column does not exist" with SELECT Alias**
+
+You write `SELECT salary * 12 AS annual_salary FROM employees WHERE annual_salary > 600000` and get `ERROR: column "annual_salary" does not exist`.
+
+**Diagnosis:** WHERE is evaluated before SELECT in logical execution order. The alias does not exist when WHERE runs. **Fix:** Repeat the expression: `WHERE salary * 12 > 600000`, or wrap in a CTE/subquery.
+
+---
+
+**Scenario 5 — Materialized View Showing Stale Data**
+
+Your dashboard shows yesterday's figures. The underlying query is correct when run directly.
+
+**Diagnosis:** You are querying a materialized view last refreshed yesterday — it caches data until explicitly refreshed. **Fix:** Run `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard_summary;`. Set up automated refresh via `pg_cron` or application-level triggers on data changes.
+
+---
+
+### 5 Query Writing Exercises
+
+**Exercise 1:** Top 2 highest-paid employees per department using window functions.
+
+```sql
+SELECT department_id, first_name, salary FROM (
+  SELECT department_id, first_name, salary,
+         DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS rnk
+  FROM employees
+) t WHERE rnk <= 2;
+```
+
+**Exercise 2:** Monthly new signups with month-over-month growth percentage.
+
+```sql
+WITH monthly AS (
+  SELECT DATE_TRUNC('month', created_at) AS month, COUNT(*) AS signups
+  FROM users
+  WHERE created_at >= NOW() - INTERVAL '1 year'
+  GROUP BY 1
+)
+SELECT month, signups,
+       LAG(signups) OVER (ORDER BY month) AS prev_month,
+       ROUND(
+         100.0 * (signups - LAG(signups) OVER (ORDER BY month))
+         / NULLIF(LAG(signups) OVER (ORDER BY month), 0),
+         2
+       ) AS pct_change
+FROM monthly
+ORDER BY month;
+```
+
+**Exercise 3:** UPSERT a product — insert or update price and `updated_at`.
+
+```sql
+INSERT INTO products (sku, name, price, updated_at)
+VALUES ('SKU-999', 'New Widget', 49.99, NOW())
+ON CONFLICT (sku)
+DO UPDATE SET
+  price      = EXCLUDED.price,
+  updated_at = NOW();
+```
+
+**Exercise 4:** Find all direct and indirect subordinates of employee 5 using a recursive CTE.
+
+```sql
+WITH RECURSIVE subordinates AS (
+  SELECT employee_id, first_name, manager_id, 1 AS depth
+  FROM employees WHERE manager_id = 5
+  UNION ALL
+  SELECT e.employee_id, e.first_name, e.manager_id, s.depth + 1
+  FROM employees e
+  JOIN subordinates s ON e.manager_id = s.employee_id
+  WHERE s.depth < 10
+)
+SELECT * FROM subordinates ORDER BY depth, first_name;
+```
+
+**Exercise 5:** Department salary statistics using conditional aggregation.
+
+```sql
+SELECT
+  department_id,
+  COUNT(*)                                        AS total,
+  COUNT(CASE WHEN gender = 'Female' THEN 1 END)  AS female_count,
+  COUNT(CASE WHEN gender = 'Male'   THEN 1 END)  AS male_count,
+  ROUND(AVG(salary), 2)                           AS avg_salary,
+  MAX(salary)                                     AS top_salary,
+  ROUND(
+    100.0 * COUNT(CASE WHEN gender = 'Female' THEN 1 END) / NULLIF(COUNT(*), 0),
+    1
+  )                                               AS female_pct
+FROM employees
+GROUP BY department_id
+ORDER BY avg_salary DESC;
+```
+
+---
+
+### Common SQL Interview Traps
+
+**Trap 1 — NOT IN with NULLs:** Any NULL in a NOT IN subquery returns zero results. Always add `WHERE column IS NOT NULL` inside the subquery, or use `NOT EXISTS`.
+
+**Trap 2 — GROUP BY with non-aggregated columns:** Every SELECT column must be in GROUP BY or aggregated. PostgreSQL enforces this strictly (unlike MySQL's lenient mode).
+
+**Trap 3 — Using DISTINCT to fix duplicate rows:** Many beginners use `SELECT DISTINCT` to "fix" a query returning duplicates when the real issue is a missing join condition or an unintended Cartesian product.
+
+**Trap 4 — TRUNCATE vs DELETE for testing:** TRUNCATE is much faster and optionally resets sequences (`RESTART IDENTITY`). DELETE is transactional and fires triggers. Know when each is appropriate.
+
+**Trap 5 — String comparison case sensitivity:** In PostgreSQL, `WHERE name = 'alice'` does NOT match 'Alice'. Use `LOWER(name) = 'alice'` or `ILIKE 'alice'` for case-insensitive matching. This differs from MySQL which is case-insensitive by default for VARCHAR columns.
+
+**Trap 6 — Aggregate in WHERE instead of HAVING:** `WHERE COUNT(*) > 5` is a syntax error. Aggregates belong in HAVING.
+
+**Trap 7 — Date equality on TIMESTAMP columns:** `WHERE order_date = '2026-03-10'` fails for TIMESTAMP columns because `'2026-03-10'` becomes `'2026-03-10 00:00:00'` — missing the rest of the day. Use: `WHERE order_date >= '2026-03-10' AND order_date < '2026-03-11'` or `WHERE DATE(order_date) = '2026-03-10'` (the latter prevents index use).
+
+---
+
+### How to Answer SQL Questions Confidently
+
+**Step 1 — Clarify:** Restate the problem before writing SQL. "So you want employees with salary above average, per department — is that right?" Shows you think before you code.
+
+**Step 2 — Think about the data model:** "I'll need employees joined to departments for the department name."
+
+**Step 3 — Build incrementally:** Start with FROM and WHERE, then GROUP BY, then SELECT, then ORDER BY. Do not write the whole query at once.
+
+**Step 4 — Mention edge cases:** "I'd wrap this with COALESCE to handle NULL salaries. I'd add `IS NOT NULL` in the subquery to avoid the NOT IN/NULL trap."
+
+**Step 5 — Discuss performance:** "For a large dataset, I'd want an index on `department_id` and `salary`. I'd verify the plan with EXPLAIN ANALYZE."
+
+**Step 6 — Offer alternatives:** "You could also solve this with a window function — that might be more readable and equally performant."
+
+This approach demonstrates not just SQL knowledge but engineering judgment — exactly what 3 YOE interviews assess.
+
+---

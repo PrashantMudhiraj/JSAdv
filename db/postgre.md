@@ -442,7 +442,6 @@ graph TD
 
 - **INTEGER** — stores pure whole numbers (e.g., `EmpId INT` → 100, 101)
 - **NUMERIC(P, S)** — stores exact decimal numbers
-
   - `P` = Precision → total number of digits (both sides of decimal)
   - `S` = Scale → number of digits **after** the decimal point
   - Example: `NUMERIC(10, 2)` allows up to 10 total digits with 2 decimal places
@@ -635,6 +634,126 @@ BEGIN
 END;
 $$;
 ```
+
+---
+
+### Composite Types
+
+A **composite type** is a user-defined type that groups multiple fields (columns) under one name — essentially a struct/record. You can use composite types as column types in tables, as function return types, or as PL/pgSQL record variables.
+
+#### CREATE TYPE ... AS (...)
+
+```sql
+-- Define a composite type for an address
+CREATE TYPE address_type AS (
+  street      VARCHAR(100),
+  city        VARCHAR(50),
+  state       VARCHAR(20),
+  postal_code VARCHAR(10),
+  country     VARCHAR(50)
+);
+
+-- Define a composite type for a full name
+CREATE TYPE full_name_type AS (
+  first_name  VARCHAR(50),
+  last_name   VARCHAR(50),
+  title       VARCHAR(10)
+);
+```
+
+#### Using Composite Types as Column Types
+
+```sql
+-- Use composite type as a column
+CREATE TABLE employees_v2 (
+  employee_id  SERIAL PRIMARY KEY,
+  full_name    full_name_type,
+  home_address address_type,
+  work_address address_type,
+  salary       NUMERIC(12,2)
+);
+
+-- Insert using ROW() constructor
+INSERT INTO employees_v2 (full_name, home_address, salary)
+VALUES (
+  ROW('Alice', 'Smith', 'Ms.'),
+  ROW('12 Main St', 'Bangalore', 'KA', '560001', 'India'),
+  80000
+);
+
+-- Access a field of a composite column using dot notation
+-- NB: wrap the column name in parentheses before the dot
+SELECT
+  (full_name).first_name,
+  (full_name).last_name,
+  (home_address).city,
+  (home_address).country
+FROM employees_v2;
+```
+
+#### Composite Types as Function Return Values
+
+```sql
+-- Function returning a composite type
+CREATE OR REPLACE FUNCTION get_full_name(p_emp_id INTEGER)
+RETURNS full_name_type
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_name full_name_type;
+BEGIN
+  SELECT
+    ROW(first_name, last_name, 'Dr.')::full_name_type
+  INTO v_name
+  FROM employees
+  WHERE employee_id = p_emp_id;
+
+  RETURN v_name;
+END;
+$$;
+
+-- Call it and access fields
+SELECT (get_full_name(101)).first_name, (get_full_name(101)).last_name;
+```
+
+#### Composite Types in PL/pgSQL
+
+```sql
+DO $$
+DECLARE
+  v_addr  address_type;
+BEGIN
+  v_addr.street      := '45 Park Road';
+  v_addr.city        := 'Mumbai';
+  v_addr.state       := 'MH';
+  v_addr.postal_code := '400001';
+  v_addr.country     := 'India';
+
+  RAISE NOTICE 'City: %, Country: %', v_addr.city, v_addr.country;
+END;
+$$;
+```
+
+#### Modify and Drop Composite Types
+
+```sql
+-- Add a field to an existing composite type
+ALTER TYPE address_type ADD ATTRIBUTE floor_number INTEGER;
+
+-- Rename a field
+ALTER TYPE address_type RENAME ATTRIBUTE postal_code TO zip_code;
+
+-- Drop a type (fails if any table/function still uses it)
+DROP TYPE IF EXISTS address_type CASCADE;
+```
+
+| Feature                         | Composite Type | `%ROWTYPE`              |
+| ------------------------------- | -------------- | ----------------------- |
+| Defined by                      | `CREATE TYPE`  | Inferred from a table   |
+| Reusable as column type         | ✅ Yes         | ❌ No                   |
+| Portable across functions       | ✅ Yes         | ✅ Yes (for that table) |
+| Auto-updates when table changes | ❌ No          | ✅ Yes                  |
+
+> Use composite types when you have a **logical group of fields** that appears in multiple tables or function signatures. Use `%ROWTYPE` when you just need to hold a row fetched from a specific table.
 
 ---
 
@@ -968,6 +1087,102 @@ WHEN NOT MATCHED THEN
 
 > **Note:** For PostgreSQL < 15, use `INSERT ... ON CONFLICT` (covered in Section 12 — Built-in Functions → UPSERT) which provides similar functionality.
 
+---
+
+#### RETURNING — Get Data Back from DML
+
+**What it is:** `RETURNING` lets you retrieve column values from rows that were **just inserted, updated, or deleted** — in a single statement, without a separate `SELECT` round-trip. This is one of the most practically useful PostgreSQL-specific features.
+
+**Syntax:**
+
+```sql
+INSERT INTO table_name (...) VALUES (...) RETURNING column [, column ...];
+UPDATE table_name SET ... WHERE ... RETURNING column [, column ...];
+DELETE FROM table_name WHERE ... RETURNING column [, column ...];
+```
+
+**Examples:**
+
+```sql
+-- INSERT RETURNING: get the auto-generated ID after insert
+INSERT INTO employees (first_name, last_name, salary)
+VALUES ('Alice', 'Smith', 75000)
+RETURNING employee_id, created_at;
+-- Returns the new row's employee_id and created_at without a second query
+
+-- UPDATE RETURNING: get the new values after update
+UPDATE employees
+SET salary = salary * 1.10
+WHERE department_id = 3
+RETURNING employee_id, first_name, salary AS new_salary;
+-- Returns every updated row with its new salary
+
+-- DELETE RETURNING: get the rows you just deleted (e.g. for audit)
+DELETE FROM orders
+WHERE status = 'cancelled' AND order_date < NOW() - INTERVAL '1 year'
+RETURNING order_id, customer_id, total_amount;
+
+-- RETURNING * — return all columns
+INSERT INTO departments (department_name)
+VALUES ('Engineering')
+RETURNING *;
+
+-- Using RETURNING with a CTE (write-then-read pattern)
+WITH inserted AS (
+  INSERT INTO audit_log (action, performed_by)
+  VALUES ('LOGIN', 'alice')
+  RETURNING log_id, action_time
+)
+SELECT * FROM inserted;
+```
+
+> - `RETURNING` eliminates the extra `SELECT` roundtrip — critical in backend code (Node.js: `pool.query('INSERT ... RETURNING id')` gives you the new ID directly)
+> - Works with all three DML commands: `INSERT`, `UPDATE`, `DELETE`
+> - You can use `RETURNING *` to get all columns, or list specific ones
+> - It does **not** require a separate transaction — the returned data is the committed state
+
+---
+
+#### DISTINCT ON — PostgreSQL's Unique Row-Per-Group Feature
+
+**What it is:** `DISTINCT ON (expression)` is a PostgreSQL-specific extension to `SELECT DISTINCT`. It returns **one row per distinct value of the expression**, choosing which row to keep based on an `ORDER BY` clause. This is the idiomatic way to get "the latest record per group" or "the top item per category" without a subquery.
+
+**Syntax:**
+
+```sql
+SELECT DISTINCT ON (column1 [, column2 ...])
+       column1, column2, ...
+FROM   table_name
+ORDER BY column1 [, column2 ...], tiebreaker_column [ASC | DESC];
+```
+
+> The `ORDER BY` must start with the same columns listed in `DISTINCT ON`.
+
+**Examples:**
+
+```sql
+-- Latest order per customer (most recent order_date wins)
+SELECT DISTINCT ON (customer_id)
+       customer_id, order_id, order_date, total_amount
+FROM   orders
+ORDER BY customer_id, order_date DESC;
+-- One row per customer_id — the one with the highest order_date
+
+-- Highest-paid employee per department
+SELECT DISTINCT ON (department_id)
+       department_id, employee_id, first_name, salary
+FROM   employees
+ORDER BY department_id, salary DESC;
+
+-- Latest log entry per action type
+SELECT DISTINCT ON (action_type)
+       action_type, user_id, log_time, details
+FROM   audit_log
+ORDER BY action_type, log_time DESC;
+```
+
+> **vs subquery approach:** `DISTINCT ON` is cleaner and usually faster than `ROW_NUMBER() OVER (...) = 1` or correlated subqueries for the "latest per group" pattern. It is PostgreSQL-only — not portable to MySQL/SQL Server.
+
 #### SELECT Syntax
 
 ```sql
@@ -1096,6 +1311,105 @@ REVOKE ALL PRIVILEGES ON employee_details FROM hr_staff;
 -- Revoke schema usage
 REVOKE USAGE ON SCHEMA hr_pkg FROM john;
 ```
+
+### Roles and Users (DCL — Access Management)
+
+In PostgreSQL, **roles** are the fundamental security principal. A role can be a login user, a group, or both. `CREATE USER` is just shorthand for `CREATE ROLE ... WITH LOGIN`.
+
+#### CREATE ROLE / CREATE USER
+
+```sql
+-- Create a login role (i.e. a user)
+CREATE ROLE alice WITH LOGIN PASSWORD 'securepass123';
+
+-- CREATE USER is identical — just syntactic sugar
+CREATE USER bob WITH PASSWORD 'anotherpass' CREATEDB;
+
+-- Role without login (a group role — used to bundle privileges)
+CREATE ROLE hr_readonly;
+
+-- Grant group role to a user
+GRANT hr_readonly TO alice;
+
+-- Role with superuser (use with extreme caution)
+CREATE ROLE admin_user WITH LOGIN SUPERUSER PASSWORD 'adminpass';
+
+-- Role that can create databases
+CREATE ROLE devuser WITH LOGIN CREATEDB PASSWORD 'devpass';
+```
+
+#### Role Attribute Options
+
+| Attribute            | Description                                    |
+| -------------------- | ---------------------------------------------- |
+| `LOGIN`              | Can connect to a database                      |
+| `SUPERUSER`          | Bypasses all permission checks — use sparingly |
+| `CREATEDB`           | Can create new databases                       |
+| `CREATEROLE`         | Can create new roles                           |
+| `REPLICATION`        | Can initiate streaming replication             |
+| `PASSWORD`           | Sets the login password                        |
+| `CONNECTION LIMIT n` | Limits concurrent connections (-1 = unlimited) |
+| `VALID UNTIL`        | Password expiry date                           |
+
+#### Modify and Drop Roles
+
+```sql
+-- Change password
+ALTER ROLE alice WITH PASSWORD 'newpass';
+
+-- Disable login (lock the account)
+ALTER ROLE alice WITH NOLOGIN;
+
+-- Re-enable login
+ALTER ROLE alice WITH LOGIN;
+
+-- Grant object-level permissions to a group role
+GRANT SELECT, INSERT ON employees TO hr_readonly;
+GRANT USAGE ON SCHEMA public TO hr_readonly;
+
+-- Revoke role membership
+REVOKE hr_readonly FROM alice;
+
+-- Drop a role (must have no owned objects or dependencies)
+DROP ROLE IF EXISTS alice;
+```
+
+> **Best practice:** Never grant permissions directly to users — create **group roles** (`hr_readonly`, `app_user`, `analyst`) with the required permissions, then grant those roles to individual users. This makes permission management maintainable at scale.
+
+#### COPY — Bulk Import / Export
+
+`COPY` is PostgreSQL's high-performance bulk data transfer command. It reads/writes CSV or binary files directly from/to the server filesystem. `\copy` (psql client-side) works from the client machine.
+
+```sql
+-- Export a table to CSV (server-side; requires superuser or pg_write_server_files)
+COPY employees TO '/tmp/employees.csv' WITH (FORMAT CSV, HEADER true);
+
+-- Import from CSV into a table (all columns, in order)
+COPY employees FROM '/tmp/employees.csv' WITH (FORMAT CSV, HEADER true);
+
+-- Import specific columns only
+COPY employees (first_name, last_name, salary)
+FROM '/tmp/employees_partial.csv'
+WITH (FORMAT CSV, HEADER true, DELIMITER ',', NULL 'NULL');
+
+-- Export a custom query result to CSV
+COPY (SELECT employee_id, first_name, salary FROM employees WHERE department_id = 3)
+TO '/tmp/dept3.csv'
+WITH (FORMAT CSV, HEADER true);
+
+-- psql client-side \copy (no superuser needed — reads from your local machine)
+-- Run from psql prompt:
+-- \copy employees FROM '/Users/me/employees.csv' WITH (FORMAT CSV, HEADER);
+-- \copy (SELECT * FROM employees) TO '/tmp/out.csv' WITH (FORMAT CSV);
+```
+
+|               | `COPY` (server-side)                          | `\copy` (client-side, psql)        |
+| ------------- | --------------------------------------------- | ---------------------------------- |
+| File location | PostgreSQL server filesystem                  | Your local machine                 |
+| Permissions   | Requires `pg_write_server_files` or superuser | Any connected user                 |
+| Performance   | Fastest (direct OS I/O)                       | Slightly slower (network transfer) |
+
+> For production imports of millions of rows, `COPY FROM` is dramatically faster than batching `INSERT` statements — it bypasses trigger/constraint overhead in bulk mode.
 
 ### TCL - Transaction Control Language
 
@@ -1934,6 +2248,54 @@ ALTER TABLE room_bookings DROP CONSTRAINT no_overlap;
 
 ---
 
+### DEFERRABLE Constraints
+
+By default, PostgreSQL checks constraints **immediately** after each statement within a transaction. **Deferrable constraints** allow you to postpone the check until `COMMIT` time — essential when you need to temporarily violate a constraint as part of a multi-step operation.
+
+**Why you need it:** Suppose you have a circular FK (Employee has a `manager_id` → FK → Employee). Inserting the first employee fails because the manager (also being inserted) doesn't exist yet. With `DEFERRABLE INITIALLY DEFERRED`, both inserts happen, and the FK is only verified at `COMMIT`.
+
+```sql
+-- Declare a deferrable constraint at table creation
+CREATE TABLE employees (
+  employee_id  INTEGER PRIMARY KEY,
+  first_name   VARCHAR(50),
+  manager_id   INTEGER,
+  CONSTRAINT fk_manager
+    FOREIGN KEY (manager_id) REFERENCES employees(employee_id)
+    DEFERRABLE INITIALLY DEFERRED   -- checked at COMMIT, not per-statement
+);
+
+-- Or make it deferrable but initially immediate (can be toggled per transaction)
+CREATE TABLE order_items (
+  item_id     SERIAL PRIMARY KEY,
+  order_id    INTEGER REFERENCES orders(order_id)
+    DEFERRABLE INITIALLY IMMEDIATE  -- default = immediate, but can be deferred
+);
+
+-- Toggle deferral inside a transaction
+BEGIN;
+  SET CONSTRAINTS fk_manager DEFERRED;  -- defer until COMMIT for this transaction
+  INSERT INTO employees VALUES (1, 'Alice', 2);  -- manager 2 doesn't exist yet
+  INSERT INTO employees VALUES (2, 'Bob',   1);  -- now both exist
+COMMIT;  -- FK checked here — both rows present → passes
+
+-- Defer ALL deferrable constraints in the current transaction
+BEGIN;
+  SET CONSTRAINTS ALL DEFERRED;
+  -- ... multi-step inserts ...
+COMMIT;
+```
+
+| Mode                             | Behaviour                                             |
+| -------------------------------- | ----------------------------------------------------- |
+| `NOT DEFERRABLE`                 | Always checked immediately (default)                  |
+| `DEFERRABLE INITIALLY IMMEDIATE` | Immediate by default, can be deferred per transaction |
+| `DEFERRABLE INITIALLY DEFERRED`  | Deferred by default — checked only at COMMIT          |
+
+> Only `UNIQUE`, `PRIMARY KEY`, `FOREIGN KEY`, and `EXCLUSION` constraints can be deferrable. `CHECK` and `NOT NULL` are always immediate.
+
+---
+
 ## 8. Database Design & Normalization
 
 ### What is Normalization?
@@ -2054,6 +2416,27 @@ A **surrogate key** is system-generated with no business meaning — typically a
 
 ## 9. JOINs
 
+### JOIN Classification
+
+**ANSI JOINs** — Standard SQL syntax supported by all relational databases:
+
+| ANSI JOIN Type    | Description                                                                 |
+| ----------------- | --------------------------------------------------------------------------- |
+| `INNER JOIN`      | Returns only matching rows from both tables                                 |
+| `LEFT OUTER JOIN` | All rows from left + matched rows from right (NULL if no match)             |
+| `RIGHT OUTER JOIN`| All rows from right + matched rows from left (NULL if no match)             |
+| `FULL OUTER JOIN` | All rows from both tables (NULLs wherever no match)                         |
+| `CROSS JOIN`      | Cartesian product — every left row paired with every right row (m × n rows) |
+| `SELF JOIN`       | A table joined to itself using an alias (e.g., employee → manager hierarchy)|
+
+**NON-ANSI JOINs** — Older or implicit join styles (still used but less explicit):
+
+| NON-ANSI JOIN Type | Description                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| `NATURAL JOIN`     | Automatically joins on **all columns with the same name** — fragile, avoid in prod   |
+| `EQUI JOIN`        | JOIN using `=` equality operator (most JOINs are equi joins) — not a keyword per se  |
+| `NON-EQUI JOIN`    | JOIN using non-equality operators (`<`, `>`, `BETWEEN`) — e.g., salary range lookups |
+
 ```mermaid
 graph TD
     J["JOIN Types"]
@@ -2078,6 +2461,19 @@ graph TD
 ### What is a JOIN?
 
 A **JOIN** combines rows from two or more tables based on a related column between them. JOINs are the primary mechanism for querying data spread across multiple tables in a relational database.
+
+> **Is a PRIMARY KEY required to join two tables?**
+>
+> **No — a PRIMARY KEY is NOT required to join tables.** You can join on any column(s) as long as the data types are compatible and the values logically relate the rows. However, joining on indexed columns (like PKs and FKs) is dramatically faster than joining on unindexed columns.
+>
+> | Scenario | Valid? | Notes |
+> |----------|--------|-------|
+> | JOIN on PK ↔ FK | ✅ Yes | Most common and best-practice pattern |
+> | JOIN on any non-key column | ✅ Yes | Works, but no index → full table scan risk |
+> | JOIN on two PKs (different tables) | ✅ Yes | Used in many-to-many junction tables |
+> | JOIN without any shared key | ✅ Yes | CROSS JOIN or NON-EQUI JOIN (e.g., range lookups) |
+>
+> **Best practice:** Always join on indexed columns. A FK column automatically creates a relational link, but you still need a manual index on it in PostgreSQL (`REFERENCES` does not auto-create an index on the FK side — only on the PK side).
 
 **Setup — Sample Tables used in all examples below:**
 
@@ -2302,6 +2698,135 @@ WHERE  e.employee_id IS NULL OR d.department_id IS NULL;
 
 ---
 
+### EQUI JOIN
+
+#### Theory
+
+- An **EQUI JOIN** is any join that uses the **equality operator (`=`)** to match rows between two tables
+- It is **not a separate SQL keyword** — it is a classification describing how the join condition works
+- The `JOIN` keyword is **not required** — the original/old-style syntax uses comma-separated tables in `FROM` with a `WHERE` clause containing `=`
+- The modern ANSI syntax uses `JOIN ... ON` — both styles produce the same result
+- `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, and `FULL OUTER JOIN` are all equi joins when they use `=`
+
+**Syntax — two equivalent styles:**
+
+```sql
+-- Old-style (NON-ANSI): comma-separated tables + WHERE with =
+-- No JOIN keyword needed — just = in WHERE
+SELECT columns
+FROM   table1, table2
+WHERE  table1.column = table2.column;
+
+-- Modern ANSI style: explicit JOIN ... ON with =
+SELECT columns
+FROM   table1
+JOIN   table2 ON table1.column = table2.column;
+```
+
+**Examples:**
+
+```sql
+-- Old-style equi join (no JOIN keyword — just comma + WHERE =)
+SELECT e.first_name, e.salary, d.department_name
+FROM   employees e, departments d
+WHERE  e.department_id = d.department_id;
+
+-- Same query, modern ANSI style
+SELECT e.first_name, e.salary, d.department_name
+FROM   employees e
+JOIN   departments d ON e.department_id = d.department_id;
+
+-- Multi-table old-style equi join
+SELECT e.first_name, d.department_name, l.city
+FROM   employees e, departments d, locations l
+WHERE  e.department_id  = d.department_id
+AND    d.location_id    = l.location_id;
+```
+
+| Style | Syntax | Keyword Required? |
+|-------|--------|-------------------|
+| Old-style (NON-ANSI) | `FROM t1, t2 WHERE t1.col = t2.col` | ❌ No JOIN keyword |
+| Modern (ANSI) | `FROM t1 JOIN t2 ON t1.col = t2.col` | ✅ JOIN keyword |
+
+> Both styles produce identical results. Prefer the **modern ANSI style** in new code — it is more readable, easier to distinguish join conditions from filter conditions, and required for LEFT/RIGHT/FULL OUTER joins. Equi joins are the most common join type in practice. Virtually all FK-to-PK joins are equi joins.
+
+---
+
+### NON-EQUI JOIN
+
+#### Theory
+
+- A **NON-EQUI JOIN** uses a **comparison operator other than `=`** to match rows: `<`, `>`, `<=`, `>=`, `<>`, or `BETWEEN`
+- Like EQUI JOIN, the `JOIN` keyword is **not required** — the old-style syntax uses comma-separated tables with a non-equality `WHERE` condition
+- The modern ANSI style uses `JOIN ... ON` with a non-equality condition — both produce the same result
+- Used when rows should be matched based on a **range or inequality** rather than an exact value match
+- Common real-world uses: salary band lookups, date range matching, price tier assignment, overlap detection
+
+**Syntax — two equivalent styles:**
+
+```sql
+-- Old-style (NON-ANSI): comma-separated tables + WHERE with non-equality operator
+-- No JOIN keyword needed
+SELECT columns
+FROM   table1, table2
+WHERE  table1.column BETWEEN table2.low_col AND table2.high_col;
+-- or: WHERE table1.column > table2.column, etc.
+
+-- Modern ANSI style: explicit JOIN ... ON with non-equality condition
+SELECT columns
+FROM   table1
+JOIN   table2 ON table1.column BETWEEN table2.low_col AND table2.high_col;
+```
+
+**Examples:**
+
+```sql
+-- Setup: salary grades table with range columns
+CREATE TABLE salary_grades (
+  grade       VARCHAR(10),
+  low_salary  NUMERIC(12,2),
+  high_salary NUMERIC(12,2)
+);
+INSERT INTO salary_grades VALUES
+  ('Grade A', 0,      50000),
+  ('Grade B', 50001,  80000),
+  ('Grade C', 80001,  120000),
+  ('Grade D', 120001, 999999);
+
+-- Old-style NON-EQUI JOIN (no JOIN keyword): salary grade lookup
+SELECT e.first_name, e.salary, sg.grade
+FROM   employees e, salary_grades sg
+WHERE  e.salary BETWEEN sg.low_salary AND sg.high_salary;
+-- 'Alice' (80000) → 'Grade B', 'Carol' (90000) → 'Grade C'
+
+-- Modern ANSI style NON-EQUI JOIN: same result
+SELECT e.first_name, e.salary, sg.grade
+FROM   employees e
+JOIN   salary_grades sg
+  ON   e.salary BETWEEN sg.low_salary AND sg.high_salary;
+
+-- Old-style NON-EQUI SELF JOIN: pairs where one employee earns more than another
+SELECT a.first_name AS higher_paid, a.salary,
+       b.first_name AS lower_paid,  b.salary
+FROM   employees a, employees b
+WHERE  a.salary > b.salary
+ORDER BY a.salary DESC;
+
+-- Date range NON-EQUI JOIN: which promotion was active on each order date
+SELECT o.order_id, o.order_date, p.promo_name
+FROM   orders o, promotions p
+WHERE  o.order_date BETWEEN p.start_date AND p.end_date;
+```
+
+| Style | Syntax | Keyword Required? |
+|-------|--------|-------------------|
+| Old-style (NON-ANSI) | `FROM t1, t2 WHERE t1.col > t2.col` | ❌ No JOIN keyword |
+| Modern (ANSI) | `FROM t1 JOIN t2 ON t1.col > t2.col` | ✅ JOIN keyword |
+
+> NON-EQUI JOINs can produce large result sets — every row that satisfies the inequality is matched. For range lookups (`BETWEEN`), ensure the range columns are indexed to avoid full table scans.
+
+---
+
 ### NATURAL JOIN
 
 #### Theory
@@ -2444,6 +2969,65 @@ WHERE  o.order_date >= CURRENT_DATE - INTERVAL '30 days';
 > - Always use **table aliases** when joining (`e`, `d`) to keep queries readable
 > - Join on **indexed columns** (primary keys / foreign keys) for best performance
 > - For large datasets, `EXPLAIN ANALYZE` your join queries to verify the planner is using the indexes
+
+---
+
+### LATERAL JOIN
+
+**What it is:** `LATERAL` allows a subquery in the `FROM` clause to **reference columns from preceding tables** in the same `FROM` clause — something a regular subquery cannot do. Think of it as a correlated subquery that acts as a table source, evaluated once per row of the left-hand table.
+
+**Why it matters:** `LATERAL` is the idiomatic PostgreSQL way to:
+
+- Get the top-N rows per group (replacing complex window function subqueries)
+- Call a set-returning function per row
+- Unnest and join array or JSONB data per row
+
+```sql
+-- Get the 3 most recent orders per customer
+SELECT c.customer_id, c.name, recent.order_id, recent.order_date
+FROM   customers c
+CROSS JOIN LATERAL (
+  SELECT order_id, order_date, total_amount
+  FROM   orders
+  WHERE  orders.customer_id = c.customer_id   -- references outer table c
+  ORDER BY order_date DESC
+  LIMIT 3
+) AS recent;
+
+-- LEFT JOIN LATERAL: include customers even with no orders (NULL for recent)
+SELECT c.customer_id, c.name, recent.order_id, recent.order_date
+FROM   customers c
+LEFT JOIN LATERAL (
+  SELECT order_id, order_date
+  FROM   orders
+  WHERE  orders.customer_id = c.customer_id
+  ORDER BY order_date DESC
+  LIMIT 1
+) recent ON TRUE;
+-- ON TRUE is required syntax for LATERAL — the join condition is always met
+
+-- LATERAL with a set-returning function
+SELECT e.employee_id, e.first_name, skill
+FROM   employees e,
+       LATERAL unnest(e.skills_array) AS skill;
+-- Unnests skills_array for each employee row — one output row per skill
+
+-- Use LATERAL to calculate a value from a subquery and reuse it
+SELECT e.employee_id, e.salary, dept_avg.avg_sal,
+       ROUND(e.salary - dept_avg.avg_sal, 2) AS diff_from_avg
+FROM employees e
+CROSS JOIN LATERAL (
+  SELECT AVG(salary) AS avg_sal
+  FROM   employees
+  WHERE  department_id = e.department_id
+) dept_avg;
+```
+
+|                                   | Regular subquery in FROM | LATERAL subquery in FROM           |
+| --------------------------------- | ------------------------ | ---------------------------------- |
+| Can reference outer table columns | ❌ No                    | ✅ Yes                             |
+| Evaluated                         | Once                     | Once per outer row                 |
+| Typical use                       | Static derived tables    | Top-N per group, per-row functions |
 
 ---
 
@@ -2668,6 +3252,82 @@ ORDER BY total_revenue DESC;
 ```
 
 **Session Recap:** Aggregation compresses many rows into meaningful summaries. `GROUP BY` divides data into groups for per-group aggregation. Every SELECT column must be in GROUP BY or aggregated. `HAVING` filters groups after aggregation — `WHERE` cannot do this. Understanding the logical execution order prevents a whole class of common errors. Always use `COALESCE` when aggregating nullable columns to avoid silently skewed results.
+
+---
+
+### GROUPING SETS, ROLLUP, and CUBE
+
+These extensions to `GROUP BY` allow you to compute **multiple grouping levels in a single query** — without writing separate queries and `UNION ALL`-ing them together. Essential for reports and dashboards.
+
+#### GROUPING SETS
+
+Compute aggregates for **each specified combination** of columns independently.
+
+```sql
+-- Subtotals per department AND per job, in one pass
+SELECT department_id, job_id, COUNT(*) AS headcount, SUM(salary) AS total_salary
+FROM   employees
+GROUP BY GROUPING SETS (
+  (department_id),   -- subtotal per department
+  (job_id),          -- subtotal per job
+  ()                 -- grand total
+);
+-- Produces 3 result sets combined:
+-- rows grouped by department_id | job_id=NULL
+-- rows grouped by job_id        | department_id=NULL
+-- grand total row               | both NULL
+```
+
+#### ROLLUP
+
+`ROLLUP(a, b, c)` creates a hierarchy of subtotals: `(a,b,c)` → `(a,b)` → `(a)` → `()`. Perfect for reports that drill from most specific to grand total.
+
+```sql
+-- Sales subtotals: per year+month+product, per year+month, per year, grand total
+SELECT
+  EXTRACT(YEAR  FROM order_date) AS yr,
+  EXTRACT(MONTH FROM order_date) AS mo,
+  product_id,
+  SUM(amount) AS total
+FROM orders
+GROUP BY ROLLUP (
+  EXTRACT(YEAR FROM order_date),
+  EXTRACT(MONTH FROM order_date),
+  product_id
+)
+ORDER BY yr NULLS LAST, mo NULLS LAST, product_id NULLS LAST;
+```
+
+#### CUBE
+
+`CUBE(a, b, c)` generates subtotals for **all possible combinations** — every subset of the listed columns (2ⁿ groups).
+
+```sql
+-- All combinations: (dept, gender), (dept), (gender), ()
+SELECT department_id, gender, COUNT(*) AS headcount, AVG(salary) AS avg_salary
+FROM   employees
+GROUP BY CUBE (department_id, gender)
+ORDER BY department_id NULLS LAST, gender NULLS LAST;
+```
+
+#### Detecting Subtotal Rows — GROUPING()
+
+NULL in the output could mean "actual NULL data" or "subtotal row". Use `GROUPING(col)` to disambiguate: returns `1` for a subtotal row, `0` for a real group.
+
+```sql
+SELECT
+  CASE WHEN GROUPING(department_id) = 1 THEN 'ALL DEPTS' ELSE department_id::TEXT END AS dept,
+  CASE WHEN GROUPING(gender)        = 1 THEN 'ALL'       ELSE gender END              AS gender,
+  COUNT(*) AS headcount
+FROM employees
+GROUP BY CUBE (department_id, gender);
+```
+
+| Feature         | Generates                   | Use when                           |
+| --------------- | --------------------------- | ---------------------------------- |
+| `GROUPING SETS` | Specified combinations only | Custom multi-level reports         |
+| `ROLLUP`        | Hierarchical drill-down     | Time series, geography hierarchies |
+| `CUBE`          | All possible combinations   | Cross-tabulation / pivot analysis  |
 
 ---
 
@@ -3269,6 +3929,196 @@ flowchart LR
 
 ---
 
+### Additional Index Types — Partial, GIN, GiST, Hash
+
+#### Partial Index — Index Only What You Query
+
+A **partial index** includes only rows satisfying a `WHERE` condition. It is smaller, faster to maintain, and more selective than a full-column index.
+
+```sql
+-- Only index active employees — WHERE active = TRUE queries use this
+CREATE INDEX idx_active_employees
+ON employees (last_name)
+WHERE is_active = TRUE;
+
+-- Only index large orders (most queries filter by status='pending')
+CREATE INDEX idx_pending_orders
+ON orders (order_date)
+WHERE status = 'pending';
+
+-- Partial unique index: enforce uniqueness only among active records
+CREATE UNIQUE INDEX uq_active_email
+ON users (email)
+WHERE is_deleted = FALSE;
+-- Two deleted users can share an email (soft deletes pattern)
+```
+
+#### GIN Index — Generalized Inverted Index (Arrays, JSONB, Full-Text)
+
+**GIN** (Generalized Inverted Index) is optimized for values that contain **multiple component items** — arrays, JSONB, and full-text search vectors. It maps each element to the rows that contain it.
+
+```sql
+-- GIN on JSONB column (enables @>, ?, ?|, ?& operators)
+CREATE INDEX idx_gin_product_attrs ON products USING GIN (attributes);
+
+-- Fast: "find all products where attributes contains 'color': 'red'"
+SELECT * FROM products WHERE attributes @> '{"color": "red"}';
+
+-- GIN on text array column
+CREATE INDEX idx_gin_tags ON articles USING GIN (tags);
+SELECT * FROM articles WHERE tags @> ARRAY['postgresql', 'performance'];
+
+-- GIN on tsvector column for full-text search
+CREATE INDEX idx_fts_body ON articles USING GIN (to_tsvector('english', body));
+SELECT * FROM articles
+WHERE to_tsvector('english', body) @@ to_tsquery('english', 'database & performance');
+```
+
+#### GiST Index — Generalized Search Tree (Ranges, Geometry)
+
+**GiST** (Generalized Search Tree) supports complex data types including ranges, geometric types, and nearest-neighbour searches.
+
+```sql
+-- GiST on daterange column (enables &&, @>, <@ operators)
+CREATE INDEX idx_gist_booking ON room_bookings USING GIST (stay_period);
+
+-- GiST on geometric point (enables nearest-neighbour / distance queries)
+CREATE INDEX idx_gist_location ON venues USING GIST (location);
+-- Find venues within 10km (with PostGIS, or using built-in <-> operator)
+```
+
+#### Hash Index — Equality-Only Fast Lookup
+
+A **hash index** is optimized purely for `=` equality lookups. Smaller than B-Tree for equality-only workloads, but does not support range queries or sorting.
+
+```sql
+-- Hash index on UUID primary key (equality lookups only)
+CREATE INDEX idx_hash_session_token
+ON sessions USING HASH (session_token);
+
+-- Use case: high-volume equality lookup on a long string column
+CREATE INDEX idx_hash_email ON users USING HASH (email);
+```
+
+| Index Type | Best For                                            | Supports Range? | Supports Sort? |
+| ---------- | --------------------------------------------------- | --------------- | -------------- |
+| **B-Tree** | Equality, range, prefix                             | ✅              | ✅             |
+| **Hash**   | Equality only                                       | ❌              | ❌             |
+| **GIN**    | Arrays, JSONB, full-text                            | ❌              | ❌             |
+| **GiST**   | Ranges, geometry, nearest-neighbour                 | ✅              | ❌             |
+| **BRIN**   | Very large tables with sequential data (timestamps) | ✅ (coarse)     | ❌             |
+
+---
+
+### Table Partitioning
+
+**Table partitioning** splits a logically single large table into multiple physical **child tables** (partitions). PostgreSQL routes queries and DML to the correct partitions automatically. Queries that include the partition key in `WHERE` only scan relevant partitions (**partition pruning**) — dramatically reducing I/O on large tables.
+
+```mermaid
+graph TD
+    PT["orders (parent table)\nPartitioned by order_date"]
+    PT --> P1["orders_2024\norder_date in 2024"]
+    PT --> P2["orders_2025\norder_date in 2025"]
+    PT --> P3["orders_2026\norder_date in 2026"]
+    PT --> PD["orders_default\nall other dates"]
+    style PT fill:#4dabf7,color:#fff
+    style PD fill:#ff6b6b,color:#fff
+```
+
+#### RANGE Partitioning — By Value Range
+
+Most common type — partition by date ranges, ID ranges, etc.
+
+```sql
+-- Create a range-partitioned table
+CREATE TABLE orders (
+  order_id    BIGINT,
+  order_date  DATE NOT NULL,
+  customer_id INTEGER,
+  total       NUMERIC(12,2)
+) PARTITION BY RANGE (order_date);
+
+-- Create partitions for each year
+CREATE TABLE orders_2024 PARTITION OF orders
+  FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+
+CREATE TABLE orders_2025 PARTITION OF orders
+  FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+
+CREATE TABLE orders_2026 PARTITION OF orders
+  FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+
+-- Default partition catches everything outside defined ranges
+CREATE TABLE orders_default PARTITION OF orders DEFAULT;
+
+-- INSERT automatically goes to the right partition
+INSERT INTO orders VALUES (1, '2025-03-10', 42, 299.99);
+-- → stored in orders_2025 automatically
+
+-- Partition pruning: this only scans orders_2025
+SELECT * FROM orders WHERE order_date BETWEEN '2025-01-01' AND '2025-12-31';
+```
+
+#### LIST Partitioning — By Discrete Values
+
+```sql
+CREATE TABLE employees (
+  employee_id   INTEGER,
+  first_name    VARCHAR(50),
+  country       VARCHAR(50) NOT NULL,
+  salary        NUMERIC(12,2)
+) PARTITION BY LIST (country);
+
+CREATE TABLE employees_india  PARTITION OF employees FOR VALUES IN ('India', 'IN');
+CREATE TABLE employees_usa    PARTITION OF employees FOR VALUES IN ('USA', 'US');
+CREATE TABLE employees_others PARTITION OF employees DEFAULT;
+```
+
+#### HASH Partitioning — Evenly Spread Data
+
+```sql
+-- Distribute rows evenly across 4 partitions using hash of customer_id
+CREATE TABLE sessions (
+  session_id  UUID NOT NULL,
+  customer_id INTEGER NOT NULL,
+  data        JSONB
+) PARTITION BY HASH (customer_id);
+
+CREATE TABLE sessions_p0 PARTITION OF sessions FOR VALUES WITH (MODULUS 4, REMAINDER 0);
+CREATE TABLE sessions_p1 PARTITION OF sessions FOR VALUES WITH (MODULUS 4, REMAINDER 1);
+CREATE TABLE sessions_p2 PARTITION OF sessions FOR VALUES WITH (MODULUS 4, REMAINDER 2);
+CREATE TABLE sessions_p3 PARTITION OF sessions FOR VALUES WITH (MODULUS 4, REMAINDER 3);
+```
+
+#### Managing Partitions
+
+```sql
+-- List all partitions of a table
+SELECT inhrelid::regclass AS partition_name
+FROM pg_inherits
+WHERE inhparent = 'orders'::regclass;
+
+-- Detach a partition (keeps the table, just detaches it from the parent)
+ALTER TABLE orders DETACH PARTITION orders_2024;
+
+-- Attach an existing table as a new partition
+ALTER TABLE orders ATTACH PARTITION orders_2027
+  FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
+
+-- Drop a partition and its data
+DROP TABLE orders_2024;
+```
+
+| Partition Type | Partition Key                     | Best For                               |
+| -------------- | --------------------------------- | -------------------------------------- |
+| **RANGE**      | Continuous values (dates, IDs)    | Time-series data, logs, orders         |
+| **LIST**       | Discrete values (country, status) | Regional data, categorical splits      |
+| **HASH**       | Any column                        | Even data distribution, no natural key |
+
+> **Key benefit:** Partition pruning. A query `WHERE order_date = '2025-06-15'` scans only `orders_2025` — skipping potentially billions of rows in other partitions. Always include the partition key in your `WHERE` clause to get the benefit.
+
+---
+
 ## 14. Transactions & Concurrency (Extended)
 
 > The basic TCL commands (BEGIN, COMMIT, ROLLBACK, SAVEPOINT) are covered in Section 4. This section covers the critical advanced topics: ACID deep dive, isolation levels, locking, and deadlocks.
@@ -3682,6 +4532,123 @@ WHERE dept_rank <= 3;
 ```
 
 Use `DENSE_RANK()` for "top N" because it doesn't skip ranks after ties — you get a clean "top 3" without accidentally missing the 3rd person due to gaps.
+
+---
+
+### NTILE, FIRST_VALUE, LAST_VALUE, NTH_VALUE
+
+#### NTILE(n) — Divide Rows into Buckets
+
+`NTILE(n)` divides the rows within a partition into `n` equal (or near-equal) buckets and assigns each row a bucket number (1 through n). Used for quartile analysis, percentile bands, A/B test segmentation.
+
+```sql
+-- Divide employees into 4 salary quartiles
+SELECT
+  first_name,
+  salary,
+  NTILE(4) OVER (ORDER BY salary) AS salary_quartile
+FROM employees;
+-- Q1 = lowest 25%, Q4 = highest 25%
+
+-- Quartiles per department
+SELECT
+  first_name, department_id, salary,
+  NTILE(4) OVER (PARTITION BY department_id ORDER BY salary) AS dept_quartile
+FROM employees;
+```
+
+#### FIRST_VALUE and LAST_VALUE — Boundary Values in Window
+
+`FIRST_VALUE(expr)` returns the value of `expr` from the **first row** of the window frame. `LAST_VALUE(expr)` returns the value from the **last row**.
+
+> **Important:** `LAST_VALUE` requires an explicit frame clause `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` — the default frame stops at the current row.
+
+```sql
+-- Compare each employee's salary to the lowest in their department
+SELECT
+  first_name, department_id, salary,
+  FIRST_VALUE(salary) OVER (PARTITION BY department_id ORDER BY salary)         AS dept_min_salary,
+  LAST_VALUE(salary)  OVER (
+    PARTITION BY department_id ORDER BY salary
+    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+  )                                                                               AS dept_max_salary
+FROM employees;
+```
+
+#### NTH_VALUE — Value at a Specific Position
+
+`NTH_VALUE(expr, n)` returns the value of `expr` from the `n`-th row of the window frame.
+
+```sql
+-- Get the 2nd highest salary in each department
+SELECT
+  first_name, department_id, salary,
+  NTH_VALUE(salary, 2) OVER (
+    PARTITION BY department_id
+    ORDER BY salary DESC
+    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+  ) AS second_highest_salary
+FROM employees;
+```
+
+---
+
+### Window Frame Clauses — ROWS BETWEEN and RANGE BETWEEN
+
+By default, a window function with `ORDER BY` uses the frame `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`. You can override this to control exactly **which rows are included** in the window calculation.
+
+**Frame syntax:**
+
+```sql
+OVER (
+  [PARTITION BY ...]
+  [ORDER BY ...]
+  { ROWS | RANGE | GROUPS } BETWEEN frame_start AND frame_end
+)
+```
+
+| Boundary keyword      | Meaning                    |
+| --------------------- | -------------------------- |
+| `UNBOUNDED PRECEDING` | First row of the partition |
+| `n PRECEDING`         | n rows before current row  |
+| `CURRENT ROW`         | The current row            |
+| `n FOLLOWING`         | n rows after current row   |
+| `UNBOUNDED FOLLOWING` | Last row of the partition  |
+
+**`ROWS`** counts physical rows. **`RANGE`** includes all rows with the same ORDER BY value as the current row (peer rows).
+
+```sql
+-- 3-month rolling average (current + 2 preceding months)
+SELECT
+  order_month,
+  monthly_revenue,
+  AVG(monthly_revenue) OVER (
+    ORDER BY order_month
+    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+  ) AS rolling_3mo_avg
+FROM monthly_sales
+ORDER BY order_month;
+
+-- Running total (from very first row to current)
+SELECT
+  employee_id, hire_date, salary,
+  SUM(salary) OVER (
+    ORDER BY hire_date
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS running_total_payroll
+FROM employees;
+
+-- Centered moving average (1 row before, current, 1 after)
+SELECT
+  day, temperature,
+  AVG(temperature) OVER (
+    ORDER BY day
+    ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING
+  ) AS smoothed_temp
+FROM weather_readings;
+```
+
+> **Common mistake:** Forgetting that `LAST_VALUE` and `NTH_VALUE` use the default frame `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`, which means they only "see" up to the current row — not the full partition. Always add `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING` when using these functions.
 
 ---
 
@@ -5476,7 +6443,7 @@ const query = `SELECT * FROM users WHERE email = '${email}'`;
 // ALWAYS DO THIS — parameterized query ($1, $2, ...)
 const result = await pool.query(
   "SELECT * FROM users WHERE email = $1",
-  [email] // email is treated as pure data, never as SQL code
+  [email], // email is treated as pure data, never as SQL code
 );
 ```
 
@@ -5522,12 +6489,12 @@ try {
 
   await client.query(
     "UPDATE accounts SET balance = balance - $1 WHERE account_id = $2",
-    [amount, fromAccountId]
+    [amount, fromAccountId],
   );
 
   await client.query(
     "UPDATE accounts SET balance = balance + $1 WHERE account_id = $2",
-    [amount, toAccountId]
+    [amount, toAccountId],
   );
 
   await client.query("COMMIT");

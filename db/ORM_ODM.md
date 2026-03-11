@@ -3246,6 +3246,11 @@ npx prisma db push
 
 ### Prisma vs Mongoose
 
+**Neither is universally better — each excels in a different context.** Use this section to pick the right tool for your project, or to understand the trade-offs when working with both.
+
+- **Choose Mongoose** when your project is MongoDB-only, you need rich document-lifecycle hooks (`pre`/`post` save), virtual fields, discriminators, or maximum schema flexibility.
+- **Choose Prisma** when you're working in TypeScript, need multiple database support, want declarative migrations, or value auto-generated fully-typed query clients with zero manual type setup.
+
 ```mermaid
 flowchart LR
     subgraph MONGOOSE_BOX ["Mongoose (ODM)"]

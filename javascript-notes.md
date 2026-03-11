@@ -1,0 +1,2823 @@
+# JavaScript — Comprehensive Study Handbook
+
+> **Generated from project codebase analysis**
+> Covers all JavaScript concepts found in the repository along with foundational topics needed for deep understanding and interview preparation.
+
+---
+
+## Table of Contents
+
+**Phase 1 — How JavaScript Works**
+
+1. [JavaScript Execution Model](#1-javascript-execution-model)
+2. [Execution Context & Call Stack](#2-execution-context-call-stack)
+3. [Hoisting](#3-hoisting)
+4. [Scope — Lexical Scope, Scope Chain & Block Scope](#4-scope-lexical-scope-scope-chain-block-scope)
+5. [Variable Declarations — var, let, const](#5-variable-declarations-var-let-const)
+
+**Phase 2 — Functions & Core Patterns** 6. [Functions — First-Class Citizens](#6-functions-first-class-citizens) 7. [Arrow Functions vs Regular Functions — Deep Dive](#7-arrow-functions-vs-regular-functions-deep-dive) 8. [The `this` Keyword](#8-the-this-keyword) 9. [Closures](#9-closures) 10. [Higher-Order Functions & Functional Programming](#10-higher-order-functions-functional-programming) 11. [Function Currying & Memoization](#11-function-currying-memoization)
+
+**Phase 3 — Objects & Prototypes** 12. [Prototypes & Inheritance](#12-prototypes-inheritance) 13. [Property Descriptors & Object Immutability](#13-property-descriptors-object-immutability) 14. [Object Methods](#14-object-methods)
+
+**Phase 4 — Built-in Data Types & Methods** 15. [Array Methods — map, filter, reduce & More](#15-array-methods-map-filter-reduce-more) 16. [String Methods](#16-string-methods) 17. [Iterators & the `for...of` Loop](#17-iterators-the-forof-loop) 18. [Typed Arrays & Buffers](#18-typed-arrays-buffers)
+
+**Phase 5 — ES6+ & Modules** 19. [ES6+ Features — Spread, Rest, Destructuring & More](#19-es6-features-spread-rest-destructuring-more) 20. [Template Literals & Tagged Templates](#20-template-literals-tagged-templates) 21. [ES Modules](#21-es-modules)
+
+**Phase 6 — Asynchronous JavaScript** 22. [Callbacks & Callback Hell](#22-callbacks-callback-hell) 23. [Promises](#23-promises) 24. [Promise Internals — Deep Dive](#24-promise-internals-deep-dive) 25. [Promise Combinators — all, allSettled, race, any](#25-promise-combinators-all-allsettled-race-any) 26. [Async / Await](#26-async-await) 27. [The Event Loop](#27-the-event-loop) 28. [Node.js Event Loop — Deep Dive](#28-nodejs-event-loop-deep-dive) 29. [Async Pitfalls & Production Patterns](#29-async-pitfalls-production-patterns)
+
+---
+
+## 1. JavaScript Execution Model
+
+JavaScript is a **single-threaded, synchronous** language at its core. This means the engine processes one instruction at a time, in the order they appear. There is no native multi-threading — the engine maintains a single call stack that handles one function execution at a time. If a function takes a long time to run, it blocks everything else.
+
+However, JavaScript achieves concurrency through an **event-driven, non-blocking architecture**. The runtime environment (browser or Node.js) provides Web APIs, timers, and I/O facilities that operate outside the main thread. When asynchronous work completes, its callback is placed into a task queue and eventually picked up by the **event loop**, which checks whether the call stack is empty before pushing the next task.
+
+This design means "asynchronous" in JavaScript does not mean "parallel." Async operations are deferred, not run on separate threads (with the exception of worker threads or the libuv thread pool in Node.js for certain I/O).
+
+```mermaid
+flowchart LR
+    A[JavaScript Engine] --> B[Call Stack<br/>Single Thread]
+    A --> C[Memory Heap]
+    B --> D{Stack Empty?}
+    D -->|Yes| E[Event Loop picks<br/>next task from Queue]
+    D -->|No| F[Continue executing<br/>current function]
+    E --> B
+```
+
+### Interview Questions — Execution Model
+
+1. **Why is JavaScript called single-threaded?** — It has one call stack and processes one operation at a time. Concurrency is achieved through the event loop, not additional threads.
+2. **If JavaScript is single-threaded, how does it handle async operations?** — Async tasks are delegated to the environment (browser APIs / libuv). When they complete, their callbacks enter a task queue and the event loop pushes them to the call stack when it is free.
+3. **What is the difference between synchronous and asynchronous code execution in JavaScript?** — Synchronous code is executed line-by-line on the call stack. Asynchronous code is deferred, executing its callback only when the main stack is clear.
+4. **What would happen if a synchronous function takes 10 seconds to run?** — It would block the entire thread, freezing the UI in a browser or preventing other requests in Node.js.
+
+---
+
+## 2. Execution Context & Call Stack
+
+Every time JavaScript code runs, it executes inside an **Execution Context**. The very first one created is the **Global Execution Context (GEC)**. Each function invocation creates a new **Function Execution Context (FEC)**, and these are managed by the **Call Stack**.
+
+An execution context has two phases:
+
+**Phase 1 — Memory Creation (Creation Phase):** The engine scans the code and allocates memory. Variables declared with `var` are stored with value `undefined`. Function declarations are stored in full (the entire function body). Variables declared with `let` and `const` are allocated but remain in the Temporal Dead Zone.
+
+**Phase 2 — Code Execution:** The engine runs the code line by line. Variable values are assigned, functions are invoked, and expressions are evaluated. When a function is called, a brand new execution context is created with its own memory and code components, and it is pushed onto the call stack.
+
+The **Call Stack** follows LIFO (Last In, First Out). When a function completes, its execution context is popped off. When the entire program finishes, the Global Execution Context is also removed.
+
+### From the Repository — `ExecutionContext.js`
+
+```js
+var n = 2;
+
+function square(num) {
+    var ans = num * num;
+    return ans;
+}
+
+var square2 = square(n);
+var square4 = square(4);
+
+console.log(square2, square4); // 4 16
+```
+
+**Step-by-step walkthrough:**
+
+1. **GEC Creation Phase:** `n = undefined`, `square = fn{}`, `square2 = undefined`, `square4 = undefined`.
+2. **GEC Execution:** `n = 2`. Then `square(n)` is invoked — a new FEC is pushed onto the stack.
+3. **FEC for `square(2)`:** Creation — `num = undefined`, `ans = undefined`. Execution — `num = 2`, `ans = 4`, return `4`. FEC is popped.
+4. **Back to GEC:** `square2 = 4`. Then `square(4)` is invoked — another FEC is pushed.
+5. **FEC for `square(4)`:** `num = 4`, `ans = 16`, return `16`. FEC is popped.
+6. **GEC continues:** `square4 = 16`. `console.log(4, 16)`. GEC is popped.
+
+```mermaid
+flowchart TB
+    subgraph CallStack["Call Stack (LIFO)"]
+        direction TB
+        GEC["Global Execution Context"]
+        FEC1["square(2) — FEC"]
+        FEC2["square(4) — FEC"]
+    end
+
+    GEC -->|"invokes square(n)"| FEC1
+    FEC1 -->|"returns 4, popped"| GEC
+    GEC -->|"invokes square(4)"| FEC2
+    FEC2 -->|"returns 16, popped"| GEC
+    GEC -->|"program ends"| EMPTY["Stack Empty"]
+```
+
+### Interview Questions — Execution Context
+
+1. **What are the two phases of an execution context?** — Memory Creation Phase (variable and function declarations are stored) and Code Execution Phase (code runs line by line).
+2. **What happens when a function is invoked?** — A new Function Execution Context is created, pushed onto the call stack, executed, and then popped off when the function returns.
+3. **What is stored in the memory component during the creation phase?** — `var` variables store `undefined`, function declarations store the entire function body, and `let`/`const` are placed in the TDZ.
+4. **What causes a stack overflow?** — Infinite or excessively deep recursion where function contexts keep being pushed without ever returning.
+5. **Name alternative terms for the Call Stack.** — Execution Context Stack, Program Stack, Control Stack, Runtime Stack, Machine Stack.
+
+---
+
+## 3. Hoisting
+
+Hoisting is JavaScript's behavior of processing declarations during the **memory creation phase** before any code is executed. This means variables and function declarations are "moved to the top" of their scope conceptually — you can reference them before the line where they appear in the source code.
+
+However, hoisting works differently for different declaration types:
+
+- **`var` declarations** are hoisted and initialized with `undefined`. Accessing a `var` before its assignment line returns `undefined`, not an error.
+- **Function declarations** are fully hoisted — both the name and the entire body are available before the declaration line.
+- **`let` and `const`** are hoisted but are **not initialized**. They exist in a **Temporal Dead Zone (TDZ)** from the start of the block until the declaration is reached. Accessing them in the TDZ throws a `ReferenceError`.
+
+The **Temporal Dead Zone** is the period between entering a scope and the variable being declared/initialized. It exists to enforce better coding practices and catch bugs where variables are used before they have meaningful values.
+
+### From the Repository — `Hoisting.js`
+
+```js
+// getName(); // "Hello World"
+// console.log(x); // undefined
+// console.log(getName); // [Function: getName]
+
+var x = 7;
+
+function getName() {
+    console.log("Hello World", z); // Hello World, undefined
+}
+
+getName();
+console.log(x); // 7
+var z = 1;
+```
+
+In this example, calling `getName()` before its declaration works perfectly because function declarations are fully hoisted. Accessing `x` before `var x = 7` would yield `undefined` because `var` is hoisted with that placeholder value. The variable `z` inside `getName` is also `undefined` when `getName` is called before `var z = 1` is executed.
+
+### Interview Questions — Hoisting
+
+1. **What is hoisting?** — The mechanism where variable and function declarations are placed in memory during the creation phase, making them accessible before their source-code position.
+2. **What is the Temporal Dead Zone?** — The period between scope entry and variable declaration for `let`/`const`, during which access throws a `ReferenceError`.
+3. **Why does `console.log(x)` print `undefined` before a `var x = 5` line?** — Because `var x` is hoisted and initialized to `undefined` during the creation phase; the assignment `= 5` happens only during execution.
+4. **Can you access a `let` variable before its declaration?** — No. It throws a `ReferenceError` because it is in the Temporal Dead Zone.
+5. **Are function expressions hoisted?** — The variable name is hoisted (if `var`), but its value is `undefined` — so calling it throws `TypeError: not a function`.
+
+---
+
+## 4. Scope — Lexical Scope, Scope Chain & Block Scope
+
+**Scope** defines where a variable can be accessed in your code. JavaScript has three types of scope: **global scope**, **function scope**, and **block scope** (introduced with ES6).
+
+**Lexical Scope** means that scope is determined by where the code is written (author time), not where it is called (run time). An inner function has access to variables of its parent function because it was physically written inside it.
+
+When a variable is accessed, JavaScript performs a **scope chain lookup**: it first checks the local scope, then the parent scope, then the grandparent scope, and so on up to the global scope. If the variable is not found anywhere in the chain, a `ReferenceError` is thrown.
+
+**Block Scope** applies to variables declared with `let` and `const` inside any block delimited by curly braces `{}` (if, for, while, or standalone blocks). These variables are only accessible within that block. Variables declared with `var` ignore block boundaries and are scoped to the enclosing function or the global scope.
+
+**Shadowing** occurs when a variable declared in an inner scope has the same name as one in an outer scope. The inner variable "shadows" the outer one within that block. However, **illegal shadowing** happens when you try to shadow a `let` variable with a `var` in the same function scope — this causes a `SyntaxError`.
+
+### From the Repository — `ScopeChain.js`
+
+```js
+function a() {
+    c();
+    function c() {
+        console.log(b); // 10 — found via scope chain (global)
+    }
+}
+
+var b = 10;
+a();
+```
+
+Here, `c()` is nested inside `a()`. When `c()` tries to access `b`, it looks in its own scope (not found), then in `a()`'s scope (not found), then in the global scope (found: `b = 10`). This is the scope chain in action.
+
+### From the Repository — `BlockScope.js`
+
+```js
+var a = "hello 1";
+let b = "not overridden";
+{
+    let a = "hello 1"; // shadows outer 'a' within this block only
+    let b = "hello 2"; // shadows outer 'b' within this block
+    {
+        let a = "Hi";
+        console.log(a, b); // "Hi" "hello 2"
+    }
+}
+
+{
+    var a = 10; // overwrites global var a (var is not block-scoped)
+    let b = 20; // block-scoped, does not affect outer b
+    const c = 30;
+}
+
+console.log(a); // 10  (var was overwritten)
+console.log(b); // "not overridden"  (let was block-scoped)
+// console.log(c); // ReferenceError
+```
+
+```mermaid
+flowchart TB
+    G["Global Scope<br/>var a, let b"]
+    G --> B1["Block 1<br/>let a, let b"]
+    B1 --> B2["Nested Block<br/>let a"]
+    G --> B3["Block 2<br/>var a (overwrites global), let b, const c"]
+
+    style G fill:#0288d1,color:#fff,stroke:#01579b
+    style B1 fill:#ef6c00,color:#fff,stroke:#e65100
+    style B2 fill:#c62828,color:#fff,stroke:#b71c1c
+    style B3 fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+### Interview Questions — Scope
+
+1. **What is lexical scope?** — Scope determined by the physical location of code in the source. Inner functions can access outer function variables because they are lexically enclosed.
+2. **Explain the scope chain.** — The series of nested scopes that JavaScript traverses (local → parent → grandparent → global) when looking up a variable.
+3. **What is the difference between function scope and block scope?** — `var` creates function-scoped variables (visible throughout the function), while `let`/`const` create block-scoped variables (visible only within `{}`).
+4. **What is variable shadowing?** — When a variable in an inner scope has the same name as one in an outer scope, the inner one takes precedence within that scope.
+5. **What is illegal shadowing?** — Attempting to shadow a `let` with a `var` inside the same function scope, which causes a `SyntaxError`.
+
+---
+
+## 5. Variable Declarations — var, let, const
+
+JavaScript provides three ways to declare variables, each with distinct scoping and hoisting behavior.
+
+**`var`** is function-scoped and hoisted with an initial value of `undefined`. It allows redeclaration and reassignment. Because it is not block-scoped, it can leak out of `if`, `for`, and other block statements, causing hard-to-track bugs. In modern codebases, `var` is largely avoided.
+
+**`let`** is block-scoped and hoisted but placed in the Temporal Dead Zone until the declaration line. It does not allow redeclaration within the same scope but does allow reassignment. It is the preferred choice when a variable's value needs to change.
+
+**`const`** is also block-scoped and placed in the TDZ. It requires initialization at the time of declaration and does not allow reassignment of the binding. However, if the value is an object or array, the contents can still be mutated — `const` protects the binding, not the value.
+
+### From the Repository — `FunctionsAndVarEnv.js`
+
+```js
+var x = 1;
+a();
+b();
+
+console.log(x); // 1 — Global Scope
+
+function a() {
+    var x = 10;
+    console.log(x); // 10 — function scope
+}
+
+function b() {
+    var x = 100;
+    console.log(x); // 100 — function scope
+}
+
+const xarrfn = () => {
+    console.log(x); // 1 — scope chain picks from global
+};
+
+xarrfn();
+```
+
+Each function has its own `var x`, which is function-scoped and independent. The arrow function `xarrfn` has no local `x`, so the scope chain resolves to the global `x = 1`.
+
+### Interview Questions — Variable Declarations
+
+1. **What are the differences between `var`, `let`, and `const`?** — `var` is function-scoped and hoisted with `undefined`; `let` is block-scoped and in the TDZ; `const` is like `let` but cannot be reassigned.
+2. **Can you mutate a `const` object?** — Yes. `const` prevents reassignment of the variable binding, not mutation of the value. `const obj = {}; obj.x = 1;` is valid.
+3. **Why should you avoid `var` in modern code?** — It leads to scope leaks (not block-scoped), allows redeclaration, and makes hoisting behavior confusing.
+4. **What happens if you use `let` before its declaration?** — A `ReferenceError` because of the Temporal Dead Zone.
+
+---
+
+## 6. Functions — First-Class Citizens
+
+JavaScript treats functions as **first-class citizens**, meaning functions are values that can be stored in variables, passed as arguments to other functions, returned from functions, and even have properties attached to them. This is one of the most powerful features of the language and forms the foundation of patterns like callbacks, higher-order functions, and closures.
+
+There are several ways to define functions:
+
+- **Function Declaration (Statement):** Defined using the `function` keyword. Fully hoisted — can be called before the declaration line.
+- **Function Expression:** Assigned to a variable. Only the variable is hoisted (as `undefined` if `var`), so calling before assignment causes a `TypeError`.
+- **Arrow Function:** A concise ES6 syntax that has no own `this`, no `arguments` object, and cannot be used as a constructor.
+- **Anonymous Function:** A function without a name, often used inline as callbacks.
+- **Named Function Expression:** An expression with a name, useful for self-referencing and better stack traces.
+
+### From the Repository — `FirstClassFunctions.js`
+
+```js
+function fn() {
+    console.log(this);
+    console.log(this.x);
+}
+fn.x = 10; // Functions can have properties!
+
+console.log(fn.apply(fn));
+
+// Function Statement (Declaration)
+function a(param1, param2 = 0) {
+    console.log("a");
+}
+
+// Function Expression
+let b = function () {
+    console.log("b");
+};
+
+// Named Function Expression
+let c = function c1() {
+    console.log("c1");
+};
+
+// First-class: passing function as argument, returning function
+function fun1(cb) {
+    return cb;
+}
+
+function cb() {
+    console.log("Im cb");
+}
+
+fun1(cb)(); // "Im cb"
+```
+
+Notice how `fn.x = 10` attaches a property to a function — possible because functions are objects. The pattern `fun1(cb)()` demonstrates passing a function reference and then immediately invoking the returned value.
+
+### Interview Questions — Functions
+
+1. **What does it mean for functions to be first-class citizens?** — Functions can be assigned to variables, passed as arguments, returned from other functions, and have properties — they are treated like any other value.
+2. **What is the difference between a function declaration and a function expression?** — Declarations are fully hoisted (callable before their line). Expressions are assigned to variables and follow the hoisting rules of that variable.
+3. **What are the key differences between arrow functions and regular functions?** — Arrow functions have no own `this` (lexical), no `arguments` object, cannot be used with `new`, and have a concise syntax.
+4. **Can you add properties to a function?** — Yes, functions are objects and can have properties and methods added to them.
+5. **What is an IIFE?** — An Immediately Invoked Function Expression is a function that runs as soon as it is defined. It creates its own scope, useful for avoiding global pollution: `(function() { /* code */ })()`.
+6. **What is the difference between parameters and arguments?** — Parameters are the variable names listed in the function definition. Arguments are the actual values passed when the function is called.
+
+---
+
+## 7. Arrow Functions vs Regular Functions — Deep Dive
+
+Arrow functions are not just shorter syntax — they have fundamentally different behavior in several key areas.
+
+### Syntax Comparison
+
+```js
+// Regular function
+function greet(name) {
+    return `Hello, ${name}!`;
+}
+
+// Arrow function — concise body (implicit return)
+const greet = (name) => `Hello, ${name}!`;
+
+// Arrow function — block body (explicit return needed)
+const greet = (name) => {
+    return `Hello, ${name}!`;
+};
+```
+
+### Key Differences
+
+| Feature                      |      Regular Function       |             Arrow Function              |
+| ---------------------------- | :-------------------------: | :-------------------------------------: |
+| `this` binding               | Dynamic (depends on caller) | Lexical (inherits from enclosing scope) |
+| `arguments` object           |        ✅ Available         |  ❌ Not available (use rest `...args`)  |
+| Can be a constructor (`new`) |           ✅ Yes            |        ❌ No — throws TypeError         |
+| Has `prototype` property     |           ✅ Yes            |                  ❌ No                  |
+| Hoisted                      | ✅ (function declarations)  |        ❌ (treated as variable)         |
+| `super` binding              |           Dynamic           |                 Lexical                 |
+| `new.target`                 |          Available          |              Not available              |
+
+### `this` — The Critical Difference
+
+```js
+const obj = {
+    name: "Prashant",
+
+    // Regular function — `this` is the calling object
+    regularGreet: function () {
+        console.log(this.name); // "Prashant"
+    },
+
+    // Arrow function — `this` is inherited from where the object was defined
+    arrowGreet: () => {
+        console.log(this.name); // undefined (inherits outer `this`)
+    },
+
+    // Common pattern: arrow inside method preserves `this`
+    delayedGreet: function () {
+        setTimeout(() => {
+            console.log(this.name); // "Prashant" — arrow inherits from delayedGreet
+        }, 100);
+    },
+
+    // Problem: regular function in setTimeout loses `this`
+    brokenGreet: function () {
+        setTimeout(function () {
+            console.log(this.name); // undefined — `this` is global/undefined
+        }, 100);
+    },
+};
+```
+
+### No `arguments` Object
+
+```js
+function regular() {
+    console.log(arguments); // [1, 2, 3] — Arguments object
+}
+regular(1, 2, 3);
+
+const arrow = (...args) => {
+    // console.log(arguments); // ReferenceError — not available!
+    console.log(args); // [1, 2, 3] — use rest parameters instead
+};
+arrow(1, 2, 3);
+```
+
+### Cannot Be Used as Constructor
+
+```js
+function Person(name) {
+    this.name = name;
+}
+const p = new Person("Alice"); // ✅ Works
+
+const Animal = (name) => {
+    this.name = name;
+};
+// const a = new Animal("Dog"); // ❌ TypeError: Animal is not a constructor
+```
+
+Arrow functions don't have a `prototype` property and cannot be used with `new`. This is because they don't have their own `this` — `new` has no way to bind a newly created object to them.
+
+```mermaid
+flowchart TB
+    subgraph "Regular Function"
+        RF["function greet()"]
+        RF --> T1["✅ Own `this`<br/>(dynamic binding)"]
+        RF --> A1["✅ `arguments` object"]
+        RF --> C1["✅ Can use `new`"]
+        RF --> H1["✅ Hoisted"]
+    end
+
+    subgraph "Arrow Function"
+        AF["const greet = () => {}"]
+        AF --> T2["❌ No own `this`<br/>(lexical from parent)"]
+        AF --> A2["❌ No `arguments`<br/>(use ...rest)"]
+        AF --> C2["❌ Cannot use `new`"]
+        AF --> H2["❌ Not hoisted"]
+    end
+
+    style RF fill:#1565c0,color:#fff,stroke:#0d47a1
+    style AF fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style T1 fill:#1565c0,color:#fff,stroke:#0d47a1
+    style A1 fill:#1565c0,color:#fff,stroke:#0d47a1
+    style C1 fill:#1565c0,color:#fff,stroke:#0d47a1
+    style H1 fill:#1565c0,color:#fff,stroke:#0d47a1
+    style T2 fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style A2 fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style C2 fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style H2 fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+### When to Use Which
+
+| Scenario                                    | Use                                                          |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| Object methods                              | Regular function (needs its own `this`)                      |
+| `addEventListener` callbacks                | Regular function (to access `event.currentTarget` as `this`) |
+| `setTimeout`/`setInterval` inside methods   | Arrow function (to preserve outer `this`)                    |
+| Array callbacks (`map`, `filter`, `reduce`) | Arrow function (concise, doesn't need own `this`)            |
+| Constructors                                | Regular function or class                                    |
+| Short utility functions                     | Arrow function                                               |
+
+### Interview Questions — Arrow vs Regular
+
+1. **What is the main difference between arrow and regular functions?** — Arrow functions don't have their own `this`, `arguments`, `super`, or `new.target`. They inherit `this` lexically from the enclosing scope.
+2. **Can arrow functions be used as constructors?** — No. They throw a TypeError with `new` because they lack a `prototype` property and cannot bind `this`.
+3. **Why use an arrow function inside `setTimeout`?** — To preserve the `this` of the enclosing method. A regular function would have its own `this` (global or undefined).
+4. **How do you access arguments in an arrow function?** — Using rest parameters `(...args)` since arrow functions don't have the `arguments` object.
+
+---
+
+## 8. The `this` Keyword
+
+The `this` keyword in JavaScript refers to the **execution context** of the current function. Unlike many other languages where `this` always refers to the instance of a class, JavaScript's `this` is determined **dynamically at call time** based on how the function is invoked.
+
+There are four binding rules, listed in order of **priority** (highest to lowest):
+
+### 7.1 `new` Binding (Highest Priority)
+
+When a function is called with `new`, JavaScript creates a fresh empty object, sets `this` to that object, links the prototype, executes the constructor body, and returns the object (unless the function explicitly returns a different object).
+
+### 7.2 Explicit Binding — `call`, `apply`, `bind`
+
+These methods allow you to manually set what `this` refers to:
+
+- **`call(thisArg, arg1, arg2, ...)`** — Invokes the function immediately with comma-separated arguments.
+- **`apply(thisArg, [argsArray])`** — Invokes immediately with arguments as an array.
+- **`bind(thisArg, arg1, ...)`** — Returns a new function with `this` permanently bound. Does not invoke immediately.
+
+### 7.3 Implicit Binding
+
+When a function is called as a method of an object (`obj.method()`), `this` refers to the object to the left of the dot.
+
+### 7.4 Default Binding (Lowest Priority)
+
+When a function is called standalone (`fn()`), `this` defaults to the global object in non-strict mode or `undefined` in strict mode.
+
+### From the Repository — `__this.js`
+
+```js
+// Default Binding
+function show() {
+    console.log(this); // global object (non-strict) / undefined (strict)
+}
+
+// Implicit Binding
+const user = {
+    name: "Prashant",
+    say() {
+        console.log(this.name); // "Prashant"
+    },
+};
+user.say();
+
+// Explicit Binding
+let customer1 = { firstName: "Prashant", lastName: "Chevula" };
+let customer2 = { firstName: "Raju", lastName: "Chevula" };
+
+let printFullName = function (hometown) {
+    console.log(this.firstName + " " + this.lastName + " " + hometown);
+};
+
+printFullName.call(customer1, "Hyderabad"); // call — comma-separated args
+printFullName.apply(customer1, ["Hyderabad"]); // apply — array of args
+let printMyName = printFullName.bind(customer2, "Hyderabad");
+printMyName(); // bind — returns new function
+
+// new Binding
+function User(name) {
+    this.name = name;
+}
+User.prototype.sayName = function () {
+    console.log(this.name);
+};
+const u1 = new User("Prashant");
+u1.sayName(); // "Prashant"
+```
+
+```mermaid
+flowchart TD
+    A["How is the function called?"]
+    A -->|"new fn()"| B["new Binding<br/>this = new object"]
+    A -->|"fn.call/apply/bind(obj)"| C["Explicit Binding<br/>this = specified object"]
+    A -->|"obj.fn()"| D["Implicit Binding<br/>this = obj (left of dot)"]
+    A -->|"fn()"| E["Default Binding<br/>this = global / undefined"]
+
+    style B fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style C fill:#1565c0,color:#fff,stroke:#0d47a1
+    style D fill:#f9a825,color:#000,stroke:#f57f17
+    style E fill:#c62828,color:#fff,stroke:#b71c1c
+```
+
+### Interview Questions — `this`
+
+1. **What determines the value of `this` in JavaScript?** — The call site — how the function is invoked, not where it is defined (except for arrow functions).
+2. **What is the priority order of `this` binding rules?** — `new` > `bind`/`call`/`apply` > implicit (object dot) > default (standalone call).
+3. **What is the difference between `call`, `apply`, and `bind`?** — `call` and `apply` invoke the function immediately (`call` takes comma-separated args, `apply` takes an array). `bind` returns a new function with `this` permanently set.
+4. **What happens to `this` when you extract a method from an object?** — The implicit binding is lost. `const fn = obj.method; fn();` uses default binding, not implicit.
+5. **How does `this` work in arrow functions?** — Arrow functions have no own `this`. They inherit `this` from the enclosing lexical scope at definition time.
+6. **What does the `new` keyword do internally?** — Creates a new empty object, sets `this` to that object, links the object's prototype to the constructor's `prototype`, executes the function body, and returns the object.
+
+---
+
+## 9. Closures
+
+A **closure** is the combination of a function bundled together with references to its **lexical environment** (the variables that were in scope when the function was created). When a function is returned from another function, it "remembers" the variables from its birthplace even after the outer function has finished executing.
+
+Closures exist because of three properties of JavaScript:
+
+1. Functions are **first-class** — they can be returned and passed around.
+2. Functions retain a reference to their **lexical scope**.
+3. Variables captured by a closure live on the **heap**, not the stack, so they survive beyond the outer function's lifetime.
+
+Closures are used for **data hiding / encapsulation**, **module patterns**, **memoization**, **event handlers**, **iterators**, and anywhere private state is needed without classes.
+
+### From the Repository — `Closures.js`
+
+```js
+// Counter using closure — data encapsulation
+function counter(x) {
+    let counter = 0;
+    return {
+        increment() {
+            return (counter = counter + (x || 1));
+        },
+        decrement() {
+            return (counter = counter - (x || 1));
+        },
+    };
+}
+
+const counter1 = counter(1);
+console.log(counter1.increment()); // 1
+console.log(counter1.increment()); // 2
+console.log(counter1.decrement()); // 1
+console.log(counter1.increment()); // 2
+
+const counter2 = counter(2);
+console.log(counter2.increment()); // 2
+console.log(counter2.decrement()); // 0
+console.log(counter2.increment()); // 2
+console.log(counter2.increment()); // 4
+```
+
+Each call to `counter()` creates a **separate** closure with its own `counter` variable. `counter1` and `counter2` do not share state. The `counter` variable is not accessible from outside — it is truly private.
+
+### From the Repository — `Closures.js` (Garbage Collection)
+
+```js
+function outer() {
+    let a = 1;
+    let b = 2; // garbage collected — not referenced by the returned function
+
+    return function () {
+        console.log(a);
+    };
+}
+```
+
+Modern engines like V8 optimize closures: variables that are captured are kept, but unreferenced variables (like `b` here) are garbage collected even though they were in the same scope.
+
+### The Classic `setTimeout` + `var` Problem — `setTimeOut_Closure.js`
+
+```js
+function x() {
+    for (var i = 0; i < 5; i++) {
+        // Problem: var is function-scoped, so all callbacks share the same i
+        // Fix: IIFE creates a new scope for each iteration
+        ((i) => {
+            setTimeout(function () {
+                console.log(i); // 0, 1, 2, 3, 4
+            }, 1000 * i);
+        })(i);
+    }
+    console.log("Hey I'm here, Catch me if you can!");
+}
+x();
+```
+
+Without the IIFE wrapper, all `setTimeout` callbacks would close over the same `var i`, which would be `5` by the time they execute. The IIFE creates a new function scope for each iteration, capturing the current value of `i`. The modern fix is simply using `let` instead of `var`, since `let` is block-scoped and creates a new binding per loop iteration.
+
+```mermaid
+flowchart LR
+    subgraph "var (shared reference)"
+        V1["setTimeout cb → i"] --> VREF["i = 5<br/>(single binding)"]
+        V2["setTimeout cb → i"] --> VREF
+        V3["setTimeout cb → i"] --> VREF
+    end
+
+    subgraph "let / IIFE (separate bindings)"
+        L1["setTimeout cb → i₀ = 0"]
+        L2["setTimeout cb → i₁ = 1"]
+        L3["setTimeout cb → i₂ = 2"]
+    end
+```
+
+### Module Design Pattern — `Closure.js` (Interview)
+
+Closures power the **Module Design Pattern**, which is one of the most important pre-ES6 patterns for data hiding and encapsulation:
+
+```js
+const Calculator = (function () {
+    let result = 0; // private state — inaccessible from outside
+
+    return {
+        add(x) {
+            result += x;
+            return this;
+        },
+        subtract(x) {
+            result -= x;
+            return this;
+        },
+        getResult() {
+            return result;
+        },
+        reset() {
+            result = 0;
+            return this;
+        },
+    };
+})();
+
+Calculator.add(10).subtract(3).add(5);
+console.log(Calculator.getResult()); // 12
+console.log(Calculator.result); // undefined — private!
+```
+
+The IIFE runs once, creates the `result` variable in its scope, and returns an object whose methods close over that variable. External code can only interact through the returned API — `result` is completely hidden.
+
+### Closure vs Scope — Key Distinction
+
+| Aspect             | Scope                                                          | Closure                                                                         |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **What it is**     | The set of rules for where a variable can be accessed          | A function + its lexical environment preserved after the outer function returns |
+| **When it exists** | During function execution                                      | After the outer function has finished executing                                 |
+| **Purpose**        | Controls variable visibility and lifetime                      | Preserves state across function calls                                           |
+| **Example**        | A variable inside a `for` loop only accessible within the loop | A counter function that remembers its count between calls                       |
+
+Scope defines _where_ variables live. Closures capture scope so it _outlives_ the function that created it.
+
+### Are Modules Closures?
+
+Yes. ES Modules behave like closures at the file level. Variables declared at the top level of a module are scoped to that module — they are not global. Exported values are live bindings that close over the module's internal state. This is why a module can export a `count` variable and an `increment()` function, and callers see the updated value — the module's scope persists just like a closure.
+
+### Production Use-Cases of Closures
+
+1. **Data Privacy / Encapsulation** — Private variables accessed only through a public API (module pattern).
+2. **Function Factories** — `createLogger(prefix)` that returns a logger function pre-configured with the prefix.
+3. **Event Handlers** — Handlers that need to remember context from when they were registered.
+4. **Debounce / Throttle** — Timer ID and last-call timestamp preserved across invocations.
+5. **Iterators** — A function that maintains a pointer to the current position in a collection.
+6. **Partial Application / Currying** — Pre-filling arguments via closure.
+
+### Interview Questions — Closures
+
+1. **What is a closure?** — A function that retains access to variables from its lexical scope even after the outer function has returned. It bundles the function with its surrounding environment.
+2. **How are closures used for data encapsulation?** — By returning functions from an outer function, internal variables become private — only accessible through the returned interface (like the counter pattern).
+3. **What is the classic `setTimeout` + `var` closure problem?** — In a loop with `var`, all `setTimeout` callbacks share the same variable, printing the final value. Fix: use `let` (block-scoped) or wrap in an IIFE.
+4. **Do closures cause memory leaks?** — They can, if they hold references to large data structures that are no longer needed. Modern engines optimize by only keeping referenced variables.
+5. **What is the Module Design Pattern?** — Using closures to create private state and expose a public API via returned objects or functions, simulating encapsulation without classes.
+6. **How does garbage collection work with closures?** — Unreferenced variables in the outer scope are garbage collected. Only variables actually used by the inner function are retained.
+7. **What is the difference between scope and closure?** — Scope defines where variables are accessible during execution. A closure captures that scope so it persists after the defining function returns.
+8. **Are ES Modules closures?** — Yes. Module-scoped variables persist between imports, and exported functions close over the module's internal state.
+
+---
+
+## 10. Higher-Order Functions & Functional Programming
+
+**Functional Programming** is a paradigm where computation is done using pure functions, immutability, and function composition, avoiding shared mutable state and side effects. JavaScript supports functional programming natively through first-class functions.
+
+A **Higher-Order Function (HOF)** is a function that either takes one or more functions as arguments or returns a function. This is possible because functions are first-class citizens. Examples include `map`, `filter`, `reduce`, `forEach`, and custom functions that accept callbacks.
+
+**Core principles of functional programming in this codebase:**
+
+1. **Pure Functions** — Given the same input, always produce the same output with no side effects.
+2. **Immutability** — Never modify existing data; create new data structures instead. Use spread operator, `map`, `filter` instead of `push` or direct mutation.
+3. **Function Composition** — Build complex operations by chaining simpler functions.
+4. **Avoiding Side Effects** — Functions should not modify external state.
+
+### From the Repository — `HOF.js`
+
+```js
+// Pure function — same input always gives same output
+function add(x, y) {
+    return x + y;
+}
+
+// Immutability — create new array instead of mutating
+const arr = [1, 2, 3];
+const newArr = [...arr, 4, 5]; // arr is unchanged
+
+// Higher-Order Function — takes a function as argument
+const radius = [3, 1, 2, 4];
+
+const area = (r) => Math.PI * r * r;
+const circumference = (r) => 2 * Math.PI * r;
+const diameter = (r) => 2 * r;
+
+// Custom HOF added to Array.prototype
+Array.prototype.calculate = function (logic) {
+    const output = [];
+    for (let index = 0; index < this.length; index++) {
+        output.push(logic(this[index]));
+    }
+    return output;
+};
+
+console.log(radius.calculate(area));
+console.log(radius.calculate(circumference));
+console.log(radius.calculate(diameter));
+```
+
+The `calculate` method is a custom implementation of `map` — it takes a transformation function and applies it to each element. This demonstrates how higher-order functions enable reusable, generic logic. The same `calculate` method works with `area`, `circumference`, or `diameter` — the specific behavior is injected through the callback.
+
+### Interview Questions — HOF & Functional Programming
+
+1. **What is a higher-order function?** — A function that takes another function as an argument or returns a function.
+2. **What is a pure function?** — A function that always returns the same output for the same input and has no side effects (no mutation of external state).
+3. **Why is immutability important in functional programming?** — It prevents unexpected state changes, makes code predictable, and eliminates entire classes of bugs related to shared mutable state.
+4. **How would you implement your own `map` function?** — Create a function that iterates over an array, applies a callback to each element, and pushes results into a new array (like the `calculate` function in the codebase).
+5. **Give an example of function composition.** — Chaining `.filter().map().reduce()` where the output of one operation feeds into the next.
+
+---
+
+## 11. Function Currying & Memoization
+
+### Function Currying
+
+**Currying** transforms a function that takes multiple arguments into a sequence of functions, each taking a single argument. This allows partial application — creating specialized versions of a function by pre-filling some arguments.
+
+### From the Repository — `HOF.js`
+
+```js
+function curriedAdd(a) {
+    return function (b) {
+        return a + b;
+    };
+}
+
+const addFive = curriedAdd(5);
+console.log(addFive(3)); // 8
+console.log(addFive(10)); // 15
+```
+
+`curriedAdd(5)` returns a new function that remembers `a = 5` through a closure. This pre-configured function can then be called multiple times with different `b` values. Currying is useful in event handling (pre-configured handlers) and API calls (pre-filled API keys or configuration).
+
+### Memoization
+
+**Memoization** is an optimization technique that caches the results of expensive function calls and returns the cached result when the same inputs occur again.
+
+### From the Repository — `HOF.js`
+
+```js
+function memoize(fn) {
+    const cache = new Map();
+    return function (...args) {
+        const key = args.toString();
+        if (!cache.get(key)) {
+            cache.set(key, fn(args));
+        }
+        console.log(cache);
+        return cache.get(key);
+    };
+}
+
+function fact(x) {
+    if (x == 0) return 1;
+    return x * factorial(x - 1);
+}
+
+const factorial = memoize(fact);
+console.log(factorial(5)); // calculates
+console.log(factorial(5)); // returns cached result
+```
+
+The `memoize` wrapper uses a `Map` as a cache. The key is the stringified arguments, and the value is the result. On subsequent calls with the same arguments, the function skips computation and returns the cached value directly. This pattern uses closures — the `cache` variable persists across calls because the returned function closes over it.
+
+### Interview Questions — Currying & Memoization
+
+1. **What is currying?** — Transforming a function `f(a, b, c)` into `f(a)(b)(c)` — a chain of single-argument functions.
+2. **What is partial application?** — Pre-filling some arguments of a function to create a more specialized version, often using `bind` or currying.
+3. **What is memoization?** — Caching function results based on arguments so that repeated calls with the same input return instantly from cache.
+4. **How are closures involved in memoization?** — The cache (Map or object) is defined in the outer function and persists through the closure of the returned wrapper function.
+5. **When should you NOT use memoization?** — When function results change over time (impure functions), when the argument space is too large (memory issues), or when the function is already fast.
+
+---
+
+## 12. Prototypes & Inheritance
+
+JavaScript uses a **prototype-based inheritance** model rather than classical class-based inheritance. Every object in JavaScript has an internal link to another object called its **prototype**. When you access a property on an object, JavaScript first checks the object itself. If the property is not found, it follows the prototype chain — checking the object's prototype, then the prototype's prototype, and so on until it reaches `null`.
+
+The root of all prototype chains is `Object.prototype`, whose prototype is `null`. This is where methods like `toString()`, `hasOwnProperty()`, and `valueOf()` come from — every object inherits them through the chain.
+
+**Key distinctions:**
+
+- `__proto__` (or `Object.getPrototypeOf()`) is the actual link from an object to its prototype.
+- `prototype` is a property on constructor functions that becomes the `__proto__` of objects created with `new`.
+- `Object.create(proto)` creates a new object with `proto` as its prototype — a clean way to set up delegation.
+
+### From the Repository — `prototypeInheritance.js`
+
+```js
+// Extending Array.prototype — adding custom method to all arrays
+Array.prototype.logData = function () {
+    this.map((x) => console.log(x));
+};
+const arr = [1, 2, 3, 4];
+arr.logData(); // logs 1, 2, 3, 4
+
+// Prototype chain with Object.create
+const parent = { a: 1 };
+const child = Object.create(parent);
+child.b = 2;
+
+console.log(child); // { b: 2 }
+console.log(child.__proto__); // { a: 1 }
+console.log(child.__proto__.__proto__); // Object.prototype
+console.log(child.__proto__.__proto__.__proto__); // null
+
+console.log(child.hasOwnProperty("a")); // false — a is inherited
+console.log("a" in child); // true — checks full chain
+```
+
+```mermaid
+flowchart TB
+    NULL["null"]
+    OP["Object.prototype<br/>(toString, hasOwnProperty, ...)"]
+    PARENT["parent<br/>{ a: 1 }"]
+    CHILD["child<br/>{ b: 2 }"]
+
+    CHILD -->|"__proto__"| PARENT
+    PARENT -->|"__proto__"| OP
+    OP -->|"__proto__"| NULL
+
+    style NULL fill:#c62828,color:#fff,stroke:#b71c1c
+    style OP fill:#1565c0,color:#fff,stroke:#0d47a1
+    style PARENT fill:#f9a825,color:#000,stroke:#f57f17
+    style CHILD fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+### Constructor Functions & `new` — from `__this.js`
+
+```js
+function User(name) {
+    this.name = name;
+}
+
+User.prototype.sayName = function () {
+    console.log(this.name);
+};
+
+const u1 = new User("Prashant");
+u1.sayName(); // "Prashant"
+```
+
+When `new User("Prashant")` executes: (1) a new empty object is created, (2) its `__proto__` is set to `User.prototype`, (3) `this` is bound to the new object, (4) the constructor body runs, (5) the object is returned. The `sayName` method lives on `User.prototype` and is shared by all instances — this is memory-efficient because each instance doesn't get its own copy.
+
+### How `new` Works Internally — Step-by-Step
+
+```js
+// What happens behind the scenes when you call: new User("Prashant")
+
+// Step 1: Create a new empty object
+const obj = {};
+
+// Step 2: Link the object's prototype to the constructor's prototype
+Object.setPrototypeOf(obj, User.prototype); // obj.__proto__ = User.prototype
+
+// Step 3: Execute the constructor with `this` bound to the new object
+const result = User.call(obj, "Prashant");
+
+// Step 4: If the constructor returns an object, use that; otherwise, return obj
+return typeof result === "object" && result !== null ? result : obj;
+```
+
+```mermaid
+flowchart TD
+    A["new User('Prashant')"] --> B["Create empty object {}"]
+    B --> C["Set obj.__proto__ = User.prototype"]
+    C --> D["Call User.call(obj, 'Prashant')"]
+    D --> E{"Constructor returns<br/>an object?"}
+    E -->|"Yes"| F["Return that object"]
+    E -->|"No"| G["Return the new obj"]
+
+    style A fill:#1565c0,color:#fff,stroke:#0d47a1
+    style B fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style C fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style D fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style E fill:#f9a825,color:#000,stroke:#f57f17
+    style F fill:#ef6c00,color:#fff,stroke:#e65100
+    style G fill:#ef6c00,color:#fff,stroke:#e65100
+```
+
+### `Object.create()` vs `new` — Comparison
+
+| Feature                   | `Object.create(proto)`                                       | `new Constructor()`                                 |
+| ------------------------- | ------------------------------------------------------------ | --------------------------------------------------- |
+| **How it sets prototype** | Directly: `Object.create(parent)`                            | Indirectly: `obj.__proto__ = Constructor.prototype` |
+| **Constructor called?**   | No — no initialization logic runs                            | Yes — the constructor body executes                 |
+| **Use case**              | Pure prototypal delegation, creating objects without classes | Classical OOP pattern with initialization           |
+| **Control**               | Full control over prototype, no constructor side effects     | Tied to a constructor function                      |
+
+```js
+// Object.create — clean delegation, no constructor
+const animal = {
+    speak() {
+        return "...";
+    },
+};
+const dog = Object.create(animal);
+dog.bark = function () {
+    return "Woof!";
+};
+console.log(dog.speak()); // "..." (delegated to animal)
+console.log(dog.bark()); // "Woof!" (own method)
+
+// new — constructor runs initialization logic
+function Dog(name) {
+    this.name = name;
+}
+Dog.prototype.bark = function () {
+    return `${this.name} says Woof!`;
+};
+const rex = new Dog("Rex");
+console.log(rex.bark()); // "Rex says Woof!"
+```
+
+### Prototypal Delegation Model
+
+JavaScript does not copy methods from parent to child (unlike classical inheritance). Instead, it uses **delegation**: when a property is not found on an object, the engine delegates the lookup to the object's prototype. This means changes to a prototype are immediately visible to all objects linked to it. This is fundamentally different from classical languages where inheritance creates copies.
+
+### `__proto__` vs `prototype` — Detailed
+
+```mermaid
+flowchart LR
+    subgraph "Constructor Function"
+        CF["User (function)"]
+        CFP["User.prototype<br/>(shared methods)"]
+        CF -->|"prototype property"| CFP
+    end
+
+    subgraph "Instance"
+        I1["new User('A')"]
+        I2["new User('B')"]
+        I1 -->|"__proto__"| CFP
+        I2 -->|"__proto__"| CFP
+    end
+
+    style CF fill:#1565c0,color:#fff,stroke:#0d47a1
+    style CFP fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style I1 fill:#f9a825,color:#000,stroke:#f57f17
+    style I2 fill:#f9a825,color:#000,stroke:#f57f17
+```
+
+- **`User.prototype`** is the blueprint object. It holds shared methods (like `sayName`).
+- **`instance.__proto__`** is the actual link that points TO `User.prototype`.
+- `prototype` only exists on functions. `__proto__` exists on every object.
+
+### Interview Questions — Prototypes
+
+1. **What is the prototype chain?** — The linked list of objects that JavaScript traverses when looking up a property. Each object has a `__proto__` pointing to its prototype, ending at `null`.
+2. **What is the difference between `__proto__` and `prototype`?** — `__proto__` is the actual prototype link on every object. `prototype` is a property on constructor functions that becomes the `__proto__` of instances created with `new`.
+3. **How does `Object.create()` work?** — It creates a new object whose internal prototype is set to the passed argument. `Object.create(parent)` makes `parent` the prototype of the new object.
+4. **What is the difference between `hasOwnProperty()` and the `in` operator?** — `hasOwnProperty` checks only the object itself. `in` checks the entire prototype chain.
+5. **Why should you be cautious extending native prototypes like `Array.prototype`?** — It can conflict with future language features, third-party libraries, or other code that iterates over array properties.
+6. **What are the 4 steps `new` performs?** — (1) Creates empty object, (2) sets its `__proto__` to `Constructor.prototype`, (3) runs the constructor with `this` bound to the new object, (4) returns the object (unless the constructor returns a different object).
+7. **What is delegation in JavaScript?** — When a property isn't found on an object, the lookup is delegated to its prototype. Unlike classical inheritance, no copying occurs — the prototype is a live shared object.
+8. **What is the difference between `Object.create()` and `new`?** — `Object.create()` sets the prototype directly without running a constructor. `new` calls a constructor function and sets the prototype to `Constructor.prototype`.
+
+---
+
+## 13. Property Descriptors & Object Immutability
+
+> This section consolidates the deeper details of property descriptors and immutability levels discussed in Section 12.
+
+### Accessor Descriptors — Getters & Setters
+
+Besides data descriptors (`value`, `writable`), JavaScript supports **accessor descriptors** with `get` and `set`:
+
+```js
+const user = {
+    _name: "Prashant",
+
+    get name() {
+        return this._name.toUpperCase();
+    },
+
+    set name(value) {
+        if (typeof value !== "string")
+            throw new TypeError("Name must be a string");
+        this._name = value;
+    },
+};
+
+console.log(user.name); // "PRASHANT" — getter called
+user.name = "Alice"; // setter called with validation
+console.log(user.name); // "ALICE"
+// user.name = 42;      // TypeError: Name must be a string
+```
+
+```js
+// Descriptor of an accessor property
+console.log(Object.getOwnPropertyDescriptor(user, "name"));
+// { get: [Function: get name], set: [Function: set name], enumerable: true, configurable: true }
+// Note: accessor descriptors have get/set instead of value/writable
+```
+
+### `Object.defineProperties` — Multiple Descriptors at Once
+
+```js
+const product = {};
+Object.defineProperties(product, {
+    name: { value: "Laptop", writable: false, enumerable: true },
+    price: { value: 999, writable: true, enumerable: true },
+    _id: { value: "abc123", enumerable: false }, // hidden from iterations
+});
+
+console.log(Object.keys(product)); // ["name", "price"] — _id is non-enumerable
+```
+
+### Checking Immutability
+
+```js
+const obj = { a: 1 };
+
+Object.freeze(obj);
+console.log(Object.isFrozen(obj)); // true
+console.log(Object.isSealed(obj)); // true (frozen implies sealed)
+console.log(Object.isExtensible(obj)); // false (frozen implies non-extensible)
+```
+
+### Interview Questions — Property Descriptors
+
+1. **What are the two types of property descriptors?** — Data descriptors (`value`, `writable`) and accessor descriptors (`get`, `set`). Both share `enumerable` and `configurable`.
+2. **What happens if you set `enumerable: false` on a property?** — The property won't appear in `for...in` loops, `Object.keys()`, or `JSON.stringify()`.
+3. **What is the difference between `Object.defineProperty` and regular assignment?** — `defineProperty` defaults flags to `false`. Regular assignment defaults all flags to `true`.
+4. **What are getters and setters?** — Functions that run when you read (`get`) or write (`set`) a property, enabling computed properties and validation.
+
+---
+
+## 14. Object Methods
+
+JavaScript provides several built-in static methods on the `Object` constructor for inspecting and controlling objects.
+
+### From the Repository — `_ObjectMethods.js`
+
+```js
+const obj1 = { a: 1, b: 2, c: 3 };
+
+// Inspection methods
+Object.keys(obj1); // ["a", "b", "c"]
+Object.values(obj1); // [1, 2, 3]
+Object.entries(obj1); // [["a", 1], ["b", 2], ["c", 3]]
+
+// Property checking
+"a" in obj1; // true — checks prototype chain too
+obj1.hasOwnProperty("a"); // true — own properties only
+Object.hasOwn(obj1, "a"); // true — modern replacement for hasOwnProperty
+
+// Immutability controls
+Object.freeze(obj1); // prevents ALL changes: no add, update, or remove
+Object.seal(obj1); // prevents add/remove, but ALLOWS updating existing properties
+
+// Object identity
+const a = {};
+const b = {};
+Object.is(a, a); // true  — same reference
+Object.is(a, b); // false — different references
+```
+
+**`Object.freeze()`** makes an object completely immutable at the top level — no adding, updating, or deleting properties. Note that it is shallow: nested objects can still be modified unless they are also frozen.
+
+**`Object.seal()`** prevents adding new properties or deleting existing ones, but allows modification of existing property values. It is less restrictive than `freeze`.
+
+**`Object.is()`** performs a strict equality check similar to `===` but handles edge cases: `Object.is(NaN, NaN)` is `true` and `Object.is(+0, -0)` is `false`.
+
+### Property Descriptors
+
+Every property in JavaScript has a **property descriptor** — metadata that controls how the property behaves:
+
+```js
+const obj = { name: "Prashant" };
+
+// Get a property's descriptor
+console.log(Object.getOwnPropertyDescriptor(obj, "name"));
+// { value: "Prashant", writable: true, enumerable: true, configurable: true }
+
+// Define a property with custom descriptor
+Object.defineProperty(obj, "role", {
+    value: "developer",
+    writable: false, // cannot reassign
+    enumerable: false, // won't show in for...in or Object.keys
+    configurable: false, // cannot delete or redefine
+});
+
+console.log(obj.role); // "developer"
+obj.role = "admin"; // silently fails (or throws in strict mode)
+console.log(Object.keys(obj)); // ["name"] — "role" is not enumerable
+```
+
+| Flag           | Default (defineProperty) | Default (regular assignment) | Effect                                                        |
+| -------------- | ------------------------ | ---------------------------- | ------------------------------------------------------------- |
+| `writable`     | `false`                  | `true`                       | Whether the value can be changed                              |
+| `enumerable`   | `false`                  | `true`                       | Whether it shows in `for...in` / `Object.keys()`              |
+| `configurable` | `false`                  | `true`                       | Whether the property can be deleted or its descriptor changed |
+
+### `Object.preventExtensions`, `Object.seal`, `Object.freeze` — Comparison
+
+JavaScript provides three levels of object immutability:
+
+```js
+// Object.preventExtensions — cannot ADD new properties
+const obj1 = { a: 1 };
+Object.preventExtensions(obj1);
+obj1.b = 2; // silently fails
+obj1.a = 10; // works — can still modify
+delete obj1.a; // works — can still delete
+
+// Object.seal — cannot ADD or DELETE properties
+const obj2 = { a: 1 };
+Object.seal(obj2);
+obj2.b = 2; // fails
+delete obj2.a; // fails
+obj2.a = 10; // works — can still modify values
+
+// Object.freeze — cannot ADD, DELETE, or MODIFY properties
+const obj3 = { a: 1 };
+Object.freeze(obj3);
+obj3.a = 10; // fails
+obj3.b = 2; // fails
+```
+
+| Feature                 | `preventExtensions` | `seal`  | `freeze` |
+| ----------------------- | :-----------------: | :-----: | :------: |
+| Add new properties      |         ❌          |   ❌    |    ❌    |
+| Delete properties       |         ✅          |   ❌    |    ❌    |
+| Modify existing values  |         ✅          |   ✅    |    ❌    |
+| Reconfigure descriptors |         ✅          |   ❌    |    ❌    |
+| Depth                   |       Shallow       | Shallow | Shallow  |
+
+**All three are shallow.** Nested objects remain mutable. To deep-freeze:
+
+```js
+function deepFreeze(obj) {
+    Object.freeze(obj);
+    Object.getOwnPropertyNames(obj).forEach((prop) => {
+        if (
+            typeof obj[prop] === "object" &&
+            obj[prop] !== null &&
+            !Object.isFrozen(obj[prop])
+        ) {
+            deepFreeze(obj[prop]);
+        }
+    });
+    return obj;
+}
+```
+
+### `Object.assign()` vs Spread
+
+```js
+const target = { a: 1 };
+const source = { b: 2, c: 3 };
+
+// Object.assign — mutates the target
+Object.assign(target, source);
+console.log(target); // { a: 1, b: 2, c: 3 } — target is modified!
+
+// Spread — creates a new object
+const merged = { ...target, ...source };
+// target is NOT modified
+```
+
+|                   | `Object.assign(target, source)` | `{ ...target, ...source }` |
+| ----------------- | :-----------------------------: | :------------------------: |
+| Mutates target?   |             ✅ Yes              |     ❌ No (new object)     |
+| Triggers setters? |             ✅ Yes              |           ❌ No            |
+| Copies getters?   |        ❌ (copies value)        |     ❌ (copies value)      |
+| Depth             |             Shallow             |          Shallow           |
+
+### `Object.fromEntries()`
+
+Converts an iterable of key-value pairs back into an object — the inverse of `Object.entries()`:
+
+```js
+const entries = [
+    ["name", "Prashant"],
+    ["age", 25],
+];
+const obj = Object.fromEntries(entries);
+console.log(obj); // { name: "Prashant", age: 25 }
+
+// Practical: transform an object’s values
+const prices = { apple: 1, banana: 2, cherry: 3 };
+const doubled = Object.fromEntries(
+    Object.entries(prices).map(([key, val]) => [key, val * 2]),
+);
+console.log(doubled); // { apple: 2, banana: 4, cherry: 6 }
+
+// Convert Map to Object
+const map = new Map([
+    ["x", 1],
+    ["y", 2],
+]);
+const fromMap = Object.fromEntries(map); // { x: 1, y: 2 }
+```
+
+### Interview Questions — Object Methods
+
+1. **What is the difference between `Object.freeze` and `Object.seal`?** — `freeze` prevents all changes. `seal` prevents adding/removing properties but allows updating existing values.
+2. **How do `Object.keys`, `Object.values`, and `Object.entries` differ?** — `keys` returns property names, `values` returns property values, `entries` returns key-value pairs as arrays.
+3. **What is `Object.hasOwn` and why was it introduced?** — A modern replacement for `hasOwnProperty` that works reliably even on objects created with `Object.create(null)`.
+4. **How is `Object.is` different from `===`?** — `Object.is(NaN, NaN)` is `true` (unlike `===`), and `Object.is(+0, -0)` is `false` (unlike `===`).
+5. **What is a property descriptor?** — An object that describes a property's behavior: `value`, `writable`, `enumerable`, and `configurable`. Use `Object.getOwnPropertyDescriptor()` to inspect and `Object.defineProperty()` to set.
+6. **What is the difference between `Object.preventExtensions`, `Object.seal`, and `Object.freeze`?** — `preventExtensions` blocks adding properties. `seal` additionally blocks deleting. `freeze` additionally blocks modifying values. All are shallow.
+7. **What is `Object.fromEntries`?** — The inverse of `Object.entries()` — converts an iterable of [key, value] pairs into an object.
+8. **What is the difference between `Object.assign` and spread?** — `Object.assign` mutates the target object and triggers setters. Spread creates a new object and doesn't trigger setters. Both are shallow.
+
+---
+
+## 15. Array Methods — map, filter, reduce & More
+
+Arrays are the most commonly used data structure in JavaScript, and the language provides a rich set of built-in methods on `Array.prototype`. These methods are higher-order functions that accept callbacks and are the backbone of functional data transformation.
+
+### Core Trio — map, filter, reduce
+
+**`map(callback)`** transforms each element of an array and returns a new array of the same length. It does not mutate the original array.
+
+**`filter(callback)`** tests each element with a predicate function and returns a new array containing only elements that pass the test.
+
+**`reduce(callback, initialValue)`** accumulates array elements into a single value (number, string, object, array — anything). It is the most versatile array method.
+
+All three share the callback signature: `(element, index, array)`, iterate left to right, skip empty slots in sparse arrays, and accept an optional `thisArg`.
+
+### From the Repository — `MapReduceFilter.js`
+
+```js
+const users = [
+    { firstName: "Prashant", lastName: "Chevula", age: 26 },
+    { firstName: "Donald", lastName: "trump", age: 75 },
+    { firstName: "Elon", lastName: "musk", age: 50 },
+    { firstName: "Prabhas", lastName: "Raj", age: 26 },
+];
+
+// map — transform
+const fullName = users.map((user) => `${user.firstName} ${user.lastName}`);
+
+// reduce — group by age
+const ageGroupBy = users.reduce((acc, user) => {
+    if (!acc[user.age]) {
+        acc[user.age] = 1;
+    } else {
+        acc[user.age] += 1;
+    }
+    return acc;
+}, {});
+// { '26': 2, '50': 1, '75': 1 }
+
+// Chaining filter + reduce — filter users under 30, get first names
+const filterByAge = users.reduce((acc, user) => {
+    if (user.age < 30) acc.push(user.firstName);
+    return acc;
+}, []);
+// ["Prashant", "Prabhas"]
+```
+
+### Deep Flatten with reduce — `_ArrayMethods.js`
+
+```js
+const arr2 = [1, 2, 3, [4, 5, [6, 7, 8]], 9];
+
+function deepFlat(arr) {
+    return arr.reduce((acc, curr) => {
+        if (Array.isArray(curr)) {
+            acc.push(...deepFlat(curr));
+        } else {
+            acc.push(curr);
+        }
+        return acc;
+    }, []);
+}
+
+console.log(deepFlat(arr2)); // [1, 2, 3, 4, 5, 6, 7, 8, 9]
+```
+
+### Other Array Methods — `_ArrayMethods.js` & `_arrays.js`
+
+```js
+// Checking methods
+arr.some((x) => x === 4); // true if ANY element passes
+arr.every((x) => typeof x === "number"); // true if ALL elements pass
+arr.includes(1); // true if value exists
+
+// Transformation
+arr.flatMap((x) => [x, x * 2]); // map + flat(1) in one step
+arr.sort((x, y) => y - x); // sorts in-place (descending)
+
+// Mutation methods
+a1.pop(); // remove last element, returns it
+a1.push(7); // add to end, returns new length
+a1.shift(); // remove first element, returns it
+a1.unshift(1); // add to start, returns new length
+
+// Splice vs Slice
+a1.splice(1, 3, 10, 11); // mutates: remove 3 items at index 1, insert 10, 11
+a1.slice(1, 3); // non-mutating: returns subarray [index 1 to 2]
+
+// ES2023+
+fruits.toReversed(); // non-mutating reverse (returns new array)
+```
+
+### Interview Questions — Array Methods
+
+1. **What is the difference between `map` and `forEach`?** — `map` returns a new array with transformed values; `forEach` returns `undefined` and is used for side effects.
+2. **How does `reduce` work?** — It iterates over the array, passing an accumulator and the current element to a callback, building up a single return value.
+3. **What is the difference between `splice` and `slice`?** — `splice` mutates the original array (insert/remove elements). `slice` returns a new subarray without mutating.
+4. **How would you flatten a deeply nested array without using `.flat(Infinity)`?** — Use a recursive `reduce` that checks `Array.isArray()` and recursively flattens nested arrays.
+5. **What is `flatMap`?** — A method that maps each element with a function and then flattens the result by one level. Equivalent to `.map().flat(1)` but more efficient.
+6. **Difference between `some` and `every`?** — `some` returns `true` if at least one element passes the test. `every` returns `true` only if all elements pass.
+
+---
+
+## 16. String Methods
+
+Strings in JavaScript are immutable primitives, but they have a rich set of methods available through `String.prototype` (automatically wrapped as `String` objects when methods are called).
+
+### From the Repository — `_StringMethods.js`
+
+```js
+// Searching
+"hello world".includes("hello"); // true
+"url/api".startsWith("url"); // true
+"file.txt".endsWith("txt"); // true
+
+// Extraction & Transformation
+let myName = "prashant";
+myName.slice(0, 5); // "prash"
+myName.split("a"); // ["pr", "sh", "nt"]
+myName.toUpperCase(); // "PRASHANT"
+
+// Character access
+myName.charAt(0); // "p"
+myName.charCodeAt(0); // 112 (Unicode code point)
+
+// Padding & Repeating
+"1".padStart(4, "0"); // "0001"
+"1".padEnd(3, "0"); // "100"
+"1".repeat(10); // "1111111111"
+
+// Replacing
+myName.replace("a", "A"); // "prAshant" (first occurrence only)
+myName.replaceAll("a", "A"); // "prAshAnt" (all occurrences)
+
+// Trimming
+"   q1q    ".trim(); // "q1q"
+```
+
+### Interview Questions — String Methods
+
+1. **What is the difference between `slice` and `substring`?** — `slice` accepts negative indices (counting from end), `substring` treats negative values as 0.
+2. **How does `replace` differ from `replaceAll`?** — `replace` replaces only the first match. `replaceAll` replaces every occurrence.
+3. **What does `padStart` do?** — Pads the start of a string with a specified character until it reaches the target length — useful for formatting numbers.
+4. **Are strings mutable in JavaScript?** — No. All string methods return new strings; the original is never modified.
+
+---
+
+## 17. Iterators & the `for...of` Loop
+
+### What is an Iterator?
+
+An iterator is an object with a `next()` method that returns `{ value, done }`. Any object with a `[Symbol.iterator]` method that returns an iterator is **iterable** and can be used with `for...of`.
+
+### From the Repository — `_arrays.js`
+
+```js
+// Sparse arrays and the keys() iterator
+const fruits = ["apple", , "banana", , "cherry"];
+console.log(fruits.length); // 5 (includes empty slots)
+console.log(Object.keys(fruits)); // ["0", "2", "4"] — skips empty slots
+
+// Array.keys() returns an iterator that INCLUDES empty slot indices
+const iterator = fruits.keys();
+for (const key of iterator) {
+    console.log(key); // 0, 1, 2, 3, 4 — includes all indices
+}
+
+// Array.entries() — returns [index, value] pairs
+for (const [index, value] of fruits.entries()) {
+    console.log(index, value); // 0 "apple", 1 undefined, 2 "banana", ...
+}
+
+// for...of vs for...in
+const arr = [10, 20, 30];
+for (const value of arr) console.log(value); // 10, 20, 30 (values)
+for (const key in arr) console.log(key); // "0", "1", "2" (keys as strings)
+```
+
+### `for...of` vs `for...in`
+
+|                     | `for...of`                             | `for...in`                                  |
+| ------------------- | -------------------------------------- | ------------------------------------------- |
+| Iterates over       | **Values**                             | **Keys** (property names)                   |
+| Works with          | Arrays, strings, Maps, Sets, iterables | Any object (including plain objects)        |
+| Includes prototype? | No                                     | Yes (unless filtered with `hasOwnProperty`) |
+| Type of key         | N/A (gives values)                     | Always a string                             |
+
+### Sparse Arrays
+
+```js
+const sparse = [1, , , 4]; // 2 empty slots
+console.log(sparse.length); // 4
+
+// Methods that SKIP empty slots:
+sparse.forEach((v) => console.log(v)); // 1, 4 (skips empty)
+sparse.map((v) => v * 2); // [2, empty × 2, 8]
+
+// Methods that INCLUDE empty slots:
+sparse.fill(0); // [0, 0, 0, 0]
+Array.from(sparse); // [1, undefined, undefined, 4]
+```
+
+### Immutable Array Methods (ES2023)
+
+```js
+const arr = [3, 1, 4, 1, 5];
+
+// Old mutating methods → New non-mutating equivalents
+arr.sort(); // mutates arr → [1, 1, 3, 4, 5]
+arr.toSorted(); // returns new sorted array, arr unchanged
+
+arr.reverse(); // mutates arr
+arr.toReversed(); // returns new reversed array, arr unchanged
+
+arr.splice(1, 1); // mutates arr
+arr.toSpliced(1, 1); // returns new array, arr unchanged
+```
+
+### `Array.fill()`
+
+```js
+// Fill entire array
+const zeros = new Array(5).fill(0); // [0, 0, 0, 0, 0]
+
+// Fill with start and end indices
+const arr = [1, 2, 3, 4, 5];
+arr.fill(9, 1, 3); // [1, 9, 9, 4, 5] — fills index 1 to 2
+```
+
+### Interview Questions — Iterators
+
+1. **What is the difference between `for...of` and `for...in`?** — `for...of` iterates over values of iterables (arrays, strings). `for...in` iterates over enumerable property keys (including inherited ones).
+2. **What is a sparse array?** — An array with empty slots (holes). Most array methods skip these holes.
+3. **What makes an object iterable?** — It must implement a `[Symbol.iterator]` method that returns an object with a `next()` method returning `{ value, done }`.
+4. **What are `toSorted`, `toReversed`, and `toSpliced`?** — ES2023 non-mutating alternatives to `sort`, `reverse`, and `splice` that return new arrays.
+
+---
+
+## 18. Typed Arrays & Buffers
+
+JavaScript provides **ArrayBuffer** and **Typed Arrays** for handling raw binary data. An `ArrayBuffer` is a fixed-length block of memory, and typed arrays provide views into that memory for reading and writing specific numeric types.
+
+### From the Repository — `_buffers.js`
+
+```js
+// Allocate 8 bytes of raw memory
+const buffer = new ArrayBuffer(8);
+
+const data = {
+    int_8: new Int8Array(buffer), // 1 byte per element → 8 elements
+    uint_8: new Uint8Array(buffer), // 1 byte per element → 8 elements
+    int_16: new Int16Array(buffer), // 2 bytes per element → 4 elements
+    uint_16: new Uint16Array(buffer), // 2 bytes per element → 4 elements
+    uint_32: new Uint32Array(buffer), // 4 bytes per element → 2 elements
+    float_32: new Float32Array(buffer), // 4 bytes per element → 2 elements
+    bigint_64: new BigUint64Array(buffer), // 8 bytes per element → 1 element
+};
+
+data.int_16[0] = 64;
+
+const no_of_bytes = {
+    int_8: Int8Array.BYTES_PER_ELEMENT, // 1
+    uint_8: Uint8Array.BYTES_PER_ELEMENT, // 1
+    uint_16: Uint16Array.BYTES_PER_ELEMENT, // 2
+};
+```
+
+All typed array views share the same `ArrayBuffer`. Writing `data.int_16[0] = 64` modifies the underlying buffer, and all other views reflect that change. This is critical for performance-sensitive applications like WebGL, audio processing, network protocols, and file I/O.
+
+### Interview Questions — Typed Arrays
+
+1. **What is an ArrayBuffer?** — A fixed-length block of raw binary memory that cannot be directly manipulated — you need typed array views to read/write data.
+2. **What is a Typed Array?** — A view over an ArrayBuffer that interprets the raw bytes as a specific numeric type (Int8, Uint16, Float32, etc.).
+3. **What happens when multiple typed arrays share the same buffer?** — They all view the same memory, so changes through one view are visible through all others.
+4. **When would you use typed arrays in practice?** — WebGL rendering, audio/video processing, binary file parsing, network protocols, and any scenario requiring efficient binary data handling.
+
+---
+
+## 19. ES6+ Features — Spread, Rest, Destructuring & More
+
+ES6 (ECMAScript 2015) and later versions introduced many features that made JavaScript more expressive and concise.
+
+### Spread Operator (`...`)
+
+The spread operator **expands** an iterable (array, object, string) into individual elements. It is commonly used for cloning, merging, and passing arrays as function arguments.
+
+**Important:** Spread creates a **shallow copy**. Nested objects/arrays share the same reference.
+
+### Rest Operator (`...`)
+
+The rest operator **collects** remaining elements into an array. Despite using the same `...` syntax, it works in the opposite direction — gathering values instead of spreading them.
+
+### Destructuring
+
+Destructuring allows you to **unpack** values from arrays or properties from objects into distinct variables. It supports default values, renaming, and nested patterns.
+
+### From the Repository — `es6.js`
+
+```js
+// Spread — shallow copy
+const a = [1, 2];
+const b = [...a, 3]; // [1, 2, 3]
+const a1 = { x: 1 };
+const b1 = { ...a1, y: 2 }; // { x: 1, y: 2 }
+
+// Spread is SHALLOW — nested objects share references
+const b2 = { x: 1, y: { z: 1 } };
+const copy1 = { ...b2 };
+copy1.y.z = 2;
+console.log(b2.y.z); // 2! — shared reference
+
+// Deep copy with structuredClone
+const copy2 = structuredClone(b2);
+copy2.y.z = 10;
+console.log(b2.y.z); // 2 — independent copy
+
+// Rest — collect values
+function sum(...numbers) {
+    return numbers.reduce((acc, curr) => acc + curr, 0);
+}
+console.log(sum(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)); // 55
+
+const [first, ...rest] = [1, 2, 3]; // first=1, rest=[2,3]
+
+// Destructuring — unpack values
+const [num1, num2 = 0] = [1]; // num1=1, num2=0 (default)
+
+const info = { name: "Prashant", place: "Telangana", a: { x: 1 } };
+const {
+    name: userName, // rename
+    place: userLocation,
+    userRole = "default", // default value
+    a: { x: someData }, // nested destructuring
+} = info;
+
+// Optional Chaining — safe property access
+console.log(info?.name); // "Prashant"
+// console.log(info.x?.y);  // undefined instead of TypeError
+
+// Nullish Coalescing — default for null/undefined only
+console.log(0 ?? 1); // 0  (0 is not null/undefined)
+console.log(null ?? 1); // 1
+console.log(undefined ?? 1); // 1
+```
+
+### ES6 Classes — Syntactic Sugar
+
+```js
+class User {
+    constructor(name) {
+        this.name = name;
+    }
+    sayName() {
+        console.log(this.name);
+    }
+}
+const user1 = new User("Prashant");
+user1.sayName();
+```
+
+Classes in JavaScript are syntactic sugar over the prototype system. Under the hood, `class` still uses prototypes for method delegation.
+
+### Template Literals
+
+Template literals (backtick strings) provide string interpolation, multi-line strings, and tagged template support:
+
+```js
+const name = "Prashant";
+const age = 25;
+
+// String interpolation
+console.log(`Hello, ${name}! You are ${age} years old.`);
+
+// Expressions inside ${}
+console.log(`Next year you'll be ${age + 1}`);
+console.log(`Is adult: ${age >= 18 ? "Yes" : "No"}`);
+
+// Multi-line strings (no \n needed)
+const html = `
+  <div>
+    <h1>${name}</h1>
+    <p>Age: ${age}</p>
+  </div>
+`;
+
+// Tagged templates — custom string processing
+function highlight(strings, ...values) {
+    return strings.reduce((result, str, i) => {
+        return (
+            result + str + (values[i] !== undefined ? `**${values[i]}**` : "")
+        );
+    }, "");
+}
+console.log(highlight`Name: ${name}, Age: ${age}`);
+// "Name: **Prashant**, Age: **25**"
+```
+
+Tagged templates receive the static string parts as an array and the interpolated values as separate arguments. This powers libraries like `styled-components`, `graphql-tag`, and sanitization utilities.
+
+### `Array.find()` and `Array.findIndex()`
+
+```js
+const users = [
+    { id: 1, name: "Alice" },
+    { id: 2, name: "Bob" },
+    { id: 3, name: "Charlie" },
+];
+
+// find — returns the FIRST element that matches
+const bob = users.find((user) => user.name === "Bob");
+console.log(bob); // { id: 2, name: "Bob" }
+
+// findIndex — returns the INDEX of the first match
+const idx = users.findIndex((user) => user.id === 3);
+console.log(idx); // 2
+
+// Returns undefined / -1 if not found
+console.log(users.find((u) => u.name === "Dave")); // undefined
+console.log(users.findIndex((u) => u.name === "Dave")); // -1
+```
+
+```mermaid
+flowchart LR
+    subgraph "ES6+ Features"
+        SP["Spread (...)<br/>Expand values"]
+        RE["Rest (...)<br/>Collect values"]
+        DE["Destructuring<br/>Unpack values"]
+        OC["Optional Chaining (?.)<br/>Safe access"]
+        NC["Nullish Coalescing (??)<br/>Default for null/undefined"]
+        SC["structuredClone<br/>Deep copy"]
+    end
+```
+
+### Interview Questions — ES6+
+
+1. **What is the difference between spread and rest?** — Spread expands values (in function calls or literals). Rest collects remaining values (in function parameters or destructuring).
+2. **Why is spread a shallow copy?** — It copies top-level properties by value/reference. Nested objects are copied by reference, so mutations to nested objects affect both copies.
+3. **How do you deep clone an object?** — Use `structuredClone()` (modern) or `JSON.parse(JSON.stringify(obj))` (older, with limitations on functions and special types).
+4. **What is optional chaining?** — The `?.` operator safely accesses nested properties, returning `undefined` instead of throwing if an intermediate value is `null` or `undefined`.
+5. **How is `??` different from `||`?** — `??` only treats `null` and `undefined` as "missing." `||` treats any falsy value (`0`, `""`, `false`, `NaN`) as missing.
+6. **Are ES6 classes real classes?** — No. They are syntactic sugar over JavaScript's prototype-based inheritance system.
+7. **What are template literals?** — Strings delimited by backticks that support `${}` interpolation, multi-line text, and tagged template functions for custom processing.
+8. **What is the difference between `find` and `filter`?** — `find` returns the first matching element (or `undefined`). `filter` returns all matching elements as a new array.
+
+---
+
+## 20. Template Literals & Tagged Templates
+
+### Tagged Templates — Advanced
+
+Tagged templates let you define a function that processes a template literal. The tag function receives the static string parts and the interpolated expressions separately:
+
+```js
+function sql(strings, ...values) {
+    // strings: ["SELECT * FROM users WHERE name = ", " AND age > ", ""]
+    // values: [userName, minAge]
+    const query = strings.join("?");
+    return { query, params: values };
+}
+
+const userName = "Prashant";
+const minAge = 18;
+const result = sql`SELECT * FROM users WHERE name = ${userName} AND age > ${minAge}`;
+// { query: "SELECT * FROM users WHERE name = ? AND age > ?", params: ["Prashant", 18] }
+```
+
+This pattern is used by real libraries for SQL parameterization, CSS-in-JS, GraphQL queries, and HTML sanitization.
+
+### `String.raw` — Built-in Tag
+
+```js
+// Normal template literal processes escape sequences
+console.log(`Line1\nLine2`); // Line1
+// Line2
+
+// String.raw preserves raw escape sequences
+console.log(String.raw`Line1\nLine2`); // "Line1\nLine2" (literal backslash-n)
+
+// Useful for regex and file paths
+const path = String.raw`C:\Users\Prashant\Documents`;
+const regex = new RegExp(String.raw`\d+\.\d+`);
+```
+
+### Interview Questions — Template Literals
+
+1. **What are tagged template literals?** — A function call syntax where a template literal follows a function name. The function receives the string parts and interpolated values as separate arguments.
+2. **What is `String.raw`?** — A built-in tag function that returns a string with escape sequences not processed (raw backslashes preserved).
+3. **Name a real-world use of tagged templates.** — SQL query parameterization (preventing injection), CSS-in-JS (`styled-components`), GraphQL (`gql` tag), internationalization.
+
+## 21. ES Modules
+
+JavaScript Modules allow code to be split into separate files with explicit imports and exports. The project uses **ES Modules** (ESM), as indicated by `"type": "module"` in the `package.json`.
+
+### Key Characteristics of ES Modules
+
+- Use `import` / `export` syntax (not `require` / `module.exports`).
+- Modules have their own scope — top-level variables are not global.
+- Module code runs in strict mode automatically.
+- Each module is evaluated once and its exports are live bindings (not copies).
+- Modules are effectively closures — module-level variables persist across imports and are private unless exported.
+
+### From the Repository — `package.json`
+
+```json
+{
+    "name": "nodejs-sandbox",
+    "type": "module",
+    "scripts": {
+        "start": "node --watch index.js"
+    }
+}
+```
+
+The `"type": "module"` setting tells Node.js to treat `.js` files as ES Modules. The `--watch` flag enables auto-restart on file changes during development.
+
+### Top-Level `await`
+
+The repository uses `await` at the top level in `_PromiseAPIS.js` (without wrapping in an `async` function). This is possible because ES Modules support **top-level `await`** — the module itself acts as an async context.
+
+### Interview Questions — Modules
+
+1. **What is the difference between CommonJS and ES Modules?** — CommonJS uses `require()`/`module.exports`, is synchronous, and copies values. ESM uses `import`/`export`, is asynchronous, and provides live bindings.
+2. **What does `"type": "module"` in package.json do?** — Tells Node.js to treat `.js` files as ES Modules instead of CommonJS.
+3. **Are modules closures?** — Yes. Each module has its own scope, and exported values are maintained through closure-like semantics.
+4. **What is top-level `await`?** — The ability to use `await` directly in a module's top-level code without wrapping it in an `async` function.
+
+---
+
+## 22. Callbacks & Callback Hell
+
+A **callback** is a function passed as an argument to another function, which is then invoked inside the outer function to complete an action. Callbacks are JavaScript's original mechanism for handling asynchronous operations — you pass a function that should run "when something is done."
+
+### From the Repository — `callBacks.js`
+
+```js
+function x(y) {
+    console.log("x");
+    y();
+}
+
+x(function y() {
+    console.log("y");
+});
+// Output: "x" then "y"
+```
+
+The function `y` is passed as a callback to `x`. Inside `x`, after logging "x," it invokes the callback `y()`.
+
+### Callback Hell — `callBackHell.js`
+
+When multiple asynchronous operations depend on each other, callbacks become deeply nested, creating a pattern known as **Callback Hell** or the **Pyramid of Doom**:
+
+```js
+const cart = ["shoes", "pants", "shorts"];
+
+api.createOrder(cart, function () {
+    api.proceedToPayment(function () {
+        api.showOrderSummary(function () {
+            api.updateWallet(function () {
+                return "wallet Updated";
+            });
+        });
+    });
+});
+```
+
+This code suffers from two major problems:
+
+1. **Readability** — Deep nesting makes the code extremely hard to read and maintain.
+2. **Inversion of Control** — When you pass a callback to an external function, you lose control over when and how many times it is called. The external function might call your callback twice, never call it, or call it with an error you didn't expect.
+
+Promises solve both of these problems.
+
+```mermaid
+flowchart TD
+    A["createOrder(cart, cb)"]
+    A --> B["proceedToPayment(cb)"]
+    B --> C["showOrderSummary(cb)"]
+    C --> D["updateWallet(cb)"]
+
+    style A fill:#c62828,color:#fff,stroke:#b71c1c
+    style B fill:#c62828,color:#fff,stroke:#b71c1c
+    style C fill:#c62828,color:#fff,stroke:#b71c1c
+    style D fill:#c62828,color:#fff,stroke:#b71c1c
+
+    E["With Promises:"]
+    F["createOrder(cart)"]
+    F -->|".then()"| G["proceedToPayment()"]
+    G -->|".then()"| H["showOrderSummary()"]
+    H -->|".then()"| I["updateWallet()"]
+
+    style F fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style G fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style H fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style I fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+### Interview Questions — Callbacks
+
+1. **What is a callback function?** — A function passed as an argument to another function, to be called later when a task completes.
+2. **What is callback hell?** — Deeply nested callbacks that arise from sequential async operations, making code unreadable and hard to maintain.
+3. **What is inversion of control?** — When you hand over execution control to an external function via a callback, losing guarantees about when/how your code runs.
+4. **How do Promises solve callback hell?** — Promises flatten the nesting into a chain of `.then()` calls and give you control back (you attach handlers to the promise, rather than passing callbacks into another function).
+
+---
+
+## 23. Promises
+
+A **Promise** is an object representing the eventual completion (or failure) of an asynchronous operation and its resulting value. Promises have three states:
+
+- **Pending** — The initial state; the operation hasn't completed yet.
+- **Fulfilled** — The operation completed successfully, with a result value.
+- **Rejected** — The operation failed, with a reason (error).
+
+A promise is settled (fulfilled or rejected) exactly once and cannot change state afterward. You attach handlers using `.then()` for success, `.catch()` for errors, and `.finally()` for cleanup that runs regardless of outcome.
+
+**Promise chaining** allows sequential async operations to be expressed as a flat chain instead of nested callbacks. Each `.then()` returns a new promise, so more `.then()` calls can be appended. If a `.then()` returns a value, the next `.then()` receives it. If it returns a promise, the chain waits for that promise to settle.
+
+### From the Repository — `_Promises.js`
+
+```js
+const cart = ["shoes", "pants", "shorts", "goggles"];
+let orderID = 10000;
+
+const createOrder = (cart) => {
+    const promise = new Promise((resolve, reject) => {
+        resolve({
+            data: `Order Created for cart ${cart}`,
+            orderId: ++orderID,
+        });
+    });
+    return promise;
+};
+
+const proceedToPayment = (orderId) => {
+    return Promise.resolve({
+        data: `Payment done for order_id ${orderId}`,
+        invoiceNo: new Date().getTime(),
+    });
+};
+
+// Promise Chaining — flat and readable
+createOrder("shoes")
+    .then((order) => order?.orderId)
+    .then((orderId) => proceedToPayment(orderId))
+    .then((res) => console.log(res))
+    .catch((err) => console.log(err.message));
+```
+
+In this example, `createOrder` returns a promise that resolves with order data. The chain extracts the `orderId`, passes it to `proceedToPayment` (which also returns a promise), and then logs the payment result. The `.catch()` at the end handles any error from any step in the chain.
+
+### `.catch()` vs `.finally()`
+
+```js
+fetchData()
+    .then((data) => process(data))
+    .catch((err) => console.error("Error:", err)) // runs ONLY on rejection
+    .finally(() => hideLoadingSpinner()); // runs ALWAYS
+```
+
+|                    | `.catch(fn)`                                      | `.finally(fn)`                             |
+| ------------------ | ------------------------------------------------- | ------------------------------------------ |
+| When it runs       | Only on rejection                                 | Always (fulfilled or rejected)             |
+| Receives arguments | The rejection reason                              | No arguments                               |
+| Return value       | Can recover the chain (returns fulfilled promise) | Passes through the original result/error   |
+| Use case           | Error handling, fallbacks                         | Cleanup (close connections, hide spinners) |
+
+**Key behavior:** `.finally()` does not receive the resolved value or rejection reason. It transparently passes through whatever the previous promise settled with:
+
+```js
+Promise.resolve(42)
+    .finally(() => console.log("cleanup")) // no access to 42
+    .then((val) => console.log(val)); // 42 — passed through
+```
+
+### Error Propagation in Promise Chains
+
+Errors in promise chains propagate forward until they find a `.catch()` handler:
+
+```js
+Promise.resolve(1)
+    .then((val) => {
+        throw new Error("Boom!");
+    }) // Error thrown
+    .then((val) => console.log("Skipped")) // Skipped!
+    .then((val) => console.log("Also skipped")) // Skipped!
+    .catch((err) => {
+        console.log("Caught:", err.message); // "Caught: Boom!"
+        return "recovered";
+    })
+    .then((val) => console.log(val)); // "recovered"
+```
+
+```mermaid
+flowchart LR
+    A[".then() — throws"] -->|"error propagates"| B[".then() — SKIPPED"]
+    B -->|"error propagates"| C[".then() — SKIPPED"]
+    C -->|"error caught"| D[".catch() — handles error"]
+    D -->|"chain continues"| E[".then() — runs"]
+
+    style A fill:#c62828,color:#fff,stroke:#b71c1c
+    style B fill:#757575,color:#fff,stroke:#616161
+    style C fill:#757575,color:#fff,stroke:#616161
+    style D fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style E fill:#1565c0,color:#fff,stroke:#0d47a1
+```
+
+A `.catch()` mid-chain can **recover** the chain by returning a value. Subsequent `.then()` calls receive that value. If `.catch()` throws or returns a rejected promise, the error continues propagating.
+
+### Promise Executor Behavior
+
+The executor function passed to `new Promise((resolve, reject) => { ... })` runs **synchronously** — immediately when the Promise is created:
+
+```js
+console.log("Before");
+
+const p = new Promise((resolve, reject) => {
+    console.log("Inside executor"); // runs synchronously!
+    resolve(42);
+});
+
+console.log("After");
+p.then((val) => console.log("Then:", val));
+
+// Output: "Before", "Inside executor", "After", "Then: 42"
+```
+
+The executor runs inline, but `.then()` callbacks are always scheduled as **microtasks** — they never run synchronously, even if the promise is already resolved.
+
+### `try/catch` Maps to Promise `.catch()`
+
+```js
+// Async/await pattern
+async function fetchUser() {
+    try {
+        const user = await getUser();
+        const profile = await getProfile(user.id);
+        return profile;
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+// Equivalent Promise chain
+function fetchUser() {
+    return getUser()
+        .then((user) => getProfile(user.id))
+        .catch((err) => console.error(err));
+}
+```
+
+Each `await` that might throw corresponds to a `.then()` in the chain, and the `catch` block maps directly to `.catch()`. The `try/catch` version is often more readable for sequential async operations.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Fulfilled : resolve(value)
+    Pending --> Rejected : reject(reason)
+    Fulfilled --> [*]
+    Rejected --> [*]
+
+    note right of Fulfilled : .then() handler runs
+    note right of Rejected : .catch() handler runs
+```
+
+### Interview Questions — Promises
+
+1. **What is a Promise?** — An object representing the eventual result of an asynchronous operation, with three states: pending, fulfilled, rejected.
+2. **What are the three states of a Promise?** — Pending (not yet settled), Fulfilled (resolved with a value), Rejected (failed with a reason).
+3. **What is Promise chaining?** — Connecting multiple `.then()` calls where each returns a value or promise, allowing sequential async operations in a flat structure.
+4. **What happens if you don't return a value in a `.then()`?** — The next `.then()` receives `undefined`.
+5. **Where should `.catch()` be placed in a chain?** — At the end to catch errors from any step above. It can also be placed mid-chain to handle specific errors while allowing the chain to continue.
+6. **What is `Promise.resolve()` vs `new Promise()`?** — `Promise.resolve(value)` is a shorthand that creates an already-fulfilled promise. `new Promise(executor)` gives you control over when to resolve or reject.
+7. **Does the executor function run synchronously?** — Yes. The function passed to `new Promise()` executes immediately. Only `.then()`/`.catch()`/`.finally()` callbacks are deferred as microtasks.
+8. **What does `.finally()` receive as arguments?** — Nothing. It runs for cleanup and passes through the original settled value.
+9. **How does error propagation work in promise chains?** — Errors skip `.then()` handlers and propagate forward until a `.catch()` handles them. A `.catch()` can recover the chain by returning a value.
+
+---
+
+## 24. Promise Internals — Deep Dive
+
+### The Microtask Queue and Promise Scheduling
+
+When a promise resolves, its `.then()` callbacks do not run immediately — they are placed on the **microtask queue**. The event loop drains all microtasks before moving to the next macrotask:
+
+```js
+console.log("1");
+
+setTimeout(() => console.log("2"), 0); // macrotask
+
+Promise.resolve()
+    .then(() => console.log("3")) // microtask
+    .then(() => console.log("4")); // microtask (chained)
+
+Promise.resolve().then(() => console.log("5")); // microtask
+
+console.log("6");
+
+// Output: 1, 6, 3, 5, 4, 2
+```
+
+**Why this order?** After sync code (1, 6), the microtask queue is drained: 3 and 5 (first `.then()` from each chain), then 4 (chained `.then()` from the first chain creates a new microtask). Only after ALL microtasks are done does the macrotask (2) execute.
+
+### Why `Promise.resolve` Doesn't Pause Execution
+
+```js
+const p = Promise.resolve(42);
+console.log("After resolve"); // runs immediately — resolve is synchronous
+p.then((val) => console.log(val)); // 42 — runs as microtask AFTER current code
+```
+
+Calling `resolve()` inside a Promise constructor or using `Promise.resolve()` does not pause or defer anything at that point. The resolution is synchronous — it changes the promise's internal state. It's only the `.then()`/`.catch()` handlers that are scheduled as microtasks.
+
+### `await` Desugaring
+
+`await` is syntactic sugar for `.then()`. The JS engine transforms async/await code into promise chains:
+
+```js
+// What you write:
+async function example() {
+    const a = await fetchA();
+    const b = await fetchB(a);
+    return b;
+}
+
+// What the engine does (conceptually):
+function example() {
+    return fetchA()
+        .then((a) => fetchB(a))
+        .then((b) => b);
+}
+```
+
+Each `await` splits the function into continuations. The code after `await` becomes the `.then()` callback. When the awaited promise settles, the continuation is scheduled as a microtask.
+
+### Why `Promise.all` Doesn't Create Parallelism
+
+```js
+// WRONG mental model — Promise.all does NOT start the promises
+const results = await Promise.all([fetchA(), fetchB(), fetchC()]);
+
+// The promises are ALREADY running when created with fetchA(), fetchB(), fetchC()
+// Promise.all just waits for all of them to settle
+```
+
+`fetchA()`, `fetchB()`, and `fetchC()` each return a promise that starts executing when called. `Promise.all` simply aggregates their results. If you want sequential execution, use `await` one at a time:
+
+```js
+const a = await fetchA(); // starts and finishes before fetchB starts
+const b = await fetchB(a); // sequential, not parallel
+```
+
+### Interview Questions — Promise Internals
+
+1. **When does a `.then()` callback run?** — It's scheduled as a microtask when the promise settles, and runs when the call stack is empty and all prior microtasks have been processed.
+2. **Is the Promise constructor executor synchronous?** — Yes. The callback to `new Promise(fn)` runs immediately. Only `.then()`/`.catch()` callbacks are deferred.
+3. **How does `await` work under the hood?** — It's desugared to `.then()` — the code after `await` becomes the `.then()` callback, scheduled as a microtask when the awaited promise settles.
+4. **Does `Promise.all` create parallel execution?** — No. It waits for already-running promises. The promises start when they're created, not when passed to `Promise.all`.
+
+---
+
+## 25. Promise Combinators — all, allSettled, race, any
+
+Promise combinators coordinate multiple promises that are already running. They do not create parallelism — the promises start when they are created. Combinators simply manage how their results are aggregated.
+
+### From the Repository — `_PromiseAPIS.js`
+
+```js
+const p1 = Promise.reject(3);
+const p2 = 42;
+const p3 = new Promise((resolve, reject) => {
+    setTimeout(reject, 100, "foo");
+});
+
+// Promise.all — resolves when ALL succeed, rejects on FIRST failure
+Promise.all([p1, p2, p3])
+    .then((res) => console.log("all -> " + res))
+    .catch((err) => console.log("all -> " + err)); // "all -> 3"
+
+// Promise.allSettled — waits for ALL to settle, never rejects
+Promise.allSettled([p1, p2, p3]).then((res) => console.log(res));
+// [{ status: "rejected", reason: 3 },
+//  { status: "fulfilled", value: 42 },
+//  { status: "rejected", reason: "foo" }]
+
+// Promise.race — settles with the FIRST promise to settle (win or lose)
+Promise.race([p1, p2, p3])
+    .then((res) => console.log("race -> " + res))
+    .catch((err) => console.log("race -> " + err)); // "race -> 3"
+
+// Promise.any — resolves with FIRST success, rejects only if ALL fail
+Promise.any([p1, p2, p3])
+    .then((res) => console.log("any -> " + res))
+    .catch((err) => console.log("any -> " + err)); // "any -> 42"
+```
+
+| Combinator           | Resolves When          | Rejects When                           |
+| -------------------- | ---------------------- | -------------------------------------- |
+| `Promise.all`        | All promises fulfill   | Any promise rejects (fail-fast)        |
+| `Promise.allSettled` | All promises settle    | Never rejects                          |
+| `Promise.race`       | First promise settles  | First promise settles (if it rejects)  |
+| `Promise.any`        | First promise fulfills | All promises reject (`AggregateError`) |
+
+### Interview Questions — Promise Combinators
+
+1. **What is the difference between `Promise.all` and `Promise.allSettled`?** — `all` fails fast on the first rejection. `allSettled` waits for all promises and returns the result of each, regardless of success or failure.
+2. **When would you use `Promise.race`?** — When you want the result of whichever async operation finishes first, such as implementing a timeout for a network request.
+3. **What is `Promise.any` and how does it differ from `Promise.race`?** — `any` resolves with the first _successful_ promise and ignores rejections (unless all reject). `race` settles with the first promise regardless of whether it fulfills or rejects.
+4. **Does `Promise.all` create parallel execution?** — No. The promises are already running when passed to `all`. It simply waits for all of them to finish.
+
+---
+
+## 26. Async / Await
+
+`async`/`await` is syntactic sugar over Promises that makes asynchronous code look and behave like synchronous code. An `async` function always returns a Promise. The `await` keyword pauses execution of the async function (not the entire JavaScript thread) until the awaited promise settles.
+
+When the engine encounters `await`, it suspends the async function, pops it off the call stack, and continues executing other synchronous code. When the awaited promise settles, the function is resumed from where it left off.
+
+### From the Repository — `AsyncAwait.js`
+
+```js
+const p1 = new Promise((resolve) => {
+    setTimeout(() => resolve("Promise 1 resolved!"), 5000);
+});
+
+const p2 = new Promise((resolve) => {
+    setTimeout(() => resolve("Promise 2 resolved!"), 5000);
+});
+
+console.log("1");
+
+async function handlePromise() {
+    const val1 = await p1; // suspends handlePromise, not the main thread
+    console.log("2");
+    console.log(val1);
+
+    const val2 = await p2; // suspends again
+    console.log("3");
+    console.log(val2);
+}
+
+handlePromise();
+console.log("4");
+
+// Output order: "1", "4", then after ~5s: "2", "Promise 1 resolved!", "3", "Promise 2 resolved!"
+```
+
+Notice that `"4"` prints before `"2"` even though `handlePromise()` is called before `console.log("4")`. This is because `await` suspends only the async function — the rest of the synchronous code continues.
+
+### Blocking vs Non-Blocking — from `test.js`
+
+```js
+function blockingWait() {
+    const start = Date.now();
+    while (Date.now() - start < 10000) {} // Blocks the event loop!
+    console.log("Blocking task finished");
+}
+
+async function asyncWait() {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    console.log("Async task finished"); // Non-blocking
+}
+
+console.log("Start");
+setTimeout(() => console.log("Timeout executed"), 0);
+asyncWait();
+console.log("End");
+
+// Output: "Start", "End", "Timeout executed", then after 5s: "Async task finished"
+```
+
+The `blockingWait` function would freeze everything — including the `setTimeout` callback — because it holds the call stack with a busy loop. The `asyncWait` function suspends itself and frees the stack, letting other code (like the timeout callback) run.
+
+```mermaid
+sequenceDiagram
+    participant Main as Main Thread
+    participant Stack as Call Stack
+    participant Timer as Timer/Async
+
+    Main->>Stack: console.log("1")
+    Main->>Stack: handlePromise()
+    Stack->>Timer: await p1 (suspend fn)
+    Stack-->>Main: Stack free → console.log("4")
+    Timer-->>Stack: p1 resolved → resume handlePromise
+    Stack->>Main: console.log("2"), val1
+    Stack->>Timer: await p2 (suspend fn)
+    Timer-->>Stack: p2 resolved → resume handlePromise
+    Stack->>Main: console.log("3"), val2
+```
+
+### Interview Questions — Async/Await
+
+1. **What does `async` do to a function?** — Wraps its return value in a Promise. The function always returns a Promise, even if you return a plain value.
+2. **Does `await` block the main thread?** — No. It suspends only the async function and frees the call stack for other code to execute.
+3. **What is the difference between sequential and parallel await?** — Sequential: `await p1; await p2;` waits for p1 to finish before starting p2. Parallel: `const [r1, r2] = await Promise.all([p1, p2]);` runs both concurrently.
+4. **How do you handle errors with async/await?** — Use try/catch blocks around `await` calls, which maps to `.catch()` in the underlying Promise chain.
+5. **What is the output order of: `console.log("A"); async function f() { await p; console.log("B"); } f(); console.log("C");`?** — "A", "C", "B" — because `await` suspends the function and the synchronous code runs first.
+
+---
+
+## 27. The Event Loop
+
+The **Event Loop** is the mechanism that allows JavaScript to perform non-blocking operations despite being single-threaded. It continuously checks whether the call stack is empty and, if so, pushes the next task from the queue onto the stack.
+
+### How It Works
+
+1. **Call Stack** — Executes synchronous code. Functions are pushed when called and popped when they return.
+2. **Web APIs / C++ APIs** — The environment (browser or Node.js) handles async operations like `setTimeout`, HTTP requests, and DOM events outside the main thread.
+3. **Task Queue (Macro-task Queue)** — Callbacks from `setTimeout`, `setInterval`, I/O, etc., are placed here after completion.
+4. **Microtask Queue** — Callbacks from Promises (`.then`, `.catch`, `.finally`) and `queueMicrotask` are placed here. **Microtasks have higher priority** — the event loop drains the entire microtask queue before picking from the task queue.
+
+### Execution Priority
+
+After each task completes on the call stack:
+
+1. Drain **all** microtasks (Promise callbacks, `queueMicrotask`)
+2. Pick **one** macrotask (`setTimeout`, `setInterval`, I/O)
+3. Repeat
+
+This is why Promise `.then()` callbacks always execute before `setTimeout(..., 0)` callbacks.
+
+```mermaid
+flowchart TB
+    CS["Call Stack<br/>(synchronous code)"]
+    WA["Web APIs / libuv<br/>(setTimeout, fetch, I/O)"]
+    MQ["Microtask Queue<br/>(Promise .then, queueMicrotask)"]
+    TQ["Task Queue (Macro)<br/>(setTimeout, setInterval, I/O cb)"]
+    EL["Event Loop"]
+
+    CS -->|"async call"| WA
+    WA -->|"Promise settled"| MQ
+    WA -->|"Timer/IO complete"| TQ
+    EL -->|"Stack empty? Drain ALL microtasks first"| MQ
+    MQ -->|"tasks"| CS
+    EL -->|"Then pick ONE macrotask"| TQ
+    TQ -->|"task"| CS
+
+    style MQ fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style TQ fill:#f9a825,color:#000,stroke:#f57f17
+    style CS fill:#1565c0,color:#fff,stroke:#0d47a1
+```
+
+### Event Loop Example
+
+```js
+console.log("Start"); // 1. Call stack
+
+setTimeout(() => console.log("Timeout"), 0); // 2. Sent to Web API → Task Queue
+
+Promise.resolve().then(
+    () => console.log("Promise"), // 3. Microtask Queue
+);
+
+console.log("End"); // 4. Call stack
+
+// Output: "Start", "End", "Promise", "Timeout"
+```
+
+**Why?** After the synchronous code runs ("Start", "End"), the event loop checks the microtask queue first (Promise callback → "Promise"), then the macrotask queue (setTimeout callback → "Timeout").
+
+### Node.js Event Loop Phases
+
+In Node.js, the event loop has distinct phases powered by **libuv**:
+
+1. **Timers** — Execute `setTimeout` and `setInterval` callbacks
+2. **Pending callbacks** — Execute I/O callbacks deferred from the previous cycle
+3. **Idle/Prepare** — Internal use
+4. **Poll** — Retrieve new I/O events; execute I/O callbacks
+5. **Check** — Execute `setImmediate` callbacks
+6. **Close callbacks** — Execute close event callbacks (e.g., `socket.on('close')`)
+
+Between each phase, Node.js processes **microtasks** (`process.nextTick` first, then Promise microtasks).
+
+```mermaid
+flowchart TB
+    START(["Event Loop Start"]) --> TIMERS
+    TIMERS["1. Timers Phase<br/>setTimeout, setInterval"] --> PENDING
+    PENDING["2. Pending Callbacks<br/>Deferred I/O callbacks"] --> POLL
+    POLL["3. Poll Phase<br/>New I/O events, execute callbacks"] --> CHECK
+    CHECK["4. Check Phase<br/>setImmediate callbacks"] --> CLOSE
+    CLOSE["5. Close Callbacks<br/>socket.on('close')"] --> MICRO
+    MICRO["Between phases:<br/>process.nextTick() → Promise microtasks"] --> TIMERS
+
+    style TIMERS fill:#1565c0,color:#fff,stroke:#0d47a1
+    style PENDING fill:#7b1fa2,color:#fff,stroke:#6a1b9a
+    style POLL fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style CHECK fill:#ef6c00,color:#fff,stroke:#e65100
+    style CLOSE fill:#c62828,color:#fff,stroke:#b71c1c
+    style MICRO fill:#f9a825,color:#000,stroke:#f57f17
+```
+
+### `setTimeout` vs `setImmediate`
+
+|                         | `setTimeout(fn, 0)`                            | `setImmediate(fn)`             |
+| ----------------------- | ---------------------------------------------- | ------------------------------ |
+| **Phase**               | Timers phase                                   | Check phase                    |
+| **When it runs**        | After a minimum delay (even 0 is ~1ms)         | After the Poll phase completes |
+| **Order guarantee**     | Non-deterministic when called from main module | Always after I/O callbacks     |
+| **Inside I/O callback** | `setImmediate` runs first                      | `setImmediate` runs first      |
+
+```js
+// Order is NON-DETERMINISTIC in the main module:
+setTimeout(() => console.log("timeout"), 0);
+setImmediate(() => console.log("immediate"));
+// Could be either order!
+
+// Inside an I/O callback, setImmediate ALWAYS runs first:
+const fs = require("fs");
+fs.readFile(__filename, () => {
+    setImmediate(() => console.log("immediate")); // 1st
+    setTimeout(() => console.log("timeout"), 0); // 2nd
+});
+```
+
+### `process.nextTick` vs Promise Microtasks
+
+```js
+Promise.resolve().then(() => console.log("Promise microtask"));
+process.nextTick(() => console.log("nextTick"));
+console.log("Sync");
+
+// Output: "Sync", "nextTick", "Promise microtask"
+```
+
+`process.nextTick` callbacks run **before** Promise microtasks. Both run between event loop phases, but `nextTick` has higher priority:
+
+**Execution priority order:**
+
+1. Synchronous code (call stack)
+2. `process.nextTick` queue
+3. Promise microtask queue
+4. Macrotask queue (timers, I/O, check)
+
+> **Warning:** Recursive `process.nextTick()` can starve the event loop because it keeps running before any I/O or timer callbacks.
+
+### Browser vs Node.js Event Loop
+
+| Feature            | Browser                          | Node.js                                 |
+| ------------------ | -------------------------------- | --------------------------------------- |
+| Microtask queue    | After each macro task            | Between each phase                      |
+| `setImmediate`     | Not available (polyfilled)       | Available (Check phase)                 |
+| `process.nextTick` | Not available                    | Higher priority than Promise microtasks |
+| I/O handling       | Web APIs (XMLHttpRequest, fetch) | libuv (OS-level I/O)                    |
+| Rendering          | Microtasks run before repaint    | No rendering concerns                   |
+
+### Interview Questions — Event Loop
+
+1. **What is the event loop?** — A mechanism that monitors the call stack and task queues, pushing queued callbacks onto the stack when it is empty.
+2. **What is the difference between the microtask queue and the macrotask queue?** — Microtasks (Promises) are drained completely before any macrotask (setTimeout) is executed.
+3. **Why does `Promise.then()` execute before `setTimeout(..., 0)`?** — Promise callbacks are microtasks, which have higher priority than timer macrotasks.
+4. **What is `process.nextTick` in Node.js?** — It queues a callback that runs before any other microtask or I/O event, at the end of the current operation.
+5. **What causes the event loop to be blocked?** — Long-running synchronous operations (heavy computation, busy while-loops) that hold the call stack and prevent the event loop from processing other tasks.
+
+---
+
+## 28. Node.js Event Loop — Deep Dive
+
+### libuv — The Engine Behind Node.js Async
+
+**libuv** is the C library that powers Node.js's event loop and async I/O. It provides:
+
+- **Thread pool** (default 4 threads) for file system operations, DNS lookups, and crypto operations
+- **OS-level async I/O** for network operations (using epoll/kqueue/IOCP)
+- **Event loop phases** for scheduling callbacks
+
+```mermaid
+flowchart TB
+    subgraph "Node.js Architecture"
+        JS["JavaScript Code"]
+        V8["V8 Engine<br/>(compiles & runs JS)"]
+        NB["Node.js Bindings<br/>(C++ bridge)"]
+        LUV["libuv<br/>(async I/O, event loop)"]
+        TP["Thread Pool<br/>(fs, DNS, crypto)"]
+        OS["OS Async<br/>(network I/O)"]
+    end
+
+    JS --> V8
+    V8 --> NB
+    NB --> LUV
+    LUV --> TP
+    LUV --> OS
+
+    style JS fill:#f9a825,color:#000,stroke:#f57f17
+    style V8 fill:#1565c0,color:#fff,stroke:#0d47a1
+    style NB fill:#7b1fa2,color:#fff,stroke:#6a1b9a
+    style LUV fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style TP fill:#ef6c00,color:#fff,stroke:#e65100
+    style OS fill:#c62828,color:#fff,stroke:#b71c1c
+```
+
+### Complete Execution Order Rules
+
+Given this code, predict the output:
+
+```js
+console.log("1 - sync");
+
+setTimeout(() => console.log("2 - setTimeout"), 0);
+
+setImmediate(() => console.log("3 - setImmediate"));
+
+Promise.resolve().then(() => console.log("4 - promise"));
+
+process.nextTick(() => console.log("5 - nextTick"));
+
+console.log("6 - sync");
+```
+
+**Output:** `1 - sync`, `6 - sync`, `5 - nextTick`, `4 - promise`, `2 - setTimeout` OR `3 - setImmediate` (non-deterministic), then the other.
+
+**Execution order:**
+
+1. Synchronous code runs first (1, 6)
+2. `process.nextTick` callbacks (5) — highest priority microtask
+3. Promise microtasks (4)
+4. `setTimeout` and `setImmediate` — order between these two is **non-deterministic** in the main module
+
+### Starvation Warning — `process.nextTick`
+
+```js
+// ❌ DANGER: This starves the event loop
+function recurse() {
+    process.nextTick(recurse); // keeps adding to nextTick queue
+}
+recurse();
+// setTimeout, setImmediate, and I/O callbacks NEVER run!
+```
+
+`process.nextTick` always executes before any I/O or timers. Recursive use prevents the event loop from advancing to its next phase.
+
+### Interview Questions — Node.js Event Loop
+
+1. **What is libuv?** — A C library that provides Node.js's event loop, thread pool, and async I/O abstractions for cross-platform operation.
+2. **What are the phases of the Node.js event loop?** — Timers, Pending Callbacks, Poll, Check, Close Callbacks — with microtask processing between each phase.
+3. **What is the thread pool used for?** — File system operations, DNS lookups, and CPU-intensive crypto operations that can't use OS-level async I/O.
+4. **Can `process.nextTick` starve the event loop?** — Yes. Recursive `nextTick` calls continuously queue microtasks, preventing the event loop from proceeding to timers or I/O.
+5. **In what scenario is `setImmediate` guaranteed to run before `setTimeout`?** — Inside an I/O callback (e.g., `fs.readFile`), `setImmediate` always runs before `setTimeout(..., 0)`.
+
+---
+
+## 29. Async Pitfalls & Production Patterns
+
+### Pitfall 1 — Unhandled Promise Rejections
+
+```js
+// ❌ BAD: No .catch() — unhandled rejection
+async function fetchData() {
+    const data = await fetch("/api/data"); // if this rejects, nothing catches it
+    return data.json();
+}
+fetchData(); // unhandled rejection if fetch fails!
+
+// ✅ GOOD: Always handle rejections
+fetchData().catch((err) => console.error("Failed:", err));
+
+// ✅ OR: Use try/catch inside the function
+async function fetchDataSafe() {
+    try {
+        const data = await fetch("/api/data");
+        return data.json();
+    } catch (err) {
+        console.error("Failed:", err);
+        return null; // graceful fallback
+    }
+}
+```
+
+In Node.js, unhandled promise rejections will terminate the process by default (since Node 15+). Always handle rejections.
+
+### Pitfall 2 — Sequential `await` When Parallel is Possible
+
+```js
+// ❌ SLOW: Sequential — total time: fetchA time + fetchB time
+async function slow() {
+    const a = await fetchA(); // waits for A to finish
+    const b = await fetchB(); // THEN starts B — unnecessary wait!
+    return [a, b];
+}
+
+// ✅ FAST: Parallel — total time: max(fetchA time, fetchB time)
+async function fast() {
+    const [a, b] = await Promise.all([fetchA(), fetchB()]);
+    return [a, b];
+}
+
+// ✅ ALSO GOOD: Start promises first, then await
+async function alsoFast() {
+    const promiseA = fetchA(); // starts immediately
+    const promiseB = fetchB(); // starts immediately
+    const a = await promiseA; // now await both
+    const b = await promiseB;
+    return [a, b];
+}
+```
+
+### Pitfall 3 — `async` + `forEach` Bug
+
+```js
+// ❌ BROKEN: forEach does NOT await async callbacks
+const urls = ["/api/1", "/api/2", "/api/3"];
+urls.forEach(async (url) => {
+    const data = await fetch(url); // fires all at once, forEach doesn't wait
+    console.log(data);
+});
+console.log("Done"); // prints BEFORE any fetch completes!
+
+// ✅ FIX 1: Use for...of for sequential processing
+for (const url of urls) {
+    const data = await fetch(url);
+    console.log(data);
+}
+
+// ✅ FIX 2: Use Promise.all for parallel processing
+await Promise.all(
+    urls.map(async (url) => {
+        const data = await fetch(url);
+        console.log(data);
+    }),
+);
+```
+
+`forEach` is not async-aware — it ignores the promise returned by the async callback. Use `for...of` for sequential or `Promise.all(arr.map(...))` for parallel.
+
+### Pitfall 4 — Race Conditions on Shared State
+
+```js
+// ❌ RACE CONDITION: Multiple async operations modifying shared state
+let count = 0;
+
+async function increment() {
+    const current = count; // read
+    await someAsyncWork(); // yield control
+    count = current + 1; // write — might overwrite another increment!
+}
+
+// Both read count as 0, both write 1 — expected 2, got 1
+await Promise.all([increment(), increment()]);
+
+// ✅ FIX: Use serial execution or atomic operations
+async function safeIncrement() {
+    await mutex.acquire(); // use a mutex/lock pattern
+    count++;
+    mutex.release();
+}
+```
+
+### Pitfall 5 — Swallowed Errors in `.then()`
+
+```js
+// ❌ Error is silently swallowed — no .catch()
+Promise.resolve()
+    .then(() => {
+        throw new Error("Oops!");
+    })
+    .then(() => console.log("This never runs"));
+// Error disappears silently!
+
+// ✅ Always end chains with .catch()
+Promise.resolve()
+    .then(() => {
+        throw new Error("Oops!");
+    })
+    .catch((err) => console.error("Caught:", err.message));
+```
+
+### Pattern — Retry with Exponential Backoff
+
+```js
+async function fetchWithRetry(url, maxRetries = 3) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            return await fetch(url);
+        } catch (err) {
+            if (attempt === maxRetries - 1) throw err;
+            const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+            await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+    }
+}
+```
+
+### Pattern — Timeout Wrapper
+
+```js
+function withTimeout(promise, ms) {
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms),
+    );
+    return Promise.race([promise, timeout]);
+}
+
+// Usage
+const data = await withTimeout(fetch("/api/slow"), 5000);
+```
+
+```mermaid
+flowchart TB
+    subgraph "Common Async Pitfalls"
+        P1["Unhandled<br/>Rejections"]
+        P2["Sequential await<br/>(should be parallel)"]
+        P3["async + forEach<br/>(doesn't await)"]
+        P4["Race Conditions<br/>(shared state)"]
+        P5["Swallowed Errors<br/>(missing .catch)"]
+    end
+
+    subgraph "Fixes"
+        F1["try/catch or .catch()"]
+        F2["Promise.all()"]
+        F3["for...of or<br/>Promise.all(map)"]
+        F4["Serial execution<br/>or mutex"]
+        F5["Always end with<br/>.catch()"]
+    end
+
+    P1 --> F1
+    P2 --> F2
+    P3 --> F3
+    P4 --> F4
+    P5 --> F5
+
+    style P1 fill:#c62828,color:#fff,stroke:#b71c1c
+    style P2 fill:#c62828,color:#fff,stroke:#b71c1c
+    style P3 fill:#c62828,color:#fff,stroke:#b71c1c
+    style P4 fill:#c62828,color:#fff,stroke:#b71c1c
+    style P5 fill:#c62828,color:#fff,stroke:#b71c1c
+    style F1 fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style F2 fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style F3 fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style F4 fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style F5 fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+### Interview Questions — Async Pitfalls
+
+1. **What happens if you don't handle a promise rejection?** — In Node.js 15+, unhandled rejections crash the process. In browsers, they trigger an `unhandledrejection` event and a console warning.
+2. **Why doesn't `forEach` work with `async`/`await`?** — `forEach` doesn't return or await the promises returned by async callbacks. Use `for...of` or `Promise.all(arr.map(...))`.
+3. **How do you run async operations in parallel?** — Use `Promise.all([p1, p2, p3])`. Don't `await` each sequentially unless they depend on each other.
+4. **What is a race condition in async JavaScript?** — When multiple async operations read and write shared state, the final result depends on timing and may be incorrect.
+5. **How would you implement a retry with backoff?** — Loop with try/catch, doubling the delay between attempts (`2^attempt * 1000ms`), rethrowing after max retries.
+6. **How would you add a timeout to a promise?** — Use `Promise.race([originalPromise, timeoutPromise])` where the timeout rejects after a set duration.
+
+---
+
+---
+
+## Quick Reference — Concept Map
+
+```mermaid
+mindmap
+  root((JavaScript))
+    Execution
+      Execution Context
+      Call Stack
+      Event Loop
+      Microtask Queue
+      Macrotask Queue
+      libuv & Thread Pool
+    Scope & Variables
+      var / let / const
+      Lexical Scope
+      Scope Chain
+      Block Scope
+      Hoisting
+      TDZ
+    Functions
+      First-Class Functions
+      Arrow vs Regular
+      HOF
+      Closures
+      Module Pattern
+      Currying
+      Memoization
+      Callbacks
+    OOP & Prototypes
+      Prototype Chain
+      Delegation Model
+      Constructor Functions
+      ES6 Classes
+      Object.create vs new
+      this Binding
+      Property Descriptors
+    Async
+      Callbacks
+      Promises
+      .catch / .finally
+      Promise Combinators
+      async / await
+      Async Pitfalls
+      Retry & Timeout Patterns
+    Data
+      Array Methods
+      Object Methods
+      String Methods
+      Typed Arrays
+      Buffers
+      Iterators & for...of
+      Sparse Arrays
+    ES6+
+      Spread / Rest
+      Destructuring
+      Template Literals
+      Tagged Templates
+      Optional Chaining
+      Nullish Coalescing
+      Modules
+      Classes
+      structuredClone
+    Object Immutability
+      freeze / seal / preventExtensions
+      Object.assign vs Spread
+      Object.fromEntries
+      Getters & Setters
+    Node.js Event Loop
+      libuv Phases
+      setTimeout vs setImmediate
+      process.nextTick
+      Browser vs Node.js
+```
+
+---
+
+> **End of Notes** — This handbook covers 29 sections spanning all JavaScript concepts found in the project codebase, cross-referenced with the structured learning index from the Notes folder. Each section includes explanations, code from the repository, visual diagrams, comparison tables, and targeted interview questions. Topics range from execution fundamentals through async pitfalls and production patterns.

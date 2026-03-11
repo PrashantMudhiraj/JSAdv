@@ -4,11 +4,11 @@
 
 // async function always return a promise
 const p1 = new Promise((resolve, reject) => {
-    setTimeout(() => resolve("Promise resolved!"), 5000);
+    setTimeout(() => resolve("Promise 1 resolved!"), 5000);
 });
 
 const p2 = new Promise((resolve, reject) => {
-    setTimeout(() => resolve("Promise resolved!"), 5000);
+    setTimeout(() => resolve("Promise 2 resolved!"), 5000);
 });
 
 async function wait(x) {
@@ -36,7 +36,8 @@ async function handlePromise() {
     console.log(val2);
 }
 
-handlePromise();
+// await handlePromise();
 
+handlePromise();
 //handlePromise will be suspended from callstack fo certain time, then rest of the code will be executed
 console.log("4");

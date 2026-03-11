@@ -11,7 +11,7 @@ console.log(myName.charAt(0));
 console.log(myName.charCodeAt(0));
 
 let num = "1";
-console.log(num.padStart(3, "0"));
+console.log(num.padStart(4, "0"));
 console.log(num.padEnd(3, "0"));
 console.log(num.repeat(10));
 

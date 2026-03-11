@@ -35,7 +35,7 @@ let b = "not overridden";
 }
 
 console.log(a); //10
-console.log(b); // not overrided
+console.log(b); // not overridden
 // console.log(c); //error
 
 // Illegal Shadowing

@@ -44,11 +44,11 @@ function memoize(fn) {
         return cache.get(key);
     };
 }
-
-const factorial = memoize(function (x) {
+function fact(x) {
     if (x == 0) return 1;
     return x * factorial(x - 1);
-});
+}
+const factorial = memoize(fact);
 
 console.log(factorial(5));
 console.log(factorial(5));

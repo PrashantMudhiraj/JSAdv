@@ -2,7 +2,8 @@ const fruits = [];
 
 fruits.push("banana", "apple", "peach");
 fruits[5] = "mongo";
-// console.log(Object.keys(fruits));
+// fruits[3] = undefined, fruits[4] = undefined
+console.log(Object.keys(fruits));
 // console.log(fruits);
 
 // console.log((fruits.length = 2), fruits);
@@ -10,7 +11,7 @@ fruits[5] = "mongo";
 const iterator = fruits.keys();
 
 for (let key of iterator) {
-  console.log(key, fruits[key]);
+    console.log(key, fruits[key]);
 }
 
 console.log(fruits.toReversed());

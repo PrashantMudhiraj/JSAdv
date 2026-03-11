@@ -31,7 +31,7 @@ const max = modArr.reduce((acc, curr, index, array) => {
     return acc;
 }, 0);
 
-// console.log(max);
+console.log(max);
 
 const users = [
     { firstName: "Prashant", lastName: "Chevula", age: 26 },

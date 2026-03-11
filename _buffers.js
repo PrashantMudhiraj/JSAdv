@@ -2,7 +2,7 @@
 const buffer = new ArrayBuffer(8);
 // console.log(buffer);
 
-const float = {
+const data = {
     int_8: new Int8Array(buffer), //  8/8 = 1 byte per element = 8 bytes -> 8/1 = 8
     uint_8: new Uint8Array(buffer), // 8/8 = 1 byte per element = 8 bytes -> 8/1 = 8
     int_16: new Int16Array(buffer), // 16/8 = 2 byte per element = 4 bytes -> 16/2 = 8
@@ -11,9 +11,9 @@ const float = {
     float_32: new Float32Array(buffer), // 32/8 = 4 byte per element = 2 bytes -> 32/4 = 8
     bigint_64: new BigUint64Array(buffer), // 64/8 = 8 byte per element = 1 bytes -> 64/8 = 8
 };
-float.int_16[0] = 258;
-float.int_16[1] = 123;
-console.log(float);
+data.int_16[0] = 64;
+data.int_16[7] = 123;
+console.log(data);
 const no_of_bytes = {
     int_8: Int8Array.BYTES_PER_ELEMENT,
     uint_8: Uint8Array.BYTES_PER_ELEMENT,

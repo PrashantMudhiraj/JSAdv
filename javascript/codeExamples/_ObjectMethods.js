@@ -19,7 +19,7 @@ console.log(Object.hasOwn(obj1, "a"));
 // console.log(obj1);
 
 Object.seal(obj1);
-obj1.d = 1; // prevent insert/remove
+// obj1.d = 1; // prevent insert/remove -> throw error
 obj1.a = 10; // allow update
 console.log(obj1);
 

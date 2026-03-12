@@ -7,7 +7,7 @@
  *Temporal Dead Zone : The time between variable initialization and declaration(value assignment) to that variable
  */
 
-// getName(); // "Hello World"
+// getName(); // "Hello World undefined"
 // console.log(x); // undefined
 // console.log(getName); // [Function: getName]
 
@@ -18,6 +18,6 @@ function getName() {
     console.log("Hello World", z); // Hello World , undefined
 }
 
-getName(); //"Hello World"
-console.log(x); //2
+getName(); // Hello World undefined
+console.log(x); // 7
 var z = 1;

@@ -165,7 +165,7 @@ The **Temporal Dead Zone** is the period between entering a scope and the variab
 ### From the Repository — `Hoisting.js`
 
 ```js
-// getName(); // "Hello World"
+// getName(); // "Hello World undefined"
 // console.log(x); // undefined
 // console.log(getName); // [Function: getName]
 
@@ -175,7 +175,7 @@ function getName() {
     console.log("Hello World", z); // Hello World, undefined
 }
 
-getName();
+getName(); // Hello World undefined
 console.log(x); // 7
 var z = 1;
 ```
@@ -196,15 +196,158 @@ In this example, calling `getName()` before its declaration works perfectly beca
 
 ## 4. Scope — Lexical Scope, Scope Chain & Block Scope
 
-**Scope** defines where a variable can be accessed in your code. JavaScript has three types of scope: **global scope**, **function scope**, and **block scope** (introduced with ES6).
+**Scope** defines where a variable can be accessed in your code. JavaScript has four types of scope: **global scope**, **function scope**, **block scope** (introduced with ES6), and **module scope**.
 
-**Lexical Scope** means that scope is determined by where the code is written (author time), not where it is called (run time). An inner function has access to variables of its parent function because it was physically written inside it.
+---
 
-When a variable is accessed, JavaScript performs a **scope chain lookup**: it first checks the local scope, then the parent scope, then the grandparent scope, and so on up to the global scope. If the variable is not found anywhere in the chain, a `ReferenceError` is thrown.
+### Global Scope
 
-**Block Scope** applies to variables declared with `let` and `const` inside any block delimited by curly braces `{}` (if, for, while, or standalone blocks). These variables are only accessible within that block. Variables declared with `var` ignore block boundaries and are scoped to the enclosing function or the global scope.
+Variables declared outside any function or block live in the global scope. In a browser they become properties of `window`; in Node.js they attach to `global`. Every function and block can read and write global variables through the scope chain.
+
+```js
+var globalVar = "I am global";
+
+function show() {
+    console.log(globalVar); // accessible — found via scope chain
+}
+show();
+console.log(globalVar); // accessible everywhere
+```
+
+---
+
+### Function Scope
+
+Every function creates its own scope. Variables declared with `var` inside a function are **function-scoped** — they exist only within that function and are invisible outside it, even if the function is called from a different place. Each function call creates a fresh, independent scope.
+
+```js
+function outer() {
+    var x = 10; // function-scoped to outer
+
+    function inner() {
+        var y = 20; // function-scoped to inner
+        console.log(x); // 10 — inner can see outer's variables (lexical scope)
+        console.log(y); // 20
+    }
+
+    inner();
+    console.log(x); // 10
+    // console.log(y); // ReferenceError — y is not visible here
+}
+
+outer();
+// console.log(x); // ReferenceError — x is not visible outside outer
+```
+
+Key rule: **`var` ignores blocks but respects function boundaries.** A `var` declared inside an `if` or `for` leaks out to the enclosing function (or global), but it cannot escape the function it lives in.
+
+```js
+function test() {
+    if (true) {
+        var leaked = "I leak out of the if block";
+        let blocked = "I stay inside the block";
+    }
+    console.log(leaked); // "I leak out of the if block" — var leaked out
+    // console.log(blocked); // ReferenceError — let did not leak
+}
+test();
+// console.log(leaked); // ReferenceError — var cannot escape the function
+```
+
+---
+
+### Lexical Scope (Static Scope)
+
+**Lexical scope** means that the scope of a variable is determined by **where it is written in the source code**, not by where or how the function is called at runtime. JavaScript resolves variable names at author-time (lexically), not at call-time (dynamically).
+
+The word "lexical" refers to the text/source — the JavaScript engine looks at the physical nesting of functions in the code to decide what each function can access.
+
+```js
+var name = "Global";
+
+function outer() {
+    var name = "Outer"; // shadows global name inside outer
+
+    function inner() {
+        // inner is LEXICALLY inside outer — it sees outer's `name`, not global's
+        console.log(name); // "Outer" — lexical scope, not call-site scope
+    }
+
+    inner();
+}
+
+outer(); // "Outer"
+```
+
+**Why call-site doesn't matter — the key insight:**
+
+```js
+var value = "global";
+
+function getValue() {
+    return value; // closed over the LEXICAL scope where it was defined
+}
+
+function run() {
+    var value = "local"; // this does NOT affect getValue
+    console.log(getValue()); // "global" — lexical scope wins
+}
+
+run(); // "global"
+```
+
+Even though `getValue()` is called from inside `run()` (which has its own `value`), `getValue` still sees `"global"` because its scope was established where it was **written** — at the top level — not where it was called.
+
+**Lexical scope is the foundation of closures.** When an inner function is returned and called elsewhere, it carries its lexical scope with it — that's what makes closures possible.
+
+```mermaid
+flowchart TB
+    G["Global Scope<br/>var name = 'Global'"]
+    G --> O["outer()<br/>var name = 'Outer'"]
+    O --> I["inner()<br/>no own 'name'<br/>→ looks up chain → finds 'Outer'"]
+
+    style G fill:#0288d1,color:#fff,stroke:#01579b
+    style O fill:#ef6c00,color:#fff,stroke:#e65100
+    style I fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+---
+
+### Scope Chain
+
+When a variable is accessed, JavaScript performs a **scope chain lookup**: it first checks the current (local) scope, then the parent scope, then the grandparent scope, and so on up to the global scope. If the variable is not found anywhere in the chain, a `ReferenceError` is thrown.
+
+The scope chain is **fixed at definition time** — it follows the lexical nesting of the source code.
+
+---
+
+### Block Scope
+
+**Block scope** applies to variables declared with `let` and `const` inside any block delimited by curly braces `{}` — `if`, `for`, `while`, or standalone blocks. These variables are only accessible within that block. Variables declared with `var` ignore block boundaries and are scoped to the enclosing function or the global scope.
+
+---
+
+### Shadowing & Illegal Shadowing
 
 **Shadowing** occurs when a variable declared in an inner scope has the same name as one in an outer scope. The inner variable "shadows" the outer one within that block. However, **illegal shadowing** happens when you try to shadow a `let` variable with a `var` in the same function scope — this causes a `SyntaxError`.
+
+```js
+let x = 1;
+{
+    let x = 2; // ✅ legal — let shadowing let inside a block
+    console.log(x); // 2
+}
+
+function test() {
+    var x = 3; // ✅ legal — var inside a function that shadows outer let
+}
+
+{
+    var x = 4; // ❌ SyntaxError: Illegal shadowing — var cannot shadow let in same scope
+}
+```
+
+---
 
 ### From the Repository — `ScopeChain.js`
 
@@ -262,11 +405,14 @@ flowchart TB
 
 ### Interview Questions — Scope
 
-1. **What is lexical scope?** — Scope determined by the physical location of code in the source. Inner functions can access outer function variables because they are lexically enclosed.
-2. **Explain the scope chain.** — The series of nested scopes that JavaScript traverses (local → parent → grandparent → global) when looking up a variable.
-3. **What is the difference between function scope and block scope?** — `var` creates function-scoped variables (visible throughout the function), while `let`/`const` create block-scoped variables (visible only within `{}`).
-4. **What is variable shadowing?** — When a variable in an inner scope has the same name as one in an outer scope, the inner one takes precedence within that scope.
-5. **What is illegal shadowing?** — Attempting to shadow a `let` with a `var` inside the same function scope, which causes a `SyntaxError`.
+1. **What is lexical scope?** — Scope determined by the physical location of code in the source. Inner functions can access outer function variables because they are lexically enclosed — not because of where the function is called.
+2. **Does the call site affect lexical scope?** — No. JavaScript uses static (lexical) scope. The scope chain is fixed at definition time. Even if a function is called from a different context, it still sees variables from where it was written.
+3. **What is function scope?** — Variables declared with `var` inside a function are scoped to that function. They are visible throughout the whole function but invisible outside it.
+4. **Why does `var` leak out of `if` blocks but not functions?** — Because `var` is function-scoped, not block-scoped. It ignores `{}` blocks unless those blocks are function bodies.
+5. **Explain the scope chain.** — The series of nested scopes that JavaScript traverses (local → parent → grandparent → global) when looking up a variable. It follows the lexical nesting of the source code.
+6. **What is the difference between function scope and block scope?** — `var` creates function-scoped variables (visible throughout the function). `let`/`const` create block-scoped variables (visible only within `{}`).
+7. **What is variable shadowing?** — When a variable in an inner scope has the same name as one in an outer scope, the inner one takes precedence within that scope.
+8. **What is illegal shadowing?** — Attempting to shadow a `let` with a `var` in the same enclosing scope, which causes a `SyntaxError`. Shadowing `let` with `let` or with `var` inside a function body is allowed.
 
 [↑ Back to Index](#table-of-contents)
 
@@ -274,13 +420,115 @@ flowchart TB
 
 ## 5. Variable Declarations — var, let, const
 
-JavaScript provides three ways to declare variables, each with distinct scoping and hoisting behavior.
+JavaScript provides three keywords to declare variables: `var`, `let`, and `const`. They differ in three key dimensions — **scope**, **hoisting behavior**, and **reassignment rules**. Understanding these differences is fundamental to writing predictable JavaScript.
 
-**`var`** is function-scoped and hoisted with an initial value of `undefined`. It allows redeclaration and reassignment. Because it is not block-scoped, it can leak out of `if`, `for`, and other block statements, causing hard-to-track bugs. In modern codebases, `var` is largely avoided.
+---
 
-**`let`** is block-scoped and hoisted but placed in the Temporal Dead Zone until the declaration line. It does not allow redeclaration within the same scope but does allow reassignment. It is the preferred choice when a variable's value needs to change.
+### `var` — The Old Way
 
-**`const`** is also block-scoped and placed in the TDZ. It requires initialization at the time of declaration and does not allow reassignment of the binding. However, if the value is an object or array, the contents can still be mutated — `const` protects the binding, not the value.
+`var` was the only way to declare variables before ES6 (2015). It is **function-scoped** — a `var` lives inside the nearest enclosing function, or in the global scope if declared outside any function. It completely ignores block boundaries (`if`, `for`, `while`, `{}`).
+
+`var` is **hoisted** to the top of its function scope and automatically initialized to `undefined` during the memory creation phase. This means you can reference a `var` variable before its declaration line without an error — you just get `undefined`.
+
+`var` also allows **redeclaration** in the same scope without any error, which makes it easy to accidentally overwrite a variable.
+
+```js
+function example() {
+    console.log(x); // undefined — hoisted but not yet assigned
+    var x = 10;
+    console.log(x); // 10
+
+    if (true) {
+        var x = 99; // SAME variable — var ignores the block
+    }
+    console.log(x); // 99 — overwritten inside the if block!
+}
+example();
+```
+
+This leaking behavior is a common source of bugs, which is why `var` is avoided in modern code.
+
+---
+
+### `let` — Block-Scoped and TDZ-Protected
+
+`let` was introduced in ES6 to fix the problems with `var`. It is **block-scoped** — a `let` variable exists only within the `{}` block where it is declared. It cannot leak out of `if`, `for`, or any other block.
+
+`let` is also **hoisted**, but unlike `var`, it is NOT initialized. Instead, it sits in the **Temporal Dead Zone (TDZ)** from the start of its block until the declaration line is reached. Accessing it in the TDZ throws a `ReferenceError`.
+
+`let` does NOT allow redeclaration in the same scope, but it does allow reassignment.
+
+```js
+{
+    // TDZ starts here for `y`
+    // console.log(y); // ReferenceError: Cannot access 'y' before initialization
+    let y = 5; // TDZ ends — y is now initialized
+    console.log(y); // 5
+    y = 10; // ✅ reassignment allowed
+    console.log(y); // 10
+}
+// console.log(y); // ReferenceError — y is block-scoped
+
+// No redeclaration:
+let a = 1;
+// let a = 2; // SyntaxError: Identifier 'a' has already been declared
+```
+
+---
+
+### `const` — Immutable Binding
+
+`const` shares all the block-scoping and TDZ behavior of `let`. The key difference is that a `const` binding **cannot be reassigned** after initialization — and it **must be initialized** at the time of declaration.
+
+Important distinction: `const` makes the **binding** (the variable itself) immutable, not the **value**. If the value is an object or array, its contents can still be mutated.
+
+```js
+const PI = 3.14159;
+// PI = 3; // TypeError: Assignment to constant variable
+
+// const without initialization is a SyntaxError:
+// const x; // SyntaxError: Missing initializer in const declaration
+
+// const with objects — binding is locked, contents are not:
+const user = { name: "Prashant", age: 25 };
+user.age = 26; // ✅ mutating the object is fine
+user.city = "Hyderabad"; // ✅ adding a property is fine
+// user = {};        // ❌ TypeError — reassigning the binding is not allowed
+console.log(user); // { name: 'Prashant', age: 26, city: 'Hyderabad' }
+```
+
+---
+
+### Comparison Table
+
+| Feature            | `var`                               | `let`                          | `const`                        |
+| ------------------ | ----------------------------------- | ------------------------------ | ------------------------------ |
+| Scope              | Function                            | Block                          | Block                          |
+| Hoisted?           | ✅ Yes (initialized to `undefined`) | ✅ Yes (TDZ — not initialized) | ✅ Yes (TDZ — not initialized) |
+| Reassignable?      | ✅ Yes                              | ✅ Yes                         | ❌ No                          |
+| Redeclarable?      | ✅ Yes                              | ❌ No                          | ❌ No                          |
+| Requires init?     | ❌ No                               | ❌ No                          | ✅ Yes                         |
+| Leaks from blocks? | ✅ Yes                              | ❌ No                          | ❌ No                          |
+
+---
+
+### The Temporal Dead Zone — Visualized
+
+The TDZ is not about hoisting being absent for `let`/`const` — they ARE hoisted. The engine knows about them from the start. But they are put in an "uninitialized" state until their declaration line is executed. Any access before that line is an error.
+
+```js
+{
+    // ← TDZ for `name` begins here (engine knows it exists but blocks access)
+    // console.log(name); // ReferenceError: Cannot access 'name' before initialization
+    console.log(typeof name); // ReferenceError — even typeof is blocked in TDZ
+    let name = "Prashant"; // ← TDZ ends here
+    console.log(name); // "Prashant"
+}
+```
+
+> Note: `typeof` normally never throws — it returns `"undefined"` for undeclared variables. But inside the TDZ, even `typeof` throws a `ReferenceError`, proving the engine knows the variable exists.
+
+---
 
 ### From the Repository — `FunctionsAndVarEnv.js`
 
@@ -323,15 +571,116 @@ Each function has its own `var x`, which is function-scoped and independent. The
 
 ## 6. Functions — First-Class Citizens
 
-JavaScript treats functions as **first-class citizens**, meaning functions are values that can be stored in variables, passed as arguments to other functions, returned from functions, and even have properties attached to them. This is one of the most powerful features of the language and forms the foundation of patterns like callbacks, higher-order functions, and closures.
+### What Does "First-Class" Mean?
 
-There are several ways to define functions:
+In JavaScript, functions are **first-class citizens** — they are treated like any other value. This means a function can be:
 
-- **Function Declaration (Statement):** Defined using the `function` keyword. Fully hoisted — can be called before the declaration line.
-- **Function Expression:** Assigned to a variable. Only the variable is hoisted (as `undefined` if `var`), so calling before assignment causes a `TypeError`.
-- **Arrow Function:** A concise ES6 syntax that has no own `this`, no `arguments` object, and cannot be used as a constructor.
-- **Anonymous Function:** A function without a name, often used inline as callbacks.
-- **Named Function Expression:** An expression with a name, useful for self-referencing and better stack traces.
+- Assigned to a variable: `const fn = function() {}`
+- Passed as an argument to another function (callback)
+- Returned from another function (higher-order function / closure)
+- Stored in an array or object
+- Have properties and methods attached to it
+
+This is possible because under the hood, **every function is an object** in JavaScript. Functions have a special internal `[[Call]]` slot that makes them executable, but they are still objects — they have a `prototype` property, they can hold key-value pairs, and they inherit from `Function.prototype`.
+
+```js
+function greet() {
+    return "hello";
+}
+
+greet.language = "English"; // functions can have properties
+greet.describe = function () {
+    return "A greeting function";
+};
+
+console.log(greet.language); // "English"
+console.log(greet.name); // "greet" — built-in name property
+console.log(greet.length); // 0 — number of declared parameters
+console.log(typeof greet); // "function"
+console.log(greet instanceof Object); // true — functions are objects
+```
+
+---
+
+### Ways to Define Functions
+
+**1. Function Declaration (Statement)**
+Defined with the `function` keyword at the statement level. Fully hoisted — the engine stores the entire function body in memory during the creation phase, so it can be called before its line in the source.
+
+```js
+greet(); // ✅ works — fully hoisted
+function greet() {
+    console.log("hello");
+}
+```
+
+**2. Function Expression**
+A function assigned to a variable. The variable is hoisted (as `undefined` if `var`), but the function value is not assigned until execution reaches that line. Calling it before that line throws a `TypeError`.
+
+```js
+// sayHi(); // ❌ TypeError: sayHi is not a function (var hoisted as undefined)
+var sayHi = function () {
+    console.log("hi");
+};
+sayHi(); // ✅ works after the assignment line
+```
+
+**3. Named Function Expression**
+A function expression with an internal name. The name is only accessible inside the function itself (useful for recursion and better stack traces). Outside the function, only the variable name is used.
+
+```js
+const factorial = function fact(n) {
+    return n <= 1 ? 1 : n * fact(n - 1); // `fact` is accessible inside
+};
+console.log(factorial(5)); // 120
+// console.log(fact); // ReferenceError — not accessible outside
+```
+
+**4. Arrow Function**
+A concise ES6 syntax. Has no own `this`, no `arguments` object, cannot be a constructor, and has no `prototype` property. Covered in depth in Section 7.
+
+**5. IIFE (Immediately Invoked Function Expression)**
+A function that is defined and called in the same expression. Creates its own scope, which was the pre-ES6 way to avoid polluting the global scope.
+
+```js
+const result = (function () {
+    const private = "I am isolated";
+    return private.toUpperCase();
+})(); // called immediately
+
+console.log(result); // "I AM ISOLATED"
+// console.log(private); // ReferenceError — not accessible
+```
+
+---
+
+### Parameters vs Arguments
+
+**Parameters** are the named placeholders in the function definition. **Arguments** are the actual values passed at call time. JavaScript does not enforce that the number of arguments matches parameters — extra arguments are ignored, missing ones become `undefined`.
+
+```js
+function add(a, b) {
+    // a, b are PARAMETERS
+    console.log(arguments); // Arguments object — available in regular functions
+    return a + b;
+}
+
+add(3, 5); // 3 and 5 are ARGUMENTS → returns 8
+add(3); // b is undefined → returns NaN
+add(3, 5, 9); // 9 is extra — ignored, but visible in `arguments`
+```
+
+**Default parameters** (ES6) let you provide fallback values:
+
+```js
+function greet(name = "World") {
+    return `Hello, ${name}!`;
+}
+console.log(greet()); // "Hello, World!"
+console.log(greet("Prashant")); // "Hello, Prashant!"
+```
+
+---
 
 ### From the Repository — `FirstClassFunctions.js`
 
@@ -536,29 +885,126 @@ flowchart TB
 
 ## 8. The `this` Keyword
 
-The `this` keyword in JavaScript refers to the **execution context** of the current function. Unlike many other languages where `this` always refers to the instance of a class, JavaScript's `this` is determined **dynamically at call time** based on how the function is invoked.
+### What Is `this`?
 
-There are four binding rules, listed in order of **priority** (highest to lowest):
+`this` is a special keyword that is automatically set by JavaScript every time a function is invoked. It refers to the **context object** — the object that "owns" or is associated with the current execution.
 
-### 7.1 `new` Binding (Highest Priority)
+Unlike most other languages (Java, C#) where `this` always refers to the current class instance, **JavaScript's `this` is dynamic** — it is determined entirely by how the function is called, not where it is written (except in arrow functions, which use lexical `this`).
 
-When a function is called with `new`, JavaScript creates a fresh empty object, sets `this` to that object, links the prototype, executes the constructor body, and returns the object (unless the function explicitly returns a different object).
+Think of `this` as an invisible extra argument that JavaScript passes into every regular function call. The value of that argument depends on the call pattern.
 
-### 7.2 Explicit Binding — `call`, `apply`, `bind`
+---
 
-These methods allow you to manually set what `this` refers to:
+### The Four Binding Rules (Priority Order)
 
-- **`call(thisArg, arg1, arg2, ...)`** — Invokes the function immediately with comma-separated arguments.
-- **`apply(thisArg, [argsArray])`** — Invokes immediately with arguments as an array.
-- **`bind(thisArg, arg1, ...)`** — Returns a new function with `this` permanently bound. Does not invoke immediately.
+Whenever you see a function call, ask yourself: **how is it being called?** There are exactly four patterns, and they have a strict priority order:
 
-### 7.3 Implicit Binding
+### 8.1 `new` Binding (Highest Priority)
 
-When a function is called as a method of an object (`obj.method()`), `this` refers to the object to the left of the dot.
+When a function is called with the `new` keyword, JavaScript performs these steps automatically:
 
-### 7.4 Default Binding (Lowest Priority)
+1. Creates a brand new empty object `{}`
+2. Sets the new object's `__proto__` to `Constructor.prototype`
+3. Sets `this` inside the function to the new object
+4. Executes the function body
+5. Returns the new object (unless the function explicitly returns a different object)
 
-When a function is called standalone (`fn()`), `this` defaults to the global object in non-strict mode or `undefined` in strict mode.
+```js
+function Person(name, age) {
+    this.name = name; // `this` = the newly created object
+    this.age = age;
+}
+const p = new Person("Prashant", 25);
+console.log(p.name); // "Prashant"
+console.log(p.age); // 25
+```
+
+### 8.2 Explicit Binding — `call`, `apply`, `bind`
+
+You can **force** `this` to be whatever object you choose using these three methods. All three let you borrow a function and run it in a different context.
+
+- **`call(thisArg, arg1, arg2, ...)`** — Invokes the function immediately. Arguments passed as comma-separated values.
+- **`apply(thisArg, [argsArray])`** — Invokes immediately. Arguments passed as a single array — useful when you already have arguments in an array.
+- **`bind(thisArg, arg1, ...)`** — Does NOT invoke immediately. Returns a **new function** with `this` permanently locked to `thisArg`. The original function is unchanged.
+
+```js
+function introduce(city, country) {
+    console.log(`${this.name} from ${city}, ${country}`);
+}
+
+const dev = { name: "Prashant" };
+
+introduce.call(dev, "Hyderabad", "India"); // "Prashant from Hyderabad, India"
+introduce.apply(dev, ["Hyderabad", "India"]); // same result, array syntax
+
+const boundFn = introduce.bind(dev, "Hyderabad"); // lock `this` + first arg
+boundFn("India"); // "Prashant from Hyderabad, India" — called later
+```
+
+### 8.3 Implicit Binding
+
+When a function is called as a **method of an object** using dot notation (`obj.method()`), `this` refers to the object to the left of the dot at the time of the call.
+
+```js
+const user = {
+    name: "Prashant",
+    greet() {
+        console.log(`Hello, I am ${this.name}`);
+    },
+};
+user.greet(); // "Hello, I am Prashant" — `this` = user
+```
+
+**Implicit binding is lost when you extract the method:**
+
+```js
+const greet = user.greet; // just copying the function reference
+greet(); // "Hello, I am undefined" — `this` = global (default binding takes over!)
+```
+
+This "binding loss" is one of the most common `this`-related bugs. The fix is to use `.bind()` or an arrow function wrapper.
+
+### 8.4 Default Binding (Lowest Priority)
+
+When none of the above patterns apply — the function is called as a plain standalone function — `this` defaults to:
+
+- The **global object** (`window` in browser, `global` in Node.js) in non-strict mode
+- **`undefined`** in strict mode (`'use strict'`)
+
+```js
+function whoAmI() {
+    console.log(this); // global object (or undefined in strict mode)
+}
+whoAmI(); // called standalone → default binding
+```
+
+---
+
+### Arrow Functions and `this`
+
+Arrow functions are different — they do **not** have their own `this`. Instead, they capture `this` from their **lexical enclosing scope** at the time they are defined. This is called **lexical `this`**.
+
+This makes arrow functions ideal for callbacks and `setTimeout` inside methods, where you want to preserve the outer `this`:
+
+```js
+const timer = {
+    name: "countdown",
+    start() {
+        // Arrow function inherits `this` from start() — which is `timer`
+        setTimeout(() => {
+            console.log(this.name); // "countdown" ✅
+        }, 1000);
+
+        // Regular function would lose `this`:
+        setTimeout(function () {
+            console.log(this.name); // undefined ❌ (default binding)
+        }, 1000);
+    },
+};
+timer.start();
+```
+
+---
 
 ### From the Repository — `__this.js`
 

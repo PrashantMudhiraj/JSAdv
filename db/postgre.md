@@ -6820,3 +6820,249 @@ ORDER BY avg_salary DESC;
 This approach demonstrates not just SQL knowledge but engineering judgment — exactly what 3 YOE interviews assess.
 
 ---
+
+## 29. Jobs & Scheduled Tasks in PostgreSQL
+
+PostgreSQL doesn't have a built-in job scheduler in its core engine, but there are two primary approaches: **`pg_cron`** (an extension that runs SQL on a cron schedule inside the database) and the **job queue pattern** (a table-driven queue processed by external workers).
+
+---
+
+### pg_cron — Scheduled Jobs Inside PostgreSQL
+
+`pg_cron` is a background worker extension that lets you schedule SQL commands using standard cron syntax, directly inside PostgreSQL — no external scheduler (cron daemon, Airflow, etc.) needed.
+
+#### Setup
+
+```sql
+-- 1. Install the extension (requires superuser; must be added to shared_preload_libraries first)
+CREATE EXTENSION pg_cron;
+
+-- 2. Grant usage to a non-superuser (optional)
+GRANT USAGE ON SCHEMA cron TO your_user;
+```
+
+> In `postgresql.conf`, add: `shared_preload_libraries = 'pg_cron'` and restart.
+
+#### Scheduling Jobs
+
+```sql
+-- Run at 3:00 AM every day (cron syntax: minute hour day month weekday)
+SELECT cron.schedule(
+  'daily-cleanup',           -- job name (unique)
+  '0 3 * * *',               -- cron expression
+  'DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL ''90 days'''
+);
+
+-- Refresh a materialized view every hour
+SELECT cron.schedule(
+  'refresh-dashboard',
+  '0 * * * *',
+  'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard_summary'
+);
+
+-- Run every 5 minutes
+SELECT cron.schedule(
+  'process-pending-emails',
+  '*/5 * * * *',
+  'CALL process_email_queue()'
+);
+
+-- Run once a week (Sunday midnight)
+SELECT cron.schedule(
+  'weekly-report',
+  '0 0 * * 0',
+  'CALL generate_weekly_report()'
+);
+```
+
+#### Cron Expression Reference
+
+| Expression    | Meaning                  |
+|---------------|--------------------------|
+| `* * * * *`   | Every minute             |
+| `*/5 * * * *` | Every 5 minutes          |
+| `0 * * * *`   | Every hour (on the hour) |
+| `0 3 * * *`   | Every day at 3:00 AM     |
+| `0 0 * * 1`   | Every Monday at midnight |
+| `0 0 1 * *`   | 1st of every month       |
+
+#### Managing Jobs
+
+```sql
+-- List all scheduled jobs
+SELECT jobid, jobname, schedule, command, active
+FROM cron.job;
+
+-- Disable a job without deleting it
+UPDATE cron.job SET active = FALSE WHERE jobname = 'daily-cleanup';
+
+-- Re-enable it
+UPDATE cron.job SET active = TRUE WHERE jobname = 'daily-cleanup';
+
+-- Delete a job by name
+SELECT cron.unschedule('daily-cleanup');
+
+-- Delete by job ID
+SELECT cron.unschedule(1);
+
+-- View job run history (last executions, status, errors)
+SELECT jobid, start_time, end_time, status, return_message
+FROM cron.job_run_details
+ORDER BY start_time DESC
+LIMIT 20;
+```
+
+#### Common Use Cases for pg_cron
+
+| Task | Schedule |
+|------|----------|
+| Purge old logs / audit records | Daily at low-traffic hours |
+| Refresh materialized views | Hourly or every N minutes |
+| Archive old orders to history table | Nightly |
+| Send scheduled notification triggers | Every few minutes |
+| Vacuum / analyze specific tables | Weekly |
+| Expire sessions / tokens | Every 5–15 minutes |
+
+```sql
+-- Example: nightly archive of old orders
+SELECT cron.schedule(
+  'archive-old-orders',
+  '0 2 * * *',  -- 2:00 AM daily
+  $$
+    INSERT INTO orders_archive
+    SELECT * FROM orders WHERE order_date < NOW() - INTERVAL '1 year';
+
+    DELETE FROM orders WHERE order_date < NOW() - INTERVAL '1 year';
+  $$
+);
+```
+
+---
+
+### Job Queue Pattern — Table-Driven Background Jobs
+
+When you need more control than pg_cron (retry logic, priority, tracking status per job), use a **job queue table** that external workers (Node.js, Python, etc.) poll and process.
+
+#### Job Queue Table Design
+
+```sql
+CREATE TABLE job_queue (
+  job_id       BIGSERIAL    PRIMARY KEY,
+  job_type     VARCHAR(50)  NOT NULL,              -- e.g. 'send_email', 'generate_report'
+  payload      JSONB        NOT NULL DEFAULT '{}', -- job-specific data
+  status       VARCHAR(20)  NOT NULL DEFAULT 'pending'
+                            CHECK (status IN ('pending', 'processing', 'done', 'failed')),
+  priority     INTEGER      NOT NULL DEFAULT 5,    -- lower = higher priority
+  attempts     INTEGER      NOT NULL DEFAULT 0,
+  max_attempts INTEGER      NOT NULL DEFAULT 3,
+  scheduled_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+  started_at   TIMESTAMP,
+  completed_at TIMESTAMP,
+  error_msg    TEXT,
+  created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+-- Index for efficient worker polling (pending jobs, ordered by priority + schedule)
+CREATE INDEX idx_job_queue_poll
+  ON job_queue (status, priority, scheduled_at)
+  WHERE status = 'pending';
+```
+
+#### Worker Claiming Jobs — SKIP LOCKED
+
+The key to safe concurrent workers is `FOR UPDATE SKIP LOCKED` — multiple workers can poll simultaneously without processing the same job twice:
+
+```sql
+-- Worker picks up to 5 jobs atomically (no two workers get the same row)
+BEGIN;
+
+WITH claimed AS (
+  SELECT job_id
+  FROM   job_queue
+  WHERE  status = 'pending'
+    AND  scheduled_at <= NOW()
+    AND  attempts < max_attempts
+  ORDER BY priority ASC, scheduled_at ASC
+  LIMIT 5
+  FOR UPDATE SKIP LOCKED          -- skip rows another worker already locked
+)
+UPDATE job_queue
+SET    status     = 'processing',
+       started_at = NOW(),
+       attempts   = attempts + 1
+WHERE  job_id IN (SELECT job_id FROM claimed)
+RETURNING job_id, job_type, payload;
+
+COMMIT;
+-- The RETURNING clause gives the worker all the job data it needs to process
+```
+
+#### Marking Jobs Complete or Failed
+
+```sql
+-- Mark a job as done
+UPDATE job_queue
+SET    status       = 'done',
+       completed_at = NOW()
+WHERE  job_id = $1;
+
+-- Mark a job as failed (store error for debugging)
+UPDATE job_queue
+SET    status    = 'failed',
+       error_msg = $2
+WHERE  job_id = $1;
+
+-- Re-queue a failed job (reset to pending for retry)
+UPDATE job_queue
+SET    status       = 'pending',
+       error_msg    = NULL,
+       scheduled_at = NOW() + INTERVAL '5 minutes'  -- back-off delay
+WHERE  job_id = $1
+  AND  attempts < max_attempts;
+```
+
+#### Dead Job Cleanup — pg_cron + Job Queue Together
+
+```sql
+-- Use pg_cron to periodically reset jobs stuck in 'processing' (crashed workers)
+SELECT cron.schedule(
+  'reset-stuck-jobs',
+  '*/10 * * * *',   -- every 10 minutes
+  $$
+    UPDATE job_queue
+    SET    status     = 'pending',
+           started_at = NULL
+    WHERE  status     = 'processing'
+      AND  started_at < NOW() - INTERVAL '15 minutes';  -- stuck for > 15 min
+  $$
+);
+
+-- Archive or delete completed jobs older than 7 days
+SELECT cron.schedule(
+  'cleanup-done-jobs',
+  '0 4 * * *',
+  $$
+    DELETE FROM job_queue
+    WHERE  status IN ('done', 'failed')
+      AND  completed_at < NOW() - INTERVAL '7 days';
+  $$
+);
+```
+
+---
+
+### pg_cron vs Job Queue — When to Use Which
+
+| Criteria | `pg_cron` | Job Queue Table |
+|----------|-----------|-----------------|
+| **Trigger** | Time-based (schedule) | Event-based (on-demand) |
+| **Retries** | No built-in retry | Full retry + back-off control |
+| **Priority** | No | Yes |
+| **Per-job tracking** | Basic (run history) | Full status per job |
+| **Worker language** | SQL only | Any language (Node.js, Python…) |
+| **Best for** | Maintenance, refreshes, archival | Email queues, report generation, async tasks |
+| **Complexity** | Low | Medium |
+
+> **Combine both:** Use `pg_cron` for maintenance tasks (cleanup, refresh) and the job queue pattern for application-level async work (emails, notifications, report generation). They complement each other well.
+
+---

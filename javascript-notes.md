@@ -12,16 +12,16 @@
 1. [JavaScript Execution Model](#1-javascript-execution-model)
 2. [Execution Context & Call Stack](#2-execution-context-call-stack)
 3. [Hoisting](#3-hoisting)
-4. [Scope — Lexical Scope, Scope Chain & Block Scope](#4-scope-lexical-scope-scope-chain-block-scope)
-5. [Variable Declarations — var, let, const](#5-variable-declarations-var-let-const)
+4. [Scope — Lexical Scope, Scope Chain & Block Scope](#4-scope--lexical-scope-scope-chain--block-scope)
+5. [Variable Declarations — var, let, const](#5-variable-declarations--var-let-const)
 
 **Phase 2 — Functions & Core Patterns**
 
-6. [Functions — First-Class Citizens](#6-functions-first-class-citizens)
-7. [Arrow Functions vs Regular Functions — Deep Dive](#7-arrow-functions-vs-regular-functions-deep-dive)
+6. [Functions — First-Class Citizens](#6-functions--first-class-citizens)
+7. [Arrow Functions vs Regular Functions — Deep Dive](#7-arrow-functions-vs-regular-functions--deep-dive)
 8. [The `this` Keyword](#8-the-this-keyword)
 9. [Closures](#9-closures)
-10. [Higher-Order Functions & Functional Programming](#10-higher-order-functions-functional-programming)
+10. [Higher-Order Functions & Functional Programming](#10-higher-order-functions--functional-programming)
 11. [Function Currying & Memoization](#11-function-currying-memoization)
 
 **Phase 3 — Objects & Prototypes**
@@ -32,14 +32,14 @@
 
 **Phase 4 — Built-in Data Types & Methods**
 
-15. [Array Methods — map, filter, reduce & More](#15-array-methods-map-filter-reduce-more)
+15. [Array Methods — map, filter, reduce & More](#15-array-methods--map-filter-reduce--more)
 16. [String Methods](#16-string-methods)
-17. [Iterators & the `for...of` Loop](#17-iterators-the-forof-loop)
+17. [Iterators & the `for...of` Loop](#17-iterators--the-forof-loop)
 18. [Typed Arrays & Buffers](#18-typed-arrays-buffers)
 
 **Phase 5 — ES6+ & Modules**
 
-19. [ES6+ Features — Spread, Rest, Destructuring & More](#19-es6-features-spread-rest-destructuring-more)
+19. [ES6+ Features — Spread, Rest, Destructuring & More](#19-es6-features--spread-rest-destructuring--more)
 20. [Template Literals & Tagged Templates](#20-template-literals-tagged-templates)
 21. [ES Modules](#21-es-modules)
 
@@ -47,12 +47,12 @@
 
 22. [Callbacks & Callback Hell](#22-callbacks-callback-hell)
 23. [Promises](#23-promises)
-24. [Promise Internals — Deep Dive](#24-promise-internals-deep-dive)
+24. [Promise Internals — Deep Dive](#24-promise-internals--deep-dive)
 25. [Promise Combinators — all, allSettled, race, any](#25-promise-combinators-all-allsettled-race-any)
 26. [Async / Await](#26-async-await)
 27. [The Event Loop](#27-the-event-loop)
-28. [Node.js Event Loop — Deep Dive](#28-nodejs-event-loop-deep-dive)
-29. [Async Pitfalls & Production Patterns](#29-async-pitfalls-production-patterns)
+28. [Node.js Event Loop — Deep Dive](#28-nodejs-event-loop--deep-dive)
+29. [Async Pitfalls & Production Patterns](#29-async-pitfalls--production-patterns)
 
 ---
 
@@ -637,7 +637,38 @@ console.log(factorial(5)); // 120
 ```
 
 **4. Arrow Function**
-A concise ES6 syntax. Has no own `this`, no `arguments` object, cannot be a constructor, and has no `prototype` property. Covered in depth in Section 7.
+A concise ES6 syntax introduced in ES6. Has no own `this`, no `arguments` object, cannot be a constructor, and has no `prototype` property. Covered in depth in Section 7.
+
+```js
+// Concise body — implicit return (no braces, no `return` keyword)
+const double = (n) => n * 2;
+console.log(double(5)); // 10
+
+// Single parameter — parentheses optional
+const square = (n) => n * n;
+console.log(square(4)); // 16
+
+// No parameters — empty parentheses required
+const greet = () => "Hello!";
+console.log(greet()); // "Hello!"
+
+// Block body — explicit return needed
+const add = (a, b) => {
+    const sum = a + b;
+    return sum;
+};
+console.log(add(3, 4)); // 7
+
+// Returning an object literal — wrap in parentheses to avoid ambiguity
+const makeUser = (name, age) => ({ name, age });
+console.log(makeUser("Prashant", 25)); // { name: "Prashant", age: 25 }
+
+// Arrow functions in array methods
+const nums = [1, 2, 3, 4, 5];
+const doubled = nums.map((n) => n * 2); // [2, 4, 6, 8, 10]
+const evens = nums.filter((n) => n % 2 === 0); // [2, 4]
+const total = nums.reduce((acc, n) => acc + n, 0); // 15
+```
 
 **5. IIFE (Immediately Invoked Function Expression)**
 A function that is defined and called in the same expression. Creates its own scope, which was the pre-ES6 way to avoid polluting the global scope.

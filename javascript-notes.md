@@ -15,15 +15,44 @@
 4. [Scope — Lexical Scope, Scope Chain & Block Scope](#4-scope-lexical-scope-scope-chain-block-scope)
 5. [Variable Declarations — var, let, const](#5-variable-declarations-var-let-const)
 
-**Phase 2 — Functions & Core Patterns** 6. [Functions — First-Class Citizens](#6-functions-first-class-citizens) 7. [Arrow Functions vs Regular Functions — Deep Dive](#7-arrow-functions-vs-regular-functions-deep-dive) 8. [The `this` Keyword](#8-the-this-keyword) 9. [Closures](#9-closures) 10. [Higher-Order Functions & Functional Programming](#10-higher-order-functions-functional-programming) 11. [Function Currying & Memoization](#11-function-currying-memoization)
+**Phase 2 — Functions & Core Patterns**
 
-**Phase 3 — Objects & Prototypes** 12. [Prototypes & Inheritance](#12-prototypes-inheritance) 13. [Property Descriptors & Object Immutability](#13-property-descriptors-object-immutability) 14. [Object Methods](#14-object-methods)
+6. [Functions — First-Class Citizens](#6-functions-first-class-citizens)
+7. [Arrow Functions vs Regular Functions — Deep Dive](#7-arrow-functions-vs-regular-functions-deep-dive)
+8. [The `this` Keyword](#8-the-this-keyword)
+9. [Closures](#9-closures)
+10. [Higher-Order Functions & Functional Programming](#10-higher-order-functions-functional-programming)
+11. [Function Currying & Memoization](#11-function-currying-memoization)
 
-**Phase 4 — Built-in Data Types & Methods** 15. [Array Methods — map, filter, reduce & More](#15-array-methods-map-filter-reduce-more) 16. [String Methods](#16-string-methods) 17. [Iterators & the `for...of` Loop](#17-iterators-the-forof-loop) 18. [Typed Arrays & Buffers](#18-typed-arrays-buffers)
+**Phase 3 — Objects & Prototypes**
 
-**Phase 5 — ES6+ & Modules** 19. [ES6+ Features — Spread, Rest, Destructuring & More](#19-es6-features-spread-rest-destructuring-more) 20. [Template Literals & Tagged Templates](#20-template-literals-tagged-templates) 21. [ES Modules](#21-es-modules)
+12. [Prototypes & Inheritance](#12-prototypes-inheritance)
+13. [Property Descriptors & Object Immutability](#13-property-descriptors-object-immutability)
+14. [Object Methods](#14-object-methods)
 
-**Phase 6 — Asynchronous JavaScript** 22. [Callbacks & Callback Hell](#22-callbacks-callback-hell) 23. [Promises](#23-promises) 24. [Promise Internals — Deep Dive](#24-promise-internals-deep-dive) 25. [Promise Combinators — all, allSettled, race, any](#25-promise-combinators-all-allsettled-race-any) 26. [Async / Await](#26-async-await) 27. [The Event Loop](#27-the-event-loop) 28. [Node.js Event Loop — Deep Dive](#28-nodejs-event-loop-deep-dive) 29. [Async Pitfalls & Production Patterns](#29-async-pitfalls-production-patterns)
+**Phase 4 — Built-in Data Types & Methods**
+
+15. [Array Methods — map, filter, reduce & More](#15-array-methods-map-filter-reduce-more)
+16. [String Methods](#16-string-methods)
+17. [Iterators & the `for...of` Loop](#17-iterators-the-forof-loop)
+18. [Typed Arrays & Buffers](#18-typed-arrays-buffers)
+
+**Phase 5 — ES6+ & Modules**
+
+19. [ES6+ Features — Spread, Rest, Destructuring & More](#19-es6-features-spread-rest-destructuring-more)
+20. [Template Literals & Tagged Templates](#20-template-literals-tagged-templates)
+21. [ES Modules](#21-es-modules)
+
+**Phase 6 — Asynchronous JavaScript**
+
+22. [Callbacks & Callback Hell](#22-callbacks-callback-hell)
+23. [Promises](#23-promises)
+24. [Promise Internals — Deep Dive](#24-promise-internals-deep-dive)
+25. [Promise Combinators — all, allSettled, race, any](#25-promise-combinators-all-allsettled-race-any)
+26. [Async / Await](#26-async-await)
+27. [The Event Loop](#27-the-event-loop)
+28. [Node.js Event Loop — Deep Dive](#28-nodejs-event-loop-deep-dive)
+29. [Async Pitfalls & Production Patterns](#29-async-pitfalls-production-patterns)
 
 ---
 
@@ -51,6 +80,8 @@ flowchart LR
 2. **If JavaScript is single-threaded, how does it handle async operations?** — Async tasks are delegated to the environment (browser APIs / libuv). When they complete, their callbacks enter a task queue and the event loop pushes them to the call stack when it is free.
 3. **What is the difference between synchronous and asynchronous code execution in JavaScript?** — Synchronous code is executed line-by-line on the call stack. Asynchronous code is deferred, executing its callback only when the main stack is clear.
 4. **What would happen if a synchronous function takes 10 seconds to run?** — It would block the entire thread, freezing the UI in a browser or preventing other requests in Node.js.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -115,6 +146,8 @@ flowchart TB
 4. **What causes a stack overflow?** — Infinite or excessively deep recursion where function contexts keep being pushed without ever returning.
 5. **Name alternative terms for the Call Stack.** — Execution Context Stack, Program Stack, Control Stack, Runtime Stack, Machine Stack.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 3. Hoisting
@@ -156,6 +189,8 @@ In this example, calling `getName()` before its declaration works perfectly beca
 3. **Why does `console.log(x)` print `undefined` before a `var x = 5` line?** — Because `var x` is hoisted and initialized to `undefined` during the creation phase; the assignment `= 5` happens only during execution.
 4. **Can you access a `let` variable before its declaration?** — No. It throws a `ReferenceError` because it is in the Temporal Dead Zone.
 5. **Are function expressions hoisted?** — The variable name is hoisted (if `var`), but its value is `undefined` — so calling it throws `TypeError: not a function`.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -233,6 +268,8 @@ flowchart TB
 4. **What is variable shadowing?** — When a variable in an inner scope has the same name as one in an outer scope, the inner one takes precedence within that scope.
 5. **What is illegal shadowing?** — Attempting to shadow a `let` with a `var` inside the same function scope, which causes a `SyntaxError`.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 5. Variable Declarations — var, let, const
@@ -279,6 +316,8 @@ Each function has its own `var x`, which is function-scoped and independent. The
 2. **Can you mutate a `const` object?** — Yes. `const` prevents reassignment of the variable binding, not mutation of the value. `const obj = {}; obj.x = 1;` is valid.
 3. **Why should you avoid `var` in modern code?** — It leads to scope leaks (not block-scoped), allows redeclaration, and makes hoisting behavior confusing.
 4. **What happens if you use `let` before its declaration?** — A `ReferenceError` because of the Temporal Dead Zone.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -342,6 +381,8 @@ Notice how `fn.x = 10` attaches a property to a function — possible because fu
 4. **Can you add properties to a function?** — Yes, functions are objects and can have properties and methods added to them.
 5. **What is an IIFE?** — An Immediately Invoked Function Expression is a function that runs as soon as it is defined. It creates its own scope, useful for avoiding global pollution: `(function() { /* code */ })()`.
 6. **What is the difference between parameters and arguments?** — Parameters are the variable names listed in the function definition. Arguments are the actual values passed when the function is called.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -489,6 +530,8 @@ flowchart TB
 3. **Why use an arrow function inside `setTimeout`?** — To preserve the `this` of the enclosing method. A regular function would have its own `this` (global or undefined).
 4. **How do you access arguments in an arrow function?** — Using rest parameters `(...args)` since arrow functions don't have the `arguments` object.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 8. The `this` Keyword
@@ -580,6 +623,8 @@ flowchart TD
 4. **What happens to `this` when you extract a method from an object?** — The implicit binding is lost. `const fn = obj.method; fn();` uses default binding, not implicit.
 5. **How does `this` work in arrow functions?** — Arrow functions have no own `this`. They inherit `this` from the enclosing lexical scope at definition time.
 6. **What does the `new` keyword do internally?** — Creates a new empty object, sets `this` to that object, links the object's prototype to the constructor's `prototype`, executes the function body, and returns the object.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -745,6 +790,8 @@ Yes. ES Modules behave like closures at the file level. Variables declared at th
 7. **What is the difference between scope and closure?** — Scope defines where variables are accessible during execution. A closure captures that scope so it persists after the defining function returns.
 8. **Are ES Modules closures?** — Yes. Module-scoped variables persist between imports, and exported functions close over the module's internal state.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 10. Higher-Order Functions & Functional Programming
@@ -802,6 +849,8 @@ The `calculate` method is a custom implementation of `map` — it takes a transf
 3. **Why is immutability important in functional programming?** — It prevents unexpected state changes, makes code predictable, and eliminates entire classes of bugs related to shared mutable state.
 4. **How would you implement your own `map` function?** — Create a function that iterates over an array, applies a callback to each element, and pushes results into a new array (like the `calculate` function in the codebase).
 5. **Give an example of function composition.** — Chaining `.filter().map().reduce()` where the output of one operation feeds into the next.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -865,6 +914,8 @@ The `memoize` wrapper uses a `Map` as a cache. The key is the stringified argume
 3. **What is memoization?** — Caching function results based on arguments so that repeated calls with the same input return instantly from cache.
 4. **How are closures involved in memoization?** — The cache (Map or object) is defined in the outer function and persists through the closure of the returned wrapper function.
 5. **When should you NOT use memoization?** — When function results change over time (impure functions), when the argument space is too large (memory issues), or when the function is already fast.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -1050,6 +1101,8 @@ flowchart LR
 7. **What is delegation in JavaScript?** — When a property isn't found on an object, the lookup is delegated to its prototype. Unlike classical inheritance, no copying occurs — the prototype is a live shared object.
 8. **What is the difference between `Object.create()` and `new`?** — `Object.create()` sets the prototype directly without running a constructor. `new` calls a constructor function and sets the prototype to `Constructor.prototype`.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 13. Property Descriptors & Object Immutability
@@ -1118,6 +1171,8 @@ console.log(Object.isExtensible(obj)); // false (frozen implies non-extensible)
 2. **What happens if you set `enumerable: false` on a property?** — The property won't appear in `for...in` loops, `Object.keys()`, or `JSON.stringify()`.
 3. **What is the difference between `Object.defineProperty` and regular assignment?** — `defineProperty` defaults flags to `false`. Regular assignment defaults all flags to `true`.
 4. **What are getters and setters?** — Functions that run when you read (`get`) or write (`set`) a property, enabling computed properties and validation.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -1299,6 +1354,8 @@ const fromMap = Object.fromEntries(map); // { x: 1, y: 2 }
 7. **What is `Object.fromEntries`?** — The inverse of `Object.entries()` — converts an iterable of [key, value] pairs into an object.
 8. **What is the difference between `Object.assign` and spread?** — `Object.assign` mutates the target object and triggers setters. Spread creates a new object and doesn't trigger setters. Both are shallow.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 15. Array Methods — map, filter, reduce & More
@@ -1401,6 +1458,8 @@ fruits.toReversed(); // non-mutating reverse (returns new array)
 5. **What is `flatMap`?** — A method that maps each element with a function and then flattens the result by one level. Equivalent to `.map().flat(1)` but more efficient.
 6. **Difference between `some` and `every`?** — `some` returns `true` if at least one element passes the test. `every` returns `true` only if all elements pass.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 16. String Methods
@@ -1444,6 +1503,8 @@ myName.replaceAll("a", "A"); // "prAshAnt" (all occurrences)
 2. **How does `replace` differ from `replaceAll`?** — `replace` replaces only the first match. `replaceAll` replaces every occurrence.
 3. **What does `padStart` do?** — Pads the start of a string with a specified character until it reaches the target length — useful for formatting numbers.
 4. **Are strings mutable in JavaScript?** — No. All string methods return new strings; the original is never modified.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -1536,6 +1597,8 @@ arr.fill(9, 1, 3); // [1, 9, 9, 4, 5] — fills index 1 to 2
 3. **What makes an object iterable?** — It must implement a `[Symbol.iterator]` method that returns an object with a `next()` method returning `{ value, done }`.
 4. **What are `toSorted`, `toReversed`, and `toSpliced`?** — ES2023 non-mutating alternatives to `sort`, `reverse`, and `splice` that return new arrays.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 18. Typed Arrays & Buffers
@@ -1575,6 +1638,8 @@ All typed array views share the same `ArrayBuffer`. Writing `data.int_16[0] = 64
 2. **What is a Typed Array?** — A view over an ArrayBuffer that interprets the raw bytes as a specific numeric type (Int8, Uint16, Float32, etc.).
 3. **What happens when multiple typed arrays share the same buffer?** — They all view the same memory, so changes through one view are visible through all others.
 4. **When would you use typed arrays in practice?** — WebGL rendering, audio/video processing, binary file parsing, network protocols, and any scenario requiring efficient binary data handling.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -1744,6 +1809,8 @@ flowchart LR
 7. **What are template literals?** — Strings delimited by backticks that support `${}` interpolation, multi-line text, and tagged template functions for custom processing.
 8. **What is the difference between `find` and `filter`?** — `find` returns the first matching element (or `undefined`). `filter` returns all matching elements as a new array.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 20. Template Literals & Tagged Templates
@@ -1789,6 +1856,10 @@ const regex = new RegExp(String.raw`\d+\.\d+`);
 2. **What is `String.raw`?** — A built-in tag function that returns a string with escape sequences not processed (raw backslashes preserved).
 3. **Name a real-world use of tagged templates.** — SQL query parameterization (preventing injection), CSS-in-JS (`styled-components`), GraphQL (`gql` tag), internationalization.
 
+[↑ Back to Index](#table-of-contents)
+
+---
+
 ## 21. ES Modules
 
 JavaScript Modules allow code to be split into separate files with explicit imports and exports. The project uses **ES Modules** (ESM), as indicated by `"type": "module"` in the `package.json`.
@@ -1825,6 +1896,8 @@ The repository uses `await` at the top level in `_PromiseAPIS.js` (without wrapp
 2. **What does `"type": "module"` in package.json do?** — Tells Node.js to treat `.js` files as ES Modules instead of CommonJS.
 3. **Are modules closures?** — Yes. Each module has its own scope, and exported values are maintained through closure-like semantics.
 4. **What is top-level `await`?** — The ability to use `await` directly in a module's top-level code without wrapping it in an `async` function.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -1903,6 +1976,8 @@ flowchart TD
 2. **What is callback hell?** — Deeply nested callbacks that arise from sequential async operations, making code unreadable and hard to maintain.
 3. **What is inversion of control?** — When you hand over execution control to an external function via a callback, losing guarantees about when/how your code runs.
 4. **How do Promises solve callback hell?** — Promises flatten the nesting into a chain of `.then()` calls and give you control back (you attach handlers to the promise, rather than passing callbacks into another function).
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -2077,6 +2152,8 @@ stateDiagram-v2
 8. **What does `.finally()` receive as arguments?** — Nothing. It runs for cleanup and passes through the original settled value.
 9. **How does error propagation work in promise chains?** — Errors skip `.then()` handlers and propagate forward until a `.catch()` handles them. A `.catch()` can recover the chain by returning a value.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 24. Promise Internals — Deep Dive
@@ -2159,6 +2236,8 @@ const b = await fetchB(a); // sequential, not parallel
 3. **How does `await` work under the hood?** — It's desugared to `.then()` — the code after `await` becomes the `.then()` callback, scheduled as a microtask when the awaited promise settles.
 4. **Does `Promise.all` create parallel execution?** — No. It waits for already-running promises. The promises start when they're created, not when passed to `Promise.all`.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 25. Promise Combinators — all, allSettled, race, any
@@ -2209,6 +2288,8 @@ Promise.any([p1, p2, p3])
 2. **When would you use `Promise.race`?** — When you want the result of whichever async operation finishes first, such as implementing a timeout for a network request.
 3. **What is `Promise.any` and how does it differ from `Promise.race`?** — `any` resolves with the first _successful_ promise and ignores rejections (unless all reject). `race` settles with the first promise regardless of whether it fulfills or rejects.
 4. **Does `Promise.all` create parallel execution?** — No. The promises are already running when passed to `all`. It simply waits for all of them to finish.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -2297,6 +2378,8 @@ sequenceDiagram
 3. **What is the difference between sequential and parallel await?** — Sequential: `await p1; await p2;` waits for p1 to finish before starting p2. Parallel: `const [r1, r2] = await Promise.all([p1, p2]);` runs both concurrently.
 4. **How do you handle errors with async/await?** — Use try/catch blocks around `await` calls, which maps to `.catch()` in the underlying Promise chain.
 5. **What is the output order of: `console.log("A"); async function f() { await p; console.log("B"); } f(); console.log("C");`?** — "A", "C", "B" — because `await` suspends the function and the synchronous code runs first.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -2453,6 +2536,8 @@ console.log("Sync");
 4. **What is `process.nextTick` in Node.js?** — It queues a callback that runs before any other microtask or I/O event, at the end of the current operation.
 5. **What causes the event loop to be blocked?** — Long-running synchronous operations (heavy computation, busy while-loops) that hold the call stack and prevent the event loop from processing other tasks.
 
+[↑ Back to Index](#table-of-contents)
+
 ---
 
 ## 28. Node.js Event Loop — Deep Dive
@@ -2537,6 +2622,8 @@ recurse();
 3. **What is the thread pool used for?** — File system operations, DNS lookups, and CPU-intensive crypto operations that can't use OS-level async I/O.
 4. **Can `process.nextTick` starve the event loop?** — Yes. Recursive `nextTick` calls continuously queue microtasks, preventing the event loop from proceeding to timers or I/O.
 5. **In what scenario is `setImmediate` guaranteed to run before `setTimeout`?** — Inside an I/O callback (e.g., `fs.readFile`), `setImmediate` always runs before `setTimeout(..., 0)`.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 
@@ -2739,6 +2826,8 @@ flowchart TB
 4. **What is a race condition in async JavaScript?** — When multiple async operations read and write shared state, the final result depends on timing and may be incorrect.
 5. **How would you implement a retry with backoff?** — Loop with try/catch, doubling the delay between attempts (`2^attempt * 1000ms`), rethrowing after max retries.
 6. **How would you add a timeout to a promise?** — Use `Promise.race([originalPromise, timeoutPromise])` where the timeout rejects after a set duration.
+
+[↑ Back to Index](#table-of-contents)
 
 ---
 

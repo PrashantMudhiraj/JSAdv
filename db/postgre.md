@@ -1730,6 +1730,73 @@ COMMIT;
 
 ---
 
+### Training Sample Datasets
+
+These two tables are used throughout the practice questions. Run these scripts once to set up the training environment.
+
+#### EMP Table — Classic Oracle Demo Dataset (14 Employees)
+
+```sql
+CREATE TABLE EMP (
+  EMPNO    INT          NOT NULL,
+  ENAME    VARCHAR(10),
+  JOB      VARCHAR(9),
+  MGR      INT,
+  HIREDATE DATE,
+  SAL      INT,
+  COMM     INT,
+  DEPTNO   INT
+);
+
+INSERT INTO EMP VALUES (7369, 'SMITH',  'CLERK',     7902, TO_DATE('17-DEC-1980', 'DD-MON-YYYY'),  800, NULL, 20);
+INSERT INTO EMP VALUES (7499, 'ALLEN',  'SALESMAN',  7698, TO_DATE('20-FEB-1981', 'DD-MON-YYYY'), 1600,  300, 30);
+INSERT INTO EMP VALUES (7521, 'WARD',   'SALESMAN',  7698, TO_DATE('22-FEB-1981', 'DD-MON-YYYY'), 1250,  500, 30);
+INSERT INTO EMP VALUES (7566, 'JONES',  'MANAGER',   7839, TO_DATE('2-APR-1981',  'DD-MON-YYYY'), 2975, NULL, 20);
+INSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN',  7698, TO_DATE('28-SEP-1981', 'DD-MON-YYYY'), 1250, 1400, 30);
+INSERT INTO EMP VALUES (7698, 'BLAKE',  'MANAGER',   7839, TO_DATE('1-MAY-1981',  'DD-MON-YYYY'), 2850, NULL, 30);
+INSERT INTO EMP VALUES (7782, 'CLARK',  'MANAGER',   7839, TO_DATE('9-JUN-1981',  'DD-MON-YYYY'), 2450, NULL, 10);
+INSERT INTO EMP VALUES (7788, 'SCOTT',  'ANALYST',   7566, TO_DATE('09-DEC-1982', 'DD-MON-YYYY'), 3000, NULL, 20);
+INSERT INTO EMP VALUES (7839, 'KING',   'PRESIDENT', NULL, TO_DATE('17-NOV-1981', 'DD-MON-YYYY'), 5000, NULL, 10);
+INSERT INTO EMP VALUES (7844, 'TURNER', 'SALESMAN',  7698, TO_DATE('8-SEP-1981',  'DD-MON-YYYY'), 1500,    0, 30);
+INSERT INTO EMP VALUES (7876, 'ADAMS',  'CLERK',     7788, TO_DATE('12-JAN-1983', 'DD-MON-YYYY'), 1100, NULL, 20);
+INSERT INTO EMP VALUES (7900, 'JAMES',  'CLERK',     7698, TO_DATE('3-DEC-1981',  'DD-MON-YYYY'),  950, NULL, 30);
+INSERT INTO EMP VALUES (7902, 'FORD',   'ANALYST',   7566, TO_DATE('3-DEC-1981',  'DD-MON-YYYY'), 3000, NULL, 20);
+INSERT INTO EMP VALUES (7934, 'MILLER', 'CLERK',     7782, TO_DATE('23-JAN-1982', 'DD-MON-YYYY'), 1300, NULL, 10);
+
+SELECT * FROM EMP;
+```
+
+> `TO_DATE('17-DEC-1980', 'DD-MON-YYYY')` is the standard way to parse a date string into a `DATE` type. The format mask must match the input string exactly.
+
+#### Employee Table — Modern Training Dataset (10 employees)
+
+```sql
+DROP TABLE IF EXISTS Employee;
+
+CREATE TABLE Employee (
+  EmpId    INT,
+  Name     VARCHAR(30),
+  Role     VARCHAR(30),
+  HireDate DATE,
+  Salary   INT
+);
+
+INSERT INTO Employee VALUES (1,  'Rizwan',      'TeamLead', '2022-03-13', 40000);
+INSERT INTO Employee VALUES (2,  'Akash',       'Finance',  '2012-02-10', 60000);
+INSERT INTO Employee VALUES (3,  'Annapoorani', 'HR',       '2018-09-24', 70000);
+INSERT INTO Employee VALUES (4,  'Chandhan',    'Finance',  '2021-04-01', 65000);
+INSERT INTO Employee VALUES (5,  'Gandi',       'TeamLead', '2023-03-30', 75000);
+INSERT INTO Employee VALUES (6,  'Kaliban',     'HR',       '2005-03-13', 80000);
+INSERT INTO Employee VALUES (7,  'Khurram',     'TeamLead', '2006-09-13', 70000);
+INSERT INTO Employee VALUES (8,  'Masni',       'Finance',  '2016-08-13', 80000);
+INSERT INTO Employee VALUES (9,  'Naveen',      'TeamLead', '2015-05-19', 90000);
+INSERT INTO Employee VALUES (10, 'Pratik',      'HR',       '2025-03-13', 90000);
+
+SELECT * FROM Employee;
+```
+
+---
+
 ### Practice Questions — DDL / DML / TCL
 
 **Q1.** Create an `emp` table with `empno`, `ename`, `job`, `salary`, `hiredate`, `deptno` columns. Insert 3 rows.
@@ -4101,6 +4168,48 @@ WHERE deptno NOT IN (
 );
 ```
 
+**Q6.** Find the employee with the highest salary from the `Employee` table using a subquery (avoid hardcoding the value).
+
+```sql
+-- Wrong approach (hardcoded — breaks when data changes):
+SELECT * FROM Employee WHERE Salary = 100000;
+
+-- Correct approach (dynamic subquery):
+SELECT * FROM Employee
+WHERE Salary = (SELECT MAX(Salary) FROM Employee);
+```
+
+**Q7.** Find the employee with the **second-highest** salary.
+
+```sql
+-- Method 1: nested MAX — find the max salary that is less than the overall max
+SELECT * FROM Employee
+WHERE Salary = (
+  SELECT MAX(Salary) FROM Employee
+  WHERE Salary < (SELECT MAX(Salary) FROM Employee)
+);
+
+-- Method 2: OFFSET (skip the top row)
+SELECT * FROM Employee
+ORDER BY Salary DESC
+LIMIT 1 OFFSET 1;
+
+-- Method 3: DENSE_RANK window function (handles ties correctly)
+SELECT * FROM (
+  SELECT *, DENSE_RANK() OVER (ORDER BY Salary DESC) AS rnk
+  FROM Employee
+) ranked
+WHERE rnk = 2;
+```
+
+**Q8.** Find employees who have the **same role as 'Rizwan'** AND earn **more than Rizwan**.
+
+```sql
+SELECT * FROM Employee
+WHERE Role = (SELECT Role FROM Employee WHERE Name = 'Rizwan')
+  AND Salary > (SELECT Salary FROM Employee WHERE Name = 'Rizwan');
+```
+
 ---
 
 ## 12. Built-in Functions
@@ -4235,10 +4344,30 @@ Date/time handling is notoriously tricky in databases. Timezone mismatches, DST 
 
 ```sql
 -- Current date and time
-SELECT NOW();               -- current timestamp with timezone
-SELECT CURRENT_TIMESTAMP;   -- same as NOW()
-SELECT CURRENT_DATE;        -- date portion only (e.g., 2026-03-10)
-SELECT CURRENT_TIME;        -- time portion only
+SELECT CURRENT_TIMESTAMP;   -- timestamp with timezone (same as NOW())
+SELECT NOW();                -- timestamp with timezone
+SELECT CURRENT_DATE;         -- date only (e.g., 2026-03-13)
+SELECT CURRENT_TIME;         -- time only
+
+-- Adding/subtracting plain integer days (integer shorthand)
+SELECT CURRENT_DATE + 10;    -- 10 days from today
+SELECT CURRENT_DATE + 30;    -- 30 days from today
+SELECT CURRENT_DATE - 30;    -- 30 days ago
+
+-- Adding months using INTERVAL
+SELECT CURRENT_DATE + INTERVAL '1 month';   -- one month from today
+SELECT CURRENT_DATE + INTERVAL '2 month';   -- two months from today
+SELECT CURRENT_DATE + INTERVAL '3 months 15 days';  -- combined
+
+-- Last day of the current month
+-- Strategy: go to first of month → add 1 month → subtract 1 day → cast to DATE
+SELECT (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')::DATE
+  AS last_day_of_month;
+-- e.g. March 2026 → 2026-03-31
+
+-- Last day of any specific month
+SELECT (DATE_TRUNC('month', '2026-02-10'::DATE) + INTERVAL '1 month - 1 day')::DATE;
+-- → 2026-02-28 (handles leap years automatically)
 
 -- EXTRACT: get a specific component from a date/timestamp
 -- Syntax: EXTRACT(field FROM date/timestamp/interval)
@@ -5249,6 +5378,61 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_department_summary;
 **When to use:** Complex aggregation queries that run frequently but can tolerate slightly stale data (dashboard stats refreshed hourly), pre-computed reports joining multiple large tables.
 
 **Common mistake:** Not having a refresh strategy. Stale data in a materialized view causing confusing bugs is extremely common. Use `pg_cron` for scheduled refreshes, or trigger refreshes after significant data changes.
+
+#### generate_series — Bulk Data Insertion for Testing
+
+`generate_series(start, stop)` generates a sequence of integers (or timestamps). It is the standard PostgreSQL way to insert large volumes of test data.
+
+```sql
+-- Create a test table
+CREATE TABLE random_data (
+  id    INT,
+  value DECIMAL
+);
+
+-- Insert 1 million rows for id = 1
+INSERT INTO random_data
+SELECT 1, random()
+FROM generate_series(1, 1000000);
+
+-- Insert another 1 million rows for id = 2
+INSERT INTO random_data
+SELECT 2, random()
+FROM generate_series(1, 1000000);
+
+-- Verify counts
+SELECT id, COUNT(*)
+FROM random_data
+GROUP BY id;
+-- id=1 → 1000000, id=2 → 1000000
+
+-- Now create a materialized view that aggregates this large table
+CREATE MATERIALIZED VIEW mv_random_data AS
+SELECT id, COUNT(*) AS total
+FROM random_data
+GROUP BY id;
+
+SELECT * FROM mv_random_data;   -- fast — reads from cache
+
+-- Add more data (id = 3)
+INSERT INTO random_data
+SELECT 3, random()
+FROM generate_series(1, 1000000);
+
+-- Stale! mv_random_data still shows only id=1 and id=2
+-- Must refresh to include the new id=3 data:
+REFRESH MATERIALIZED VIEW mv_random_data;
+
+SELECT * FROM mv_random_data;   -- now shows id=1, id=2, id=3
+
+-- Note: you CANNOT delete from a materialized view directly
+-- delete from mv_random_data where id=3;  -- ERROR
+-- To remove data: delete from the base table, then REFRESH
+DELETE FROM random_data WHERE id = 3;
+REFRESH MATERIALIZED VIEW mv_random_data;
+```
+
+> `random()` returns a random FLOAT between 0.0 and 1.0. Combined with `generate_series`, this is the fastest way to create large datasets for testing index performance, query plans, or materialized view refresh timing.
 
 ---
 

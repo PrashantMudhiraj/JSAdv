@@ -52,10 +52,13 @@
     - [JSONB — Semi-Structured Data](#jsonb--semi-structured-data-in-postgresql)
   - [27. Backend Integration — Node.js Perspective](#27-backend-integration--nodejs-perspective)
   - [28. Interview Preparation](#28-interview-preparation)
+  - [29. Jobs & Scheduled Tasks in PostgreSQL](#29-jobs--scheduled-tasks-in-postgresql)
 
 ---
 
 ## 1. Database Foundations
+
+[↑ Back to Index](#table-of-contents)
 
 ### 1.1 What is a Database
 
@@ -266,6 +269,8 @@ graph LR
 
 ## 2. Introduction to PostgreSQL / PL/pgSQL
 
+[↑ Back to Index](#table-of-contents)
+
 - **PL/pgSQL** = Procedural Language/PostgreSQL SQL — PostgreSQL's built-in procedural language
 - Extends SQL with procedural features: loops, conditionals, exception handling, and variables
 - Runs inside the PostgreSQL server engine — tightly integrated with SQL
@@ -400,6 +405,8 @@ ALTER SEQUENCE orders_order_id_seq RESTART WITH 1;
 
 ## 3. Data Types
 
+[↑ Back to Index](#table-of-contents)
+
 ```mermaid
 graph TD
     DT["PostgreSQL Data Types"]
@@ -442,6 +449,7 @@ graph TD
 
 - **INTEGER** — stores pure whole numbers (e.g., `EmpId INT` → 100, 101)
 - **NUMERIC(P, S)** — stores exact decimal numbers
+
   - `P` = Precision → total number of digits (both sides of decimal)
   - `S` = Scale → number of digits **after** the decimal point
   - Example: `NUMERIC(10, 2)` allows up to 10 total digits with 2 decimal places
@@ -580,24 +588,147 @@ graph TD
 
 #### 8. Date / Time
 
-- **DATE** — stores date only (no time) in PostgreSQL
-- **TIMESTAMP** — stores date + time; use `TIMESTAMP WITH TIME ZONE` for timezone-aware values
-- **INTERVAL** — stores a duration (e.g., `INTERVAL '2 years 3 months'`)
+PostgreSQL has **six dedicated date/time types**:
 
-  ```sql
-  DO $$
-  DECLARE
-    v_today      DATE        := CURRENT_DATE;
-    v_ts         TIMESTAMP   := CURRENT_TIMESTAMP;
-    v_join_date  DATE        := TO_DATE('01-JAN-2025', 'DD-MON-YYYY');
-  BEGIN
-    RAISE NOTICE 'Today      : %', TO_CHAR(v_today, 'DD-MON-YYYY');
-    RAISE NOTICE 'Timestamp  : %', TO_CHAR(v_ts, 'DD-MON-YYYY HH24:MI:SS.US');
-    RAISE NOTICE 'Join Date  : %', TO_CHAR(v_join_date, 'DD-MON-YYYY');
-    RAISE NOTICE 'Days Since Join: %', (v_today - v_join_date);
-  END;
-  $$;
-  ```
+| Type                                       | Stores                       | Storage  | Example Value             |
+| ------------------------------------------ | ---------------------------- | -------- | ------------------------- |
+| `DATE`                                     | Date only (no time)          | 4 bytes  | `2026-03-13`              |
+| `TIME`                                     | Time of day (no date)        | 8 bytes  | `14:30:00`                |
+| `TIME WITH TIME ZONE`                      | Time + timezone offset       | 12 bytes | `14:30:00+05:30`          |
+| `TIMESTAMP`                                | Date + time (no timezone)    | 8 bytes  | `2026-03-13 14:30:00`     |
+| `TIMESTAMP WITH TIME ZONE` (`TIMESTAMPTZ`) | Date + time + UTC-normalized | 8 bytes  | `2026-03-13 09:00:00+00`  |
+| `INTERVAL`                                 | A duration / span of time    | 16 bytes | `2 years 3 months 5 days` |
+
+---
+
+**DATE** — stores the calendar date only; no time component.
+
+```sql
+-- Column definition
+CREATE TABLE employees (
+  hire_date  DATE NOT NULL
+);
+
+-- Inserting
+INSERT INTO employees (hire_date) VALUES ('2025-01-15');
+INSERT INTO employees (hire_date) VALUES (CURRENT_DATE);  -- today
+
+-- Arithmetic: subtract two dates → number of days
+SELECT CURRENT_DATE - '2025-01-01'::DATE AS days_since_new_year;  -- → integer
+SELECT CURRENT_DATE + 30 AS date_in_30_days;                      -- add days
+```
+
+---
+
+**TIME** — stores the time of day only; no date, no timezone.
+
+```sql
+CREATE TABLE schedules (
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL
+);
+
+INSERT INTO schedules VALUES ('09:00:00', '17:30:00');
+
+SELECT TIME '14:30:00';           -- literal
+SELECT CURRENT_TIME;              -- current time (with timezone)
+SELECT LOCALTIME;                 -- current time (without timezone)
+
+-- Arithmetic
+SELECT TIME '17:30:00' - TIME '09:00:00';  -- → 08:30:00 (interval)
+```
+
+---
+
+**TIMESTAMP** — stores date + time together, but **no timezone awareness**. Stores whatever you put in.
+
+```sql
+CREATE TABLE orders (
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO orders (created_at) VALUES ('2026-03-13 14:30:00');
+SELECT CURRENT_TIMESTAMP;     -- current date + time (with tz info)
+SELECT LOCALTIMESTAMP;        -- current date + time (no tz)
+```
+
+---
+
+**TIMESTAMP WITH TIME ZONE (`TIMESTAMPTZ`)** — stores date + time normalized to **UTC** internally; converts to local timezone on display. This is the **recommended type** for any event time when users are in multiple time zones.
+
+```sql
+CREATE TABLE events (
+  event_time  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- PostgreSQL stores as UTC, displays in session timezone
+INSERT INTO events (event_time) VALUES ('2026-03-13 14:30:00+05:30');
+-- Stored as: 2026-03-13 09:00:00 UTC
+
+-- Change session timezone to see conversion
+SET TIME ZONE 'America/New_York';
+SELECT event_time FROM events;  -- → displayed in EST/EDT
+```
+
+> **Best practice:** Always use `TIMESTAMPTZ` for `created_at`, `updated_at`, event times. Use plain `TIMESTAMP` only when timezone is truly irrelevant (e.g., a local schedule printed on paper).
+
+---
+
+**INTERVAL** — stores a duration (a span of time), not a point in time.
+
+```sql
+-- Interval literals
+SELECT INTERVAL '1 year';
+SELECT INTERVAL '2 months 15 days';
+SELECT INTERVAL '3 hours 30 minutes';
+SELECT INTERVAL '1 year 2 months 3 days 4 hours 5 minutes 6 seconds';
+
+-- Using intervals in arithmetic
+SELECT CURRENT_DATE + INTERVAL '30 days'       AS one_month_later;
+SELECT NOW()        - INTERVAL '1 year'        AS one_year_ago;
+SELECT hire_date    + INTERVAL '90 days'       AS probation_end FROM employees;
+
+-- Column use: storing a session duration
+CREATE TABLE sessions (
+  session_id  SERIAL PRIMARY KEY,
+  duration    INTERVAL
+);
+INSERT INTO sessions (duration) VALUES (INTERVAL '1 hour 45 minutes');
+
+-- Extract parts from an interval
+SELECT EXTRACT(DAYS FROM INTERVAL '2 years 3 months 10 days');  -- → 10
+```
+
+---
+
+**Summary — Which type to use?**
+
+| Scenario                                      | Recommended Type |
+| --------------------------------------------- | ---------------- |
+| Birthday, hire date, event date               | `DATE`           |
+| Store opening/closing time                    | `TIME`           |
+| Multi-timezone event (logs, orders, messages) | `TIMESTAMPTZ`    |
+| Local schedule with no timezone concern       | `TIMESTAMP`      |
+| Session duration, loan term, age difference   | `INTERVAL`       |
+
+---
+
+```sql
+-- Full example using all types together
+DO $$
+DECLARE
+  v_today      DATE        := CURRENT_DATE;
+  v_ts         TIMESTAMPTZ := NOW();
+  v_join_date  DATE        := TO_DATE('01-JAN-2025', 'DD-MON-YYYY');
+  v_duration   INTERVAL    := v_today - v_join_date;
+BEGIN
+  RAISE NOTICE 'Today          : %', TO_CHAR(v_today, 'DD-MON-YYYY');
+  RAISE NOTICE 'Timestamp (UTC): %', TO_CHAR(v_ts, 'DD-MON-YYYY HH24:MI:SS TZ');
+  RAISE NOTICE 'Join Date  : %', TO_CHAR(v_join_date, 'DD-MON-YYYY');
+  RAISE NOTICE 'Days Since Join: %', v_duration;
+END;
+$$;
+```
 
 ### %TYPE and %ROWTYPE
 
@@ -757,7 +888,62 @@ DROP TYPE IF EXISTS address_type CASCADE;
 
 ---
 
+### Practice Questions — Data Types
+
+**Q1.** What data type would you use for an employee salary that can hold up to 10 digits with 2 decimal places? Write a `CREATE TABLE` using it.
+
+```sql
+CREATE TABLE employees (
+  emp_id   SERIAL PRIMARY KEY,
+  emp_name VARCHAR(50)    NOT NULL,
+  salary   NUMERIC(10, 2) NOT NULL
+);
+```
+
+**Q2.** What is the difference between `CHAR(10)` and `VARCHAR(10)`? Demonstrate with a variable.
+
+```sql
+DO $$
+DECLARE
+  v_fixed   CHAR(10)    := 'Hi';      -- always 10 chars, pads with spaces
+  v_dynamic VARCHAR(10) := 'Hi';      -- only 2 chars stored
+BEGIN
+  RAISE NOTICE 'CHAR length   : %', LENGTH(v_fixed);   -- 10
+  RAISE NOTICE 'VARCHAR length: %', LENGTH(v_dynamic); -- 2
+END;
+$$;
+```
+
+**Q3.** Store today's date, current timestamp, and calculate how many days since `2025-01-01`.
+
+```sql
+DO $$
+DECLARE
+  v_today    DATE        := CURRENT_DATE;
+  v_ts       TIMESTAMPTZ := NOW();
+  v_start    DATE        := '2025-01-01';
+  v_days     INTEGER     := CURRENT_DATE - '2025-01-01'::DATE;
+BEGIN
+  RAISE NOTICE 'Today    : %', v_today;
+  RAISE NOTICE 'Now      : %', v_ts;
+  RAISE NOTICE 'Days since 2025-01-01: %', v_days;
+END;
+$$;
+```
+
+**Q4.** Fetch employees hired in the years 1987, 1982, or 1980 from HR, IT, or Finance departments.
+
+```sql
+SELECT * FROM emp
+WHERE TO_CHAR(hiredate, 'YYYY') IN ('1987', '1982', '1980')
+  AND department IN ('HR', 'IT', 'Finance');
+```
+
+---
+
 ## 4. Variables & Constants
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 flowchart LR
@@ -847,7 +1033,72 @@ $$;
 
 ---
 
+### Practice Questions — Variables & Constants
+
+**Q1.** Declare variables for employee name (VARCHAR), salary (NUMERIC), and age (INTEGER). Assign values and print them.
+
+```sql
+DO $$
+DECLARE
+  v_name   VARCHAR(50) := 'Alice';
+  v_salary NUMERIC     := 75000.00;
+  v_age    INTEGER     := 30;
+BEGIN
+  RAISE NOTICE 'Name: %, Salary: %, Age: %', v_name, v_salary, v_age;
+END;
+$$;
+```
+
+**Q2.** Declare a constant for GST rate (18%). Calculate tax and total for a product priced at 5000.
+
+```sql
+DO $$
+DECLARE
+  v_price   NUMERIC          := 5000;
+  v_gst     CONSTANT NUMERIC := 0.18;
+  v_tax     NUMERIC;
+  v_total   NUMERIC;
+BEGIN
+  v_tax   := v_price * v_gst;
+  v_total := v_price + v_tax;
+  RAISE NOTICE 'Price: %, GST: %, Total: %', v_price, v_tax, v_total;
+END;
+$$;
+```
+
+**Q3.** Use `%TYPE` to declare a variable matching `employees.salary`, fetch the salary of employee 101, and print it.
+
+```sql
+DO $$
+DECLARE
+  v_sal employees.salary%TYPE;
+BEGIN
+  SELECT salary INTO v_sal FROM employees WHERE employee_id = 101;
+  RAISE NOTICE 'Salary of emp 101: %', v_sal;
+END;
+$$;
+```
+
+**Q4.** Declare an uninitialized variable. Check if it is NULL and assign a default if so.
+
+```sql
+DO $$
+DECLARE
+  v_bonus NUMERIC;
+BEGIN
+  IF v_bonus IS NULL THEN
+    v_bonus := 0;
+  END IF;
+  RAISE NOTICE 'Bonus: %', v_bonus;  -- 0
+END;
+$$;
+```
+
+---
+
 ## 5. Languages in PostgreSQL
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -1142,6 +1393,12 @@ SELECT * FROM inserted;
 > - It does **not** require a separate transaction — the returned data is the committed state
 
 ---
+
+### DQL - Data Query Language
+
+- **DQL (Data Query Language)** uses the `SELECT` statement to **retrieve** data from one or more tables
+- `SELECT` is read-only — it never modifies data
+- Supports filtering (`WHERE`), sorting (`ORDER BY`), aggregation, JOINs, and subqueries
 
 #### DISTINCT ON — PostgreSQL's Unique Row-Per-Group Feature
 
@@ -1473,7 +1730,126 @@ COMMIT;
 
 ---
 
+### Training Sample Datasets
+
+These two tables are used throughout the practice questions. Run these scripts once to set up the training environment.
+
+#### EMP Table — Classic Oracle Demo Dataset (14 Employees)
+
+```sql
+CREATE TABLE EMP (
+  EMPNO    INT          NOT NULL,
+  ENAME    VARCHAR(10),
+  JOB      VARCHAR(9),
+  MGR      INT,
+  HIREDATE DATE,
+  SAL      INT,
+  COMM     INT,
+  DEPTNO   INT
+);
+
+INSERT INTO EMP VALUES (7369, 'SMITH',  'CLERK',     7902, TO_DATE('17-DEC-1980', 'DD-MON-YYYY'),  800, NULL, 20);
+INSERT INTO EMP VALUES (7499, 'ALLEN',  'SALESMAN',  7698, TO_DATE('20-FEB-1981', 'DD-MON-YYYY'), 1600,  300, 30);
+INSERT INTO EMP VALUES (7521, 'WARD',   'SALESMAN',  7698, TO_DATE('22-FEB-1981', 'DD-MON-YYYY'), 1250,  500, 30);
+INSERT INTO EMP VALUES (7566, 'JONES',  'MANAGER',   7839, TO_DATE('2-APR-1981',  'DD-MON-YYYY'), 2975, NULL, 20);
+INSERT INTO EMP VALUES (7654, 'MARTIN', 'SALESMAN',  7698, TO_DATE('28-SEP-1981', 'DD-MON-YYYY'), 1250, 1400, 30);
+INSERT INTO EMP VALUES (7698, 'BLAKE',  'MANAGER',   7839, TO_DATE('1-MAY-1981',  'DD-MON-YYYY'), 2850, NULL, 30);
+INSERT INTO EMP VALUES (7782, 'CLARK',  'MANAGER',   7839, TO_DATE('9-JUN-1981',  'DD-MON-YYYY'), 2450, NULL, 10);
+INSERT INTO EMP VALUES (7788, 'SCOTT',  'ANALYST',   7566, TO_DATE('09-DEC-1982', 'DD-MON-YYYY'), 3000, NULL, 20);
+INSERT INTO EMP VALUES (7839, 'KING',   'PRESIDENT', NULL, TO_DATE('17-NOV-1981', 'DD-MON-YYYY'), 5000, NULL, 10);
+INSERT INTO EMP VALUES (7844, 'TURNER', 'SALESMAN',  7698, TO_DATE('8-SEP-1981',  'DD-MON-YYYY'), 1500,    0, 30);
+INSERT INTO EMP VALUES (7876, 'ADAMS',  'CLERK',     7788, TO_DATE('12-JAN-1983', 'DD-MON-YYYY'), 1100, NULL, 20);
+INSERT INTO EMP VALUES (7900, 'JAMES',  'CLERK',     7698, TO_DATE('3-DEC-1981',  'DD-MON-YYYY'),  950, NULL, 30);
+INSERT INTO EMP VALUES (7902, 'FORD',   'ANALYST',   7566, TO_DATE('3-DEC-1981',  'DD-MON-YYYY'), 3000, NULL, 20);
+INSERT INTO EMP VALUES (7934, 'MILLER', 'CLERK',     7782, TO_DATE('23-JAN-1982', 'DD-MON-YYYY'), 1300, NULL, 10);
+
+SELECT * FROM EMP;
+```
+
+> `TO_DATE('17-DEC-1980', 'DD-MON-YYYY')` is the standard way to parse a date string into a `DATE` type. The format mask must match the input string exactly.
+
+#### Employee Table — Modern Training Dataset (10 employees)
+
+```sql
+DROP TABLE IF EXISTS Employee;
+
+CREATE TABLE Employee (
+  EmpId    INT,
+  Name     VARCHAR(30),
+  Role     VARCHAR(30),
+  HireDate DATE,
+  Salary   INT
+);
+
+INSERT INTO Employee VALUES (1,  'Rizwan',      'TeamLead', '2022-03-13', 40000);
+INSERT INTO Employee VALUES (2,  'Akash',       'Finance',  '2012-02-10', 60000);
+INSERT INTO Employee VALUES (3,  'Annapoorani', 'HR',       '2018-09-24', 70000);
+INSERT INTO Employee VALUES (4,  'Chandhan',    'Finance',  '2021-04-01', 65000);
+INSERT INTO Employee VALUES (5,  'Gandi',       'TeamLead', '2023-03-30', 75000);
+INSERT INTO Employee VALUES (6,  'Kaliban',     'HR',       '2005-03-13', 80000);
+INSERT INTO Employee VALUES (7,  'Khurram',     'TeamLead', '2006-09-13', 70000);
+INSERT INTO Employee VALUES (8,  'Masni',       'Finance',  '2016-08-13', 80000);
+INSERT INTO Employee VALUES (9,  'Naveen',      'TeamLead', '2015-05-19', 90000);
+INSERT INTO Employee VALUES (10, 'Pratik',      'HR',       '2025-03-13', 90000);
+
+SELECT * FROM Employee;
+```
+
+---
+
+### Practice Questions — DDL / DML / TCL
+
+**Q1.** Create an `emp` table with `empno`, `ename`, `job`, `salary`, `hiredate`, `deptno` columns. Insert 3 rows.
+
+```sql
+CREATE TABLE emp (
+  empno    SERIAL PRIMARY KEY,
+  ename    VARCHAR(20)    NOT NULL,
+  job      VARCHAR(15),
+  salary   NUMERIC(10,2)  DEFAULT 0,
+  hiredate DATE           DEFAULT CURRENT_DATE,
+  deptno   INTEGER
+);
+
+INSERT INTO emp (ename, job, salary, hiredate, deptno) VALUES
+  ('SMITH',  'CLERK',   800,  '1980-12-17', 20),
+  ('SCOTT',  'ANALYST', 3000, '1982-12-09', 20),
+  ('MILLER', 'CLERK',   1300, '1982-01-23', 10);
+```
+
+**Q2.** Update SMITH's salary to 1000, then use `RETURNING` to confirm the new value in one statement.
+
+```sql
+UPDATE emp
+SET salary = 1000
+WHERE ename = 'SMITH'
+RETURNING empno, ename, salary;
+```
+
+**Q3.** Use a transaction: delete an employee, then roll back. Verify the row is still there.
+
+```sql
+BEGIN;
+  DELETE FROM emp WHERE ename = 'MILLER';
+  SELECT * FROM emp;   -- MILLER appears gone within this transaction
+ROLLBACK;
+SELECT * FROM emp;     -- MILLER is back
+```
+
+**Q4.** Use `DISTINCT ON` to get the most recently hired employee per department.
+
+```sql
+SELECT DISTINCT ON (deptno)
+  deptno, empno, ename, hiredate
+FROM emp
+ORDER BY deptno, hiredate DESC;
+```
+
+---
+
 ## 6. Types of Operators
+
+[↑ Back to Index](#table-of-contents)
 
 - An **operator** is a symbol that tells PostgreSQL to perform a specific operation on one or more values
 - Operators are used in `SELECT`, `WHERE`, `UPDATE`, `DELETE`, and expressions throughout SQL
@@ -1780,7 +2156,60 @@ SELECT * FROM employee_usa;
 
 ---
 
+### Practice Questions — Operators
+
+**Q1.** Get employees in the IT or Finance department with salary greater than 30,000.
+
+```sql
+SELECT * FROM employee
+WHERE department IN ('IT', 'Finance')
+  AND salary > 30000;
+```
+
+**Q2.** Get employees whose name starts with 'S' and salary is between 20,000 and 60,000.
+
+```sql
+SELECT * FROM employee
+WHERE name LIKE 'S%'
+  AND salary BETWEEN 20000 AND 60000;
+```
+
+**Q3.** Get employees hired in 1987, 1982, or 1980 from HR, IT, or Finance.
+
+```sql
+SELECT * FROM emp
+WHERE TO_CHAR(hiredate, 'YYYY') IN ('1987', '1982', '1980')
+  AND department IN ('HR', 'IT', 'Finance');
+```
+
+**Q4.** Find all employees who do NOT have a city recorded (NULL city).
+
+```sql
+SELECT * FROM employee WHERE city IS NULL;
+```
+
+**Q5.** List employees who exist in the UK office but NOT in the USA office.
+
+```sql
+SELECT * FROM employee_uk
+EXCEPT
+SELECT * FROM employee_usa;
+```
+
+**Q6.** Get male employees from Hyderabad aged between 30 and 35.
+
+```sql
+SELECT * FROM employee
+WHERE gender = 'Male'
+  AND city = 'Hyderabad'
+  AND age BETWEEN 30 AND 35;
+```
+
+---
+
 ## 7. Types of Constraints
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -2296,7 +2725,61 @@ COMMIT;
 
 ---
 
+### Practice Questions — Constraints
+
+**Q1.** Create a `students` table demonstrating PRIMARY KEY, NOT NULL, UNIQUE, CHECK, and DEFAULT.
+
+```sql
+CREATE TABLE students (
+  student_id  SERIAL         PRIMARY KEY,
+  name        VARCHAR(50)    NOT NULL,
+  email       VARCHAR(100)   UNIQUE,
+  age         INTEGER        CHECK (age BETWEEN 16 AND 60),
+  grade       CHAR(1)        DEFAULT 'A',
+  enrolled_on DATE           DEFAULT CURRENT_DATE
+);
+```
+
+**Q2.** Add a FOREIGN KEY from `emp` to `dept` with `ON DELETE CASCADE`.
+
+```sql
+CREATE TABLE dept (
+  deptno   INTEGER      PRIMARY KEY,
+  dname    VARCHAR(30)  NOT NULL
+);
+
+ALTER TABLE emp
+  ADD CONSTRAINT fk_emp_dept
+  FOREIGN KEY (deptno) REFERENCES dept(deptno)
+  ON DELETE CASCADE;
+```
+
+**Q3.** Add a CHECK constraint to ensure salary is always positive, then try inserting a negative salary.
+
+```sql
+ALTER TABLE emp ADD CONSTRAINT chk_salary CHECK (salary >= 0);
+
+-- This will fail:
+INSERT INTO emp (ename, salary) VALUES ('TEST', -500);  -- ERROR
+```
+
+**Q4.** Create a composite UNIQUE constraint: same employee cannot register for the same course twice.
+
+```sql
+CREATE TABLE enrollments (
+  enrollment_id  SERIAL  PRIMARY KEY,
+  emp_id         INTEGER NOT NULL,
+  course_id      INTEGER NOT NULL,
+  enrolled_on    DATE    DEFAULT CURRENT_DATE,
+  CONSTRAINT uq_emp_course UNIQUE (emp_id, course_id)
+);
+```
+
+---
+
 ## 8. Database Design & Normalization
+
+[↑ Back to Index](#table-of-contents)
 
 ### What is Normalization?
 
@@ -2416,18 +2899,67 @@ A **surrogate key** is system-generated with no business meaning — typically a
 
 ## 9. JOINs
 
+[↑ Back to Index](#table-of-contents)
+
+### Practice Questions — JOINs
+
+**Q1.** Get employee names along with their department names (only employees who have a department).
+
+```sql
+SELECT e.ename, d.dname
+FROM emp e
+INNER JOIN dept d ON e.deptno = d.deptno;
+```
+
+**Q2.** Get all departments, including those with no employees.
+
+```sql
+SELECT d.dname, e.ename
+FROM dept d
+LEFT JOIN emp e ON d.deptno = e.deptno;
+```
+
+**Q3.** Find employees along with their manager's name.
+
+```sql
+SELECT e.ename AS employee, m.ename AS manager
+FROM emp e
+LEFT JOIN emp m ON e.mgr = m.empno;
+```
+
+**Q4.** Get employee name, department name, and location for all employees in department 10 or 20.
+
+```sql
+SELECT e.ename, d.dname, d.loc
+FROM emp e
+JOIN dept d ON e.deptno = d.deptno
+WHERE e.deptno IN (10, 20)
+ORDER BY d.dname, e.ename;
+```
+
+**Q5.** Find pairs of employees who work in the same department (self-join).
+
+```sql
+SELECT a.ename AS emp1, b.ename AS emp2, a.deptno
+FROM emp a
+JOIN emp b ON a.deptno = b.deptno AND a.empno < b.empno
+ORDER BY a.deptno;
+```
+
+---
+
 ### JOIN Classification
 
 **ANSI JOINs** — Standard SQL syntax supported by all relational databases:
 
-| ANSI JOIN Type    | Description                                                                 |
-| ----------------- | --------------------------------------------------------------------------- |
-| `INNER JOIN`      | Returns only matching rows from both tables                                 |
-| `LEFT OUTER JOIN` | All rows from left + matched rows from right (NULL if no match)             |
-| `RIGHT OUTER JOIN`| All rows from right + matched rows from left (NULL if no match)             |
-| `FULL OUTER JOIN` | All rows from both tables (NULLs wherever no match)                         |
-| `CROSS JOIN`      | Cartesian product — every left row paired with every right row (m × n rows) |
-| `SELF JOIN`       | A table joined to itself using an alias (e.g., employee → manager hierarchy)|
+| ANSI JOIN Type     | Description                                                                  |
+| ------------------ | ---------------------------------------------------------------------------- |
+| `INNER JOIN`       | Returns only matching rows from both tables                                  |
+| `LEFT OUTER JOIN`  | All rows from left + matched rows from right (NULL if no match)              |
+| `RIGHT OUTER JOIN` | All rows from right + matched rows from left (NULL if no match)              |
+| `FULL OUTER JOIN`  | All rows from both tables (NULLs wherever no match)                          |
+| `CROSS JOIN`       | Cartesian product — every left row paired with every right row (m × n rows)  |
+| `SELF JOIN`        | A table joined to itself using an alias (e.g., employee → manager hierarchy) |
 
 **NON-ANSI JOINs** — Older or implicit join styles (still used but less explicit):
 
@@ -2466,12 +2998,12 @@ A **JOIN** combines rows from two or more tables based on a related column betwe
 >
 > **No — a PRIMARY KEY is NOT required to join tables.** You can join on any column(s) as long as the data types are compatible and the values logically relate the rows. However, joining on indexed columns (like PKs and FKs) is dramatically faster than joining on unindexed columns.
 >
-> | Scenario | Valid? | Notes |
-> |----------|--------|-------|
-> | JOIN on PK ↔ FK | ✅ Yes | Most common and best-practice pattern |
-> | JOIN on any non-key column | ✅ Yes | Works, but no index → full table scan risk |
-> | JOIN on two PKs (different tables) | ✅ Yes | Used in many-to-many junction tables |
-> | JOIN without any shared key | ✅ Yes | CROSS JOIN or NON-EQUI JOIN (e.g., range lookups) |
+> | Scenario                           | Valid? | Notes                                             |
+> | ---------------------------------- | ------ | ------------------------------------------------- |
+> | JOIN on PK ↔ FK                    | ✅ Yes | Most common and best-practice pattern             |
+> | JOIN on any non-key column         | ✅ Yes | Works, but no index → full table scan risk        |
+> | JOIN on two PKs (different tables) | ✅ Yes | Used in many-to-many junction tables              |
+> | JOIN without any shared key        | ✅ Yes | CROSS JOIN or NON-EQUI JOIN (e.g., range lookups) |
 >
 > **Best practice:** Always join on indexed columns. A FK column automatically creates a relational link, but you still need a manual index on it in PostgreSQL (`REFERENCES` does not auto-create an index on the FK side — only on the PK side).
 
@@ -2743,10 +3275,10 @@ WHERE  e.department_id  = d.department_id
 AND    d.location_id    = l.location_id;
 ```
 
-| Style | Syntax | Keyword Required? |
-|-------|--------|-------------------|
-| Old-style (NON-ANSI) | `FROM t1, t2 WHERE t1.col = t2.col` | ❌ No JOIN keyword |
-| Modern (ANSI) | `FROM t1 JOIN t2 ON t1.col = t2.col` | ✅ JOIN keyword |
+| Style                | Syntax                               | Keyword Required?  |
+| -------------------- | ------------------------------------ | ------------------ |
+| Old-style (NON-ANSI) | `FROM t1, t2 WHERE t1.col = t2.col`  | ❌ No JOIN keyword |
+| Modern (ANSI)        | `FROM t1 JOIN t2 ON t1.col = t2.col` | ✅ JOIN keyword    |
 
 > Both styles produce identical results. Prefer the **modern ANSI style** in new code — it is more readable, easier to distinguish join conditions from filter conditions, and required for LEFT/RIGHT/FULL OUTER joins. Equi joins are the most common join type in practice. Virtually all FK-to-PK joins are equi joins.
 
@@ -2818,10 +3350,10 @@ FROM   orders o, promotions p
 WHERE  o.order_date BETWEEN p.start_date AND p.end_date;
 ```
 
-| Style | Syntax | Keyword Required? |
-|-------|--------|-------------------|
-| Old-style (NON-ANSI) | `FROM t1, t2 WHERE t1.col > t2.col` | ❌ No JOIN keyword |
-| Modern (ANSI) | `FROM t1 JOIN t2 ON t1.col > t2.col` | ✅ JOIN keyword |
+| Style                | Syntax                               | Keyword Required?  |
+| -------------------- | ------------------------------------ | ------------------ |
+| Old-style (NON-ANSI) | `FROM t1, t2 WHERE t1.col > t2.col`  | ❌ No JOIN keyword |
+| Modern (ANSI)        | `FROM t1 JOIN t2 ON t1.col > t2.col` | ✅ JOIN keyword    |
 
 > NON-EQUI JOINs can produce large result sets — every row that satisfies the inequality is matched. For range lookups (`BETWEEN`), ensure the range columns are indexed to avoid full table scans.
 
@@ -3032,6 +3564,8 @@ CROSS JOIN LATERAL (
 ---
 
 ## 10. Aggregations & Grouping
+
+[↑ Back to Index](#table-of-contents)
 
 ### What is Aggregation?
 
@@ -3331,7 +3865,65 @@ GROUP BY CUBE (department_id, gender);
 
 ---
 
+### Practice Questions — Aggregations & Grouping
+
+**Q1.** Find the total salary, average salary, and headcount per department.
+
+```sql
+SELECT deptno,
+       COUNT(*)         AS headcount,
+       SUM(salary)      AS total_salary,
+       ROUND(AVG(salary), 2) AS avg_salary
+FROM emp
+GROUP BY deptno
+ORDER BY deptno;
+```
+
+**Q2.** Find departments where the average salary is greater than 2000.
+
+```sql
+SELECT deptno, ROUND(AVG(salary), 2) AS avg_salary
+FROM emp
+GROUP BY deptno
+HAVING AVG(salary) > 2000;
+```
+
+**Q3.** Count the number of male and female employees per department in one query.
+
+```sql
+SELECT deptno,
+       COUNT(CASE WHEN gender = 'Male'   THEN 1 END) AS male_count,
+       COUNT(CASE WHEN gender = 'Female' THEN 1 END) AS female_count
+FROM emp
+GROUP BY deptno;
+```
+
+**Q4.** Get the highest and lowest salary per job role, only for roles with more than 2 employees.
+
+```sql
+SELECT job,
+       MAX(salary) AS max_sal,
+       MIN(salary) AS min_sal,
+       COUNT(*)    AS cnt
+FROM emp
+GROUP BY job
+HAVING COUNT(*) > 2;
+```
+
+**Q5.** Use ROLLUP to get salary totals per department, per job, and a grand total.
+
+```sql
+SELECT deptno, job, SUM(salary) AS total
+FROM emp
+GROUP BY ROLLUP (deptno, job)
+ORDER BY deptno NULLS LAST, job NULLS LAST;
+```
+
+---
+
 ## 11. Subqueries
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -3518,7 +4110,111 @@ LIMIT 10;
 
 ---
 
+### Practice Questions — Subqueries
+
+**Q1.** Find employees who earn more than the company's average salary.
+
+```sql
+SELECT ename, salary
+FROM emp
+WHERE salary > (SELECT AVG(salary) FROM emp);
+```
+
+**Q2.** Find the department name of the employee with the highest salary.
+
+```sql
+SELECT dname
+FROM dept
+WHERE deptno = (
+  SELECT deptno FROM emp
+  ORDER BY salary DESC
+  LIMIT 1
+);
+```
+
+**Q3.** Find employees who are managers (appear as mgr of someone else).
+
+```sql
+-- Using IN
+SELECT ename FROM emp
+WHERE empno IN (SELECT DISTINCT mgr FROM emp WHERE mgr IS NOT NULL);
+
+-- Using EXISTS (safer)
+SELECT e.ename FROM emp e
+WHERE EXISTS (
+  SELECT 1 FROM emp sub WHERE sub.mgr = e.empno
+);
+```
+
+**Q4.** Find employees who earn more than the average salary in their own department.
+
+```sql
+SELECT e.ename, e.salary, e.deptno
+FROM emp e
+JOIN (
+  SELECT deptno, AVG(salary) AS dept_avg
+  FROM emp
+  GROUP BY deptno
+) d ON e.deptno = d.deptno
+WHERE e.salary > d.dept_avg;
+```
+
+**Q5.** Find employees NOT in any department that has a manager.
+
+```sql
+SELECT ename FROM emp
+WHERE deptno NOT IN (
+  SELECT DISTINCT deptno FROM emp WHERE mgr IS NOT NULL
+);
+```
+
+**Q6.** Find the employee with the highest salary from the `Employee` table using a subquery (avoid hardcoding the value).
+
+```sql
+-- Wrong approach (hardcoded — breaks when data changes):
+SELECT * FROM Employee WHERE Salary = 100000;
+
+-- Correct approach (dynamic subquery):
+SELECT * FROM Employee
+WHERE Salary = (SELECT MAX(Salary) FROM Employee);
+```
+
+**Q7.** Find the employee with the **second-highest** salary.
+
+```sql
+-- Method 1: nested MAX — find the max salary that is less than the overall max
+SELECT * FROM Employee
+WHERE Salary = (
+  SELECT MAX(Salary) FROM Employee
+  WHERE Salary < (SELECT MAX(Salary) FROM Employee)
+);
+
+-- Method 2: OFFSET (skip the top row)
+SELECT * FROM Employee
+ORDER BY Salary DESC
+LIMIT 1 OFFSET 1;
+
+-- Method 3: DENSE_RANK window function (handles ties correctly)
+SELECT * FROM (
+  SELECT *, DENSE_RANK() OVER (ORDER BY Salary DESC) AS rnk
+  FROM Employee
+) ranked
+WHERE rnk = 2;
+```
+
+**Q8.** Find employees who have the **same role as 'Rizwan'** AND earn **more than Rizwan**.
+
+```sql
+SELECT * FROM Employee
+WHERE Role = (SELECT Role FROM Employee WHERE Name = 'Rizwan')
+  AND Salary > (SELECT Salary FROM Employee WHERE Name = 'Rizwan');
+```
+
+---
+
 ## 12. Built-in Functions
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -3537,6 +4233,19 @@ graph TD
     style CF fill:#ffa94d,color:#fff
     style UP fill:#ff6b6b,color:#fff
 ```
+
+### System-Defined vs User-Defined Functions
+
+| Type               | Description                                            | Examples                                                       |
+| ------------------ | ------------------------------------------------------ | -------------------------------------------------------------- |
+| **System-Defined** | Built into PostgreSQL — available without any setup    | `ROUND()`, `NOW()`, `LENGTH()`, `COALESCE()`, `CAST()`         |
+| **User-Defined**   | Written by you using PL/pgSQL, SQL, or other languages | `get_full_name()`, `calculate_bonus()`, `get_dept_employees()` |
+
+- **System-defined functions** (also called built-in functions) are shipped with PostgreSQL and cover numeric, string, date/time, conditional, conversion, and aggregate operations
+- **User-defined functions (UDFs)** are custom functions you create using `CREATE FUNCTION` — covered in detail in [Section 23](#23-functions)
+- Both types are called the same way: `function_name(arguments)` in SQL
+
+---
 
 ### Numeric Functions
 
@@ -3635,16 +4344,80 @@ Date/time handling is notoriously tricky in databases. Timezone mismatches, DST 
 
 ```sql
 -- Current date and time
-SELECT NOW();               -- current timestamp with timezone
-SELECT CURRENT_TIMESTAMP;   -- same as NOW()
-SELECT CURRENT_DATE;        -- date portion only (e.g., 2026-03-10)
-SELECT CURRENT_TIME;        -- time portion only
+SELECT CURRENT_TIMESTAMP;   -- timestamp with timezone (same as NOW())
+SELECT NOW();                -- timestamp with timezone
+SELECT CURRENT_DATE;         -- date only (e.g., 2026-03-13)
+SELECT CURRENT_TIME;         -- time only
+
+-- Adding/subtracting plain integer days (integer shorthand)
+SELECT CURRENT_DATE + 10;    -- 10 days from today
+SELECT CURRENT_DATE + 30;    -- 30 days from today
+SELECT CURRENT_DATE - 30;    -- 30 days ago
+
+-- Adding months using INTERVAL
+SELECT CURRENT_DATE + INTERVAL '1 month';   -- one month from today
+SELECT CURRENT_DATE + INTERVAL '2 month';   -- two months from today
+SELECT CURRENT_DATE + INTERVAL '3 months 15 days';  -- combined
+
+-- Last day of the current month
+-- Strategy: go to first of month → add 1 month → subtract 1 day → cast to DATE
+SELECT (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')::DATE
+  AS last_day_of_month;
+-- e.g. March 2026 → 2026-03-31
+
+-- Last day of any specific month
+SELECT (DATE_TRUNC('month', '2026-02-10'::DATE) + INTERVAL '1 month - 1 day')::DATE;
+-- → 2026-02-28 (handles leap years automatically)
 
 -- EXTRACT: get a specific component from a date/timestamp
-SELECT EXTRACT(YEAR   FROM hire_date)     AS hire_year  FROM employees;
-SELECT EXTRACT(MONTH  FROM hire_date)     AS hire_month FROM employees;
-SELECT EXTRACT(DOW    FROM CURRENT_DATE); -- day of week (0=Sunday, 6=Saturday)
-SELECT EXTRACT(EPOCH  FROM NOW());        -- seconds since Unix epoch (useful for APIs)
+-- Syntax: EXTRACT(field FROM date/timestamp/interval)
+-- Always returns a NUMERIC value
+
+SELECT EXTRACT(YEAR        FROM NOW());          -- → 2026
+SELECT EXTRACT(MONTH       FROM NOW());          -- → 3  (March)
+SELECT EXTRACT(DAY         FROM NOW());          -- → 13
+SELECT EXTRACT(HOUR        FROM NOW());          -- → 14 (24-hour)
+SELECT EXTRACT(MINUTE      FROM NOW());          -- → 30
+SELECT EXTRACT(SECOND      FROM NOW());          -- → 45.123 (with fractions)
+SELECT EXTRACT(DOW         FROM NOW());          -- → 5  (0=Sun, 1=Mon … 6=Sat)
+SELECT EXTRACT(DOY         FROM NOW());          -- → 72 (day of year, 1–365)
+SELECT EXTRACT(WEEK        FROM NOW());          -- → 11 (ISO week number)
+SELECT EXTRACT(QUARTER     FROM NOW());          -- → 1  (Q1 = Jan–Mar)
+SELECT EXTRACT(EPOCH       FROM NOW());          -- → seconds since 1970-01-01 UTC
+SELECT EXTRACT(TIMEZONE    FROM NOW());          -- → offset in seconds from UTC
+SELECT EXTRACT(MILLISECONDS FROM NOW());         -- → ms part (0–999)
+SELECT EXTRACT(MICROSECONDS FROM NOW());         -- → µs part
+
+-- Practical examples on table columns
+SELECT EXTRACT(YEAR  FROM hire_date) AS hire_year  FROM employees;
+SELECT EXTRACT(MONTH FROM hire_date) AS hire_month FROM employees;
+SELECT EXTRACT(DAY   FROM hire_date) AS hire_day   FROM employees;
+SELECT EXTRACT(HOUR  FROM created_at) AS created_hour FROM orders;
+
+-- date_part() — older function, identical behaviour to EXTRACT
+SELECT DATE_PART('year',  NOW());    -- → 2026  (same as EXTRACT)
+SELECT DATE_PART('month', NOW());    -- → 3
+SELECT DATE_PART('day',   NOW());    -- → 13
+
+-- EXTRACT field reference
+-- ┌──────────────┬────────────────────────────────────────┐
+-- │ Field        │ Description                            │
+-- ├──────────────┼────────────────────────────────────────┤
+-- │ YEAR         │ 4-digit year                           │
+-- │ MONTH        │ 1–12                                   │
+-- │ DAY          │ 1–31                                   │
+-- │ HOUR         │ 0–23                                   │
+-- │ MINUTE       │ 0–59                                   │
+-- │ SECOND       │ 0–59.999…                              │
+-- │ MILLISECONDS │ 0–999 ms portion                       │
+-- │ MICROSECONDS │ 0–999999 µs portion                    │
+-- │ DOW          │ Day of week: 0=Sun … 6=Sat             │
+-- │ ISODOW       │ ISO day of week: 1=Mon … 7=Sun         │
+-- │ DOY          │ Day of year: 1–365 (366 in leap year)  │
+-- │ WEEK         │ ISO week number: 1–53                  │
+-- │ QUARTER      │ 1–4                                    │
+-- │ EPOCH        │ Seconds since 1970-01-01 00:00:00 UTC  │
+-- └──────────────┴────────────────────────────────────────┘
 
 -- DATE_TRUNC: truncate to a time precision boundary
 SELECT DATE_TRUNC('month', CURRENT_DATE);  -- → first day of current month
@@ -3762,7 +4535,172 @@ DO UPDATE SET
 
 ---
 
+### Conversion Functions
+
+Conversion functions change a value from one data type to another. PostgreSQL provides two syntaxes for casting, plus dedicated formatting functions.
+
+#### CAST and :: Operator
+
+```sql
+-- CAST(value AS type) — SQL standard syntax
+SELECT CAST('123' AS INTEGER);           -- → 123 (text to integer)
+SELECT CAST(123 AS TEXT);               -- → '123' (integer to text)
+SELECT CAST('2026-03-12' AS DATE);      -- → 2026-03-12 (text to date)
+SELECT CAST(9.99 AS INTEGER);           -- → 10 (numeric to integer, rounds)
+SELECT CAST(TRUE AS INTEGER);           -- → 1 (boolean to integer)
+
+-- :: operator — PostgreSQL shorthand for CAST (preferred in practice)
+SELECT '123'::INTEGER;                  -- → 123
+SELECT 123::TEXT;                       -- → '123'
+SELECT '2026-03-12'::DATE;             -- → 2026-03-12
+SELECT '3.14'::NUMERIC;               -- → 3.14
+SELECT NOW()::DATE;                    -- → today's date (strips time)
+SELECT salary::TEXT FROM employees;    -- numeric column → text
+```
+
+#### TO_CHAR — Number / Date → Formatted String
+
+`TO_CHAR` converts a number or date/timestamp into a **formatted string** using a format mask.
+
+```sql
+-- Date formatting
+SELECT TO_CHAR(NOW(), 'DD-MON-YYYY');             -- → '12-MAR-2026'
+SELECT TO_CHAR(NOW(), 'DD/MM/YYYY HH24:MI:SS');  -- → '12/03/2026 14:30:00'
+SELECT TO_CHAR(NOW(), 'Day, DD Month YYYY');      -- → 'Thursday, 12 March 2026'
+SELECT TO_CHAR(hire_date, 'YYYY-MM-DD') FROM employees;
+
+-- Number formatting
+SELECT TO_CHAR(1234567.89, '99,999,999.00');      -- → '1,234,567.89'
+SELECT TO_CHAR(0.75, 'FM990.00%');                -- → '75.00%'
+SELECT TO_CHAR(salary, 'L99,999.00') FROM employees;  -- L = locale currency symbol
+```
+
+| Format Pattern | Meaning                                     |
+| -------------- | ------------------------------------------- |
+| `DD`           | Day (01–31)                                 |
+| `MM`           | Month number (01–12)                        |
+| `MON`          | Abbreviated month name (JAN, FEB…)          |
+| `Month`        | Full month name                             |
+| `YYYY`         | 4-digit year                                |
+| `HH24`         | Hour in 24-hour format                      |
+| `MI`           | Minutes                                     |
+| `SS`           | Seconds                                     |
+| `9`            | Digit position (suppresses leading zeros)   |
+| `0`            | Digit position (keeps leading zeros)        |
+| `FM`           | Fill mode — removes leading/trailing spaces |
+
+#### TO_NUMBER — Formatted String → Number
+
+```sql
+-- TO_NUMBER(string, format)
+SELECT TO_NUMBER('1,234.56', '9,999.99');    -- → 1234.56
+SELECT TO_NUMBER('$9,999.00', 'L9,999.99'); -- → 9999.00
+SELECT TO_NUMBER('75%', '999%');             -- → 75
+```
+
+#### TO_DATE — Formatted String → Date
+
+```sql
+-- TO_DATE(string, format)
+SELECT TO_DATE('12-03-2026', 'DD-MM-YYYY');        -- → 2026-03-12
+SELECT TO_DATE('March 12 2026', 'Month DD YYYY');  -- → 2026-03-12
+SELECT TO_DATE('12/Mar/26', 'DD/Mon/YY');          -- → 2026-03-12
+
+-- Common use: storing dates received as strings from user input or APIs
+INSERT INTO events (event_date)
+VALUES (TO_DATE('12-03-2026', 'DD-MM-YYYY'));
+```
+
+#### TO_TIMESTAMP — Formatted String → Timestamp
+
+```sql
+SELECT TO_TIMESTAMP('2026-03-12 14:30:00', 'YYYY-MM-DD HH24:MI:SS');
+-- → 2026-03-12 14:30:00
+
+SELECT TO_TIMESTAMP('12/03/2026 02:30 PM', 'DD/MM/YYYY HH:MI AM');
+-- → 2026-03-12 14:30:00
+```
+
+#### Quick Reference — Conversion Summary
+
+| Goal                           | Function / Syntax                                        |
+| ------------------------------ | -------------------------------------------------------- |
+| Text → Integer                 | `'42'::INTEGER` or `CAST('42' AS INTEGER)`               |
+| Integer → Text                 | `42::TEXT` or `CAST(42 AS TEXT)`                         |
+| Text → Date                    | `TO_DATE('12-03-2026', 'DD-MM-YYYY')`                    |
+| Text → Timestamp               | `TO_TIMESTAMP('2026-03-12 14:30', 'YYYY-MM-DD HH24:MI')` |
+| Date/Number → Formatted String | `TO_CHAR(value, 'format')`                               |
+| Formatted String → Number      | `TO_NUMBER('1,234.56', '9,999.99')`                      |
+| Timestamp → Date only          | `NOW()::DATE`                                            |
+| Numeric → Integer (truncate)   | `TRUNC(9.9)::INTEGER` → `9`                              |
+
+> **Tip:** Use `::` in everyday queries (cleaner), `CAST()` when writing SQL that needs to be portable across databases.
+
+---
+
+### Practice Questions — Built-in Functions
+
+**Q1.** Display each employee's monthly salary (annual / 12) rounded to 2 decimal places.
+
+```sql
+SELECT ename, salary, ROUND(salary / 12.0, 2) AS monthly_sal FROM emp;
+```
+
+**Q2.** Display employee names in UPPER case and show the length of each name.
+
+```sql
+SELECT UPPER(ename) AS name_upper, LENGTH(ename) AS name_length FROM emp;
+```
+
+**Q3.** Get employees hired in the year 1982 using `TO_CHAR`.
+
+```sql
+SELECT * FROM emp
+WHERE TO_CHAR(hiredate, 'YYYY') = '1982';
+```
+
+**Q4.** Get employees hired in the years 1987, 1982, or 1980 from IT, HR, or Finance.
+
+```sql
+SELECT * FROM emp
+WHERE TO_CHAR(hiredate, 'YYYY') IN ('1987', '1982', '1980')
+  AND deptno IN (
+    SELECT deptno FROM dept WHERE dname IN ('IT', 'HR', 'Finance')
+  );
+```
+
+**Q5.** Display hire dates formatted as `DD-Month-YYYY` and calculate tenure in years.
+
+```sql
+SELECT
+  ename,
+  TO_CHAR(hiredate, 'DD-Month-YYYY')                    AS hire_formatted,
+  EXTRACT(YEAR FROM AGE(CURRENT_DATE, hiredate))::INT   AS years_of_service
+FROM emp;
+```
+
+**Q6.** Replace NULL commission values with 0, then calculate total compensation.
+
+```sql
+SELECT
+  ename,
+  salary,
+  COALESCE(comm, 0)           AS commission,
+  salary + COALESCE(comm, 0)  AS total_comp
+FROM emp;
+```
+
+**Q7.** Convert the string `'12-03-2026'` to a DATE and add 90 days to it.
+
+```sql
+SELECT TO_DATE('12-03-2026', 'DD-MM-YYYY') + INTERVAL '90 days' AS future_date;
+```
+
+---
+
 ## 13. Indexes & Performance
+
+[↑ Back to Index](#table-of-contents)
 
 ### What is an Index and Why Does It Exist?
 
@@ -4121,6 +5059,8 @@ DROP TABLE orders_2024;
 
 ## 14. Transactions & Concurrency (Extended)
 
+[↑ Back to Index](#table-of-contents)
+
 > The basic TCL commands (BEGIN, COMMIT, ROLLBACK, SAVEPOINT) are covered in Section 4. This section covers the critical advanced topics: ACID deep dive, isolation levels, locking, and deadlocks.
 
 ### ACID Properties — Deep Dive
@@ -4275,7 +5215,54 @@ WHERE blocked.wait_event_type = 'Lock';
 
 ---
 
+### Practice Questions — Transactions & Concurrency
+
+**Q1.** Transfer 500 salary from emp 7369 to emp 7788 atomically using a transaction.
+
+```sql
+BEGIN;
+  UPDATE emp SET salary = salary - 500 WHERE empno = 7369;
+  UPDATE emp SET salary = salary + 500 WHERE empno = 7788;
+COMMIT;
+```
+
+**Q2.** Insert two employees but roll back only the second one using SAVEPOINT.
+
+```sql
+BEGIN;
+  INSERT INTO emp (ename, salary, deptno) VALUES ('Alice', 3000, 10);
+  SAVEPOINT sp1;
+  INSERT INTO emp (ename, salary, deptno) VALUES ('Bad',   -999, 99);  -- bad data
+  ROLLBACK TO SAVEPOINT sp1;
+COMMIT;
+-- Alice is committed; Bad row is rolled back
+```
+
+**Q3.** Lock a row with `FOR UPDATE` before updating it (prevent race conditions).
+
+```sql
+BEGIN;
+  SELECT * FROM emp WHERE empno = 7369 FOR UPDATE;
+  -- now safe to update — no other session can modify this row
+  UPDATE emp SET salary = salary + 200 WHERE empno = 7369;
+COMMIT;
+```
+
+**Q4.** Use REPEATABLE READ isolation to ensure consistent reads across two SELECTs in the same transaction.
+
+```sql
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+  SELECT AVG(salary) FROM emp;  -- snapshot taken here
+  -- ... other work ...
+  SELECT AVG(salary) FROM emp;  -- same result, even if another session commits
+COMMIT;
+```
+
+---
+
 ## 15. Views
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -4392,6 +5379,61 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_department_summary;
 
 **Common mistake:** Not having a refresh strategy. Stale data in a materialized view causing confusing bugs is extremely common. Use `pg_cron` for scheduled refreshes, or trigger refreshes after significant data changes.
 
+#### generate_series — Bulk Data Insertion for Testing
+
+`generate_series(start, stop)` generates a sequence of integers (or timestamps). It is the standard PostgreSQL way to insert large volumes of test data.
+
+```sql
+-- Create a test table
+CREATE TABLE random_data (
+  id    INT,
+  value DECIMAL
+);
+
+-- Insert 1 million rows for id = 1
+INSERT INTO random_data
+SELECT 1, random()
+FROM generate_series(1, 1000000);
+
+-- Insert another 1 million rows for id = 2
+INSERT INTO random_data
+SELECT 2, random()
+FROM generate_series(1, 1000000);
+
+-- Verify counts
+SELECT id, COUNT(*)
+FROM random_data
+GROUP BY id;
+-- id=1 → 1000000, id=2 → 1000000
+
+-- Now create a materialized view that aggregates this large table
+CREATE MATERIALIZED VIEW mv_random_data AS
+SELECT id, COUNT(*) AS total
+FROM random_data
+GROUP BY id;
+
+SELECT * FROM mv_random_data;   -- fast — reads from cache
+
+-- Add more data (id = 3)
+INSERT INTO random_data
+SELECT 3, random()
+FROM generate_series(1, 1000000);
+
+-- Stale! mv_random_data still shows only id=1 and id=2
+-- Must refresh to include the new id=3 data:
+REFRESH MATERIALIZED VIEW mv_random_data;
+
+SELECT * FROM mv_random_data;   -- now shows id=1, id=2, id=3
+
+-- Note: you CANNOT delete from a materialized view directly
+-- delete from mv_random_data where id=3;  -- ERROR
+-- To remove data: delete from the base table, then REFRESH
+DELETE FROM random_data WHERE id = 3;
+REFRESH MATERIALIZED VIEW mv_random_data;
+```
+
+> `random()` returns a random FLOAT between 0.0 and 1.0. Combined with `generate_series`, this is the fastest way to create large datasets for testing index performance, query plans, or materialized view refresh timing.
+
 ---
 
 ### Security via Views
@@ -4413,7 +5455,53 @@ GRANT SELECT ON v_employee_directory TO hr_readonly_role;
 
 ---
 
+### Practice Questions — Views
+
+**Q1.** Create a view that shows employee name, department name, and salary for active employees only.
+
+```sql
+CREATE OR REPLACE VIEW v_active_emp AS
+SELECT e.ename, d.dname, e.salary
+FROM emp e
+JOIN dept d ON e.deptno = d.deptno
+WHERE e.is_active = TRUE;
+
+SELECT * FROM v_active_emp;
+```
+
+**Q2.** Create a view that hides the salary column (for non-HR users).
+
+```sql
+CREATE VIEW v_emp_directory AS
+SELECT empno, ename, job, deptno
+FROM emp;
+
+GRANT SELECT ON v_emp_directory TO public_role;
+```
+
+**Q3.** Create a materialized view for department salary summary and refresh it.
+
+```sql
+CREATE MATERIALIZED VIEW mv_dept_salary AS
+SELECT deptno,
+       COUNT(*)              AS headcount,
+       ROUND(AVG(salary), 2) AS avg_salary,
+       SUM(salary)           AS total_salary
+FROM emp
+GROUP BY deptno;
+
+-- Query (fast, reads from cache)
+SELECT * FROM mv_dept_salary;
+
+-- Refresh after data changes
+REFRESH MATERIALIZED VIEW mv_dept_salary;
+```
+
+---
+
 ## 16. Window Functions
+
+[↑ Back to Index](#table-of-contents)
 
 ### What is a Window Function?
 
@@ -4733,7 +5821,63 @@ ORDER BY c.country, country_rank;
 
 ---
 
+### Practice Questions — Window Functions
+
+**Q1.** Rank employees within each department by salary (highest first). Show all rows.
+
+```sql
+SELECT
+  ename, deptno, salary,
+  RANK() OVER (PARTITION BY deptno ORDER BY salary DESC) AS dept_rank
+FROM emp;
+```
+
+**Q2.** Get the top 2 earners in each department using DENSE_RANK.
+
+```sql
+SELECT * FROM (
+  SELECT
+    ename, deptno, salary,
+    DENSE_RANK() OVER (PARTITION BY deptno ORDER BY salary DESC) AS rnk
+  FROM emp
+) t
+WHERE rnk <= 2;
+```
+
+**Q3.** Show each employee's salary along with the department average and the difference.
+
+```sql
+SELECT
+  ename, deptno, salary,
+  ROUND(AVG(salary) OVER (PARTITION BY deptno), 2)         AS dept_avg,
+  salary - AVG(salary) OVER (PARTITION BY deptno)          AS diff
+FROM emp;
+```
+
+**Q4.** Calculate a running total of salary ordered by hire date.
+
+```sql
+SELECT
+  ename, hiredate, salary,
+  SUM(salary) OVER (ORDER BY hiredate) AS running_total
+FROM emp;
+```
+
+**Q5.** Show each employee's salary and the salary of the previous employee (ordered by salary).
+
+```sql
+SELECT
+  ename, salary,
+  LAG(salary)  OVER (ORDER BY salary) AS prev_salary,
+  LEAD(salary) OVER (ORDER BY salary) AS next_salary
+FROM emp;
+```
+
+---
+
 ## 17. CTEs & Advanced Querying
+
+[↑ Back to Index](#table-of-contents)
 
 ### What is a CTE?
 
@@ -4871,7 +6015,57 @@ graph TD
 
 ---
 
+### Practice Questions — CTEs
+
+**Q1.** Use a CTE to find departments where average salary is above the company average.
+
+```sql
+WITH dept_avg AS (
+  SELECT deptno, AVG(salary) AS avg_sal
+  FROM emp
+  GROUP BY deptno
+),
+company_avg AS (
+  SELECT AVG(salary) AS overall_avg FROM emp
+)
+SELECT d.deptno, d.avg_sal
+FROM dept_avg d, company_avg c
+WHERE d.avg_sal > c.overall_avg;
+```
+
+**Q2.** Use a recursive CTE to list all employees and their management chain level.
+
+```sql
+WITH RECURSIVE mgr_chain AS (
+  SELECT empno, ename, mgr, 0 AS level
+  FROM emp WHERE mgr IS NULL   -- top-level (no manager)
+  UNION ALL
+  SELECT e.empno, e.ename, e.mgr, m.level + 1
+  FROM emp e
+  JOIN mgr_chain m ON e.mgr = m.empno
+)
+SELECT empno, ename, level FROM mgr_chain ORDER BY level, ename;
+```
+
+**Q3.** Chain two CTEs: first get high earners, then count them per department.
+
+```sql
+WITH high_earners AS (
+  SELECT * FROM emp WHERE salary > 2000
+),
+dept_count AS (
+  SELECT deptno, COUNT(*) AS cnt
+  FROM high_earners
+  GROUP BY deptno
+)
+SELECT * FROM dept_count ORDER BY cnt DESC;
+```
+
+---
+
 ## 18. Control Structures
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 flowchart TD
@@ -5018,7 +6212,64 @@ $$;
 
 ---
 
+### Practice Questions — Control Structures
+
+**Q1.** Check an employee's salary and print a grade: A (>5000), B (3000-5000), C (<3000).
+
+```sql
+DO $$
+DECLARE
+  v_sal   NUMERIC := 4200;
+  v_grade TEXT;
+BEGIN
+  IF v_sal > 5000 THEN
+    v_grade := 'A';
+  ELSIF v_sal >= 3000 THEN
+    v_grade := 'B';
+  ELSE
+    v_grade := 'C';
+  END IF;
+  RAISE NOTICE 'Salary: %, Grade: %', v_sal, v_grade;
+END;
+$$;
+```
+
+**Q2.** Use a CASE expression to label employees as 'Manager', 'Analyst', or 'Staff' based on job.
+
+```sql
+SELECT ename, job,
+  CASE job
+    WHEN 'MANAGER'  THEN 'Manager'
+    WHEN 'ANALYST'  THEN 'Analyst'
+    ELSE 'Staff'
+  END AS role_label
+FROM emp;
+```
+
+**Q3.** Check if a department exists before inserting an employee; raise an error if not.
+
+```sql
+DO $$
+DECLARE
+  v_deptno INTEGER := 99;
+  v_count  INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO v_count FROM dept WHERE deptno = v_deptno;
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'Department % does not exist', v_deptno;
+  ELSE
+    INSERT INTO emp (ename, deptno) VALUES ('NewEmp', v_deptno);
+    RAISE NOTICE 'Employee inserted into dept %', v_deptno;
+  END IF;
+END;
+$$;
+```
+
+---
+
 ## 19. Loops
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -5202,7 +6453,75 @@ $$;
 
 ---
 
+### Practice Questions — Loops
+
+**Q1.** Print numbers 1 to 5 using a basic LOOP.
+
+```sql
+DO $$
+DECLARE v_i INTEGER := 1;
+BEGIN
+  LOOP
+    RAISE NOTICE 'Count: %', v_i;
+    v_i := v_i + 1;
+    EXIT WHEN v_i > 5;
+  END LOOP;
+END;
+$$;
+```
+
+**Q2.** Print the sum of all numbers from 1 to 100 using a WHILE loop.
+
+```sql
+DO $$
+DECLARE
+  v_i   INTEGER := 1;
+  v_sum INTEGER := 0;
+BEGIN
+  WHILE v_i <= 100 LOOP
+    v_sum := v_sum + v_i;
+    v_i   := v_i + 1;
+  END LOOP;
+  RAISE NOTICE 'Sum 1 to 100: %', v_sum;
+END;
+$$;
+```
+
+**Q3.** Use a FOR loop to iterate over all employees and print name + salary.
+
+```sql
+DO $$
+DECLARE
+  v_rec RECORD;
+BEGIN
+  FOR v_rec IN SELECT ename, salary FROM emp ORDER BY salary DESC LOOP
+    RAISE NOTICE 'Employee: %, Salary: %', v_rec.ename, v_rec.salary;
+  END LOOP;
+END;
+$$;
+```
+
+**Q4.** Loop through departments and print total salary per department.
+
+```sql
+DO $$
+DECLARE
+  v_rec RECORD;
+BEGIN
+  FOR v_rec IN
+    SELECT deptno, SUM(salary) AS total FROM emp GROUP BY deptno
+  LOOP
+    RAISE NOTICE 'Dept: %, Total Salary: %', v_rec.deptno, v_rec.total;
+  END LOOP;
+END;
+$$;
+```
+
+---
+
 ## 20. Cursors
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 flowchart LR
@@ -5377,7 +6696,49 @@ $$;
 
 ---
 
+### Practice Questions — Cursors
+
+**Q1.** Use an explicit cursor to fetch and print the name and salary of each employee.
+
+```sql
+DO $$
+DECLARE
+  CURSOR emp_cur IS SELECT ename, salary FROM emp;
+  v_rec emp_cur%ROWTYPE;
+BEGIN
+  OPEN emp_cur;
+  LOOP
+    FETCH emp_cur INTO v_rec;
+    EXIT WHEN NOT FOUND;
+    RAISE NOTICE 'Emp: %, Salary: %', v_rec.ename, v_rec.salary;
+  END LOOP;
+  CLOSE emp_cur;
+END;
+$$;
+```
+
+**Q2.** Use a cursor with a parameter to fetch employees from a specific department.
+
+```sql
+DO $$
+DECLARE
+  v_deptno INTEGER := 20;
+  v_rec    RECORD;
+BEGIN
+  FOR v_rec IN
+    SELECT ename, salary FROM emp WHERE deptno = v_deptno
+  LOOP
+    RAISE NOTICE 'Dept %: %, Salary: %', v_deptno, v_rec.ename, v_rec.salary;
+  END LOOP;
+END;
+$$;
+```
+
+---
+
 ## 21. Exceptions & Exception Handling
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 flowchart TD
@@ -5564,7 +6925,57 @@ $$;
 
 ---
 
+### Practice Questions — Exception Handling
+
+**Q1.** Fetch an employee by ID, and handle the `NO_DATA_FOUND` case gracefully.
+
+```sql
+DO $$
+DECLARE
+  v_ename emp.ename%TYPE;
+BEGIN
+  SELECT ename INTO STRICT v_ename FROM emp WHERE empno = 9999;
+  RAISE NOTICE 'Found: %', v_ename;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE NOTICE 'Employee not found.';
+END;
+$$;
+```
+
+**Q2.** Insert an employee and catch a duplicate primary key error.
+
+```sql
+DO $$
+BEGIN
+  INSERT INTO emp (empno, ename) VALUES (7369, 'DUPLICATE');
+EXCEPTION
+  WHEN UNIQUE_VIOLATION THEN
+    RAISE NOTICE 'Duplicate empno — insert skipped.';
+END;
+$$;
+```
+
+**Q3.** Raise a custom exception with a meaningful message and hint.
+
+```sql
+DO $$
+DECLARE
+  v_sal NUMERIC := -500;
+BEGIN
+  IF v_sal < 0 THEN
+    RAISE EXCEPTION 'Salary cannot be negative: %', v_sal
+      USING HINT = 'Provide a positive salary value';
+  END IF;
+END;
+$$;
+```
+
+---
+
 ## 22. Stored Procedures
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph LR
@@ -5724,7 +7135,52 @@ DROP PROCEDURE IF EXISTS update_salary(INTEGER, NUMERIC);
 
 ---
 
+### Practice Questions — Stored Procedures
+
+**Q1.** Create a procedure to give all employees in a department a salary raise by a given percentage.
+
+```sql
+CREATE OR REPLACE PROCEDURE raise_dept_salary(
+  p_deptno  INTEGER,
+  p_pct     NUMERIC
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE emp
+  SET salary = salary * (1 + p_pct / 100)
+  WHERE deptno = p_deptno;
+  RAISE NOTICE 'Salary raised by %% for dept %', p_pct, p_deptno;
+END;
+$$;
+
+CALL raise_dept_salary(20, 10);
+```
+
+**Q2.** Create a procedure to transfer an employee from one department to another.
+
+```sql
+CREATE OR REPLACE PROCEDURE transfer_employee(
+  p_empno      INTEGER,
+  p_new_deptno INTEGER
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE emp SET deptno = p_new_deptno WHERE empno = p_empno;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Employee % not found', p_empno;
+  END IF;
+  RAISE NOTICE 'Employee % transferred to dept %', p_empno, p_new_deptno;
+END;
+$$;
+
+CALL transfer_employee(7369, 30);
+```
+
+---
+
 ## 23. Functions
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -5900,7 +7356,68 @@ DROP FUNCTION IF EXISTS get_full_name(VARCHAR, VARCHAR);
 
 ---
 
+### Practice Questions — Functions
+
+**Q1.** Create a function that returns the annual salary of an employee given their empno.
+
+```sql
+CREATE OR REPLACE FUNCTION get_annual_salary(p_empno INTEGER)
+RETURNS NUMERIC
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_sal NUMERIC;
+BEGIN
+  SELECT salary INTO v_sal FROM emp WHERE empno = p_empno;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Employee % not found', p_empno;
+  END IF;
+  RETURN v_sal * 12;
+END;
+$$;
+
+SELECT get_annual_salary(7369);
+```
+
+**Q2.** Create a function that returns all employees in a given department as a table.
+
+```sql
+CREATE OR REPLACE FUNCTION get_dept_emp(p_deptno INTEGER)
+RETURNS TABLE(empno INTEGER, ename VARCHAR, salary NUMERIC)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+    SELECT e.empno, e.ename, e.salary
+    FROM emp e
+    WHERE e.deptno = p_deptno;
+END;
+$$;
+
+SELECT * FROM get_dept_emp(20);
+```
+
+**Q3.** Create a function to return a salary grade label (A/B/C) for a given salary.
+
+```sql
+CREATE OR REPLACE FUNCTION salary_grade(p_sal NUMERIC)
+RETURNS TEXT
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN CASE
+    WHEN p_sal > 5000 THEN 'A'
+    WHEN p_sal >= 3000 THEN 'B'
+    ELSE 'C'
+  END;
+END;
+$$;
+
+SELECT ename, salary, salary_grade(salary) AS grade FROM emp;
+```
+
+---
+
 ## 24. Packages & Schemas
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -5993,6 +7510,8 @@ SELECT get_salary(101);    -- resolves to hr_pkg.get_salary
 ---
 
 ## 25. Triggers
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 flowchart TD
@@ -6196,6 +7715,8 @@ WHERE  event_object_table = 'employees';
 ---
 
 ## 26. Collections
+
+[↑ Back to Index](#table-of-contents)
 
 ```mermaid
 graph TD
@@ -6407,6 +7928,8 @@ SELECT name FROM products WHERE attributes @> '{"brand": "Sony"}';
 
 ## 27. Backend Integration — Node.js Perspective
 
+[↑ Back to Index](#table-of-contents)
+
 ```mermaid
 flowchart LR
     CLIENT["Node.js App"] --> POOL["pg.Pool<br/>(Connection Pool)"]
@@ -6443,7 +7966,7 @@ const query = `SELECT * FROM users WHERE email = '${email}'`;
 // ALWAYS DO THIS — parameterized query ($1, $2, ...)
 const result = await pool.query(
   "SELECT * FROM users WHERE email = $1",
-  [email], // email is treated as pure data, never as SQL code
+  [email] // email is treated as pure data, never as SQL code
 );
 ```
 
@@ -6489,12 +8012,12 @@ try {
 
   await client.query(
     "UPDATE accounts SET balance = balance - $1 WHERE account_id = $2",
-    [amount, fromAccountId],
+    [amount, fromAccountId]
   );
 
   await client.query(
     "UPDATE accounts SET balance = balance + $1 WHERE account_id = $2",
-    [amount, toAccountId],
+    [amount, toAccountId]
   );
 
   await client.query("COMMIT");
@@ -6547,6 +8070,8 @@ SELECT * FROM products WHERE id > 450 ORDER BY id LIMIT 20;
 ---
 
 ## 28. Interview Preparation
+
+[↑ Back to Index](#table-of-contents)
 
 ### 25 SQL Interview Questions — Beginner to 3 YOE Level
 
@@ -6823,6 +8348,8 @@ This approach demonstrates not just SQL knowledge but engineering judgment — e
 
 ## 29. Jobs & Scheduled Tasks in PostgreSQL
 
+[↑ Back to Index](#table-of-contents)
+
 PostgreSQL doesn't have a built-in job scheduler in its core engine, but there are two primary approaches: **`pg_cron`** (an extension that runs SQL on a cron schedule inside the database) and the **job queue pattern** (a table-driven queue processed by external workers).
 
 ---
@@ -6878,7 +8405,7 @@ SELECT cron.schedule(
 #### Cron Expression Reference
 
 | Expression    | Meaning                  |
-|---------------|--------------------------|
+| ------------- | ------------------------ |
 | `* * * * *`   | Every minute             |
 | `*/5 * * * *` | Every 5 minutes          |
 | `0 * * * *`   | Every hour (on the hour) |
@@ -6914,14 +8441,14 @@ LIMIT 20;
 
 #### Common Use Cases for pg_cron
 
-| Task | Schedule |
-|------|----------|
-| Purge old logs / audit records | Daily at low-traffic hours |
-| Refresh materialized views | Hourly or every N minutes |
-| Archive old orders to history table | Nightly |
-| Send scheduled notification triggers | Every few minutes |
-| Vacuum / analyze specific tables | Weekly |
-| Expire sessions / tokens | Every 5–15 minutes |
+| Task                                 | Schedule                   |
+| ------------------------------------ | -------------------------- |
+| Purge old logs / audit records       | Daily at low-traffic hours |
+| Refresh materialized views           | Hourly or every N minutes  |
+| Archive old orders to history table  | Nightly                    |
+| Send scheduled notification triggers | Every few minutes          |
+| Vacuum / analyze specific tables     | Weekly                     |
+| Expire sessions / tokens             | Every 5–15 minutes         |
 
 ```sql
 -- Example: nightly archive of old orders
@@ -7053,15 +8580,15 @@ SELECT cron.schedule(
 
 ### pg_cron vs Job Queue — When to Use Which
 
-| Criteria | `pg_cron` | Job Queue Table |
-|----------|-----------|-----------------|
-| **Trigger** | Time-based (schedule) | Event-based (on-demand) |
-| **Retries** | No built-in retry | Full retry + back-off control |
-| **Priority** | No | Yes |
-| **Per-job tracking** | Basic (run history) | Full status per job |
-| **Worker language** | SQL only | Any language (Node.js, Python…) |
-| **Best for** | Maintenance, refreshes, archival | Email queues, report generation, async tasks |
-| **Complexity** | Low | Medium |
+| Criteria             | `pg_cron`                        | Job Queue Table                              |
+| -------------------- | -------------------------------- | -------------------------------------------- |
+| **Trigger**          | Time-based (schedule)            | Event-based (on-demand)                      |
+| **Retries**          | No built-in retry                | Full retry + back-off control                |
+| **Priority**         | No                               | Yes                                          |
+| **Per-job tracking** | Basic (run history)              | Full status per job                          |
+| **Worker language**  | SQL only                         | Any language (Node.js, Python…)              |
+| **Best for**         | Maintenance, refreshes, archival | Email queues, report generation, async tasks |
+| **Complexity**       | Low                              | Medium                                       |
 
 > **Combine both:** Use `pg_cron` for maintenance tasks (cleanup, refresh) and the job queue pattern for application-level async work (emails, notifications, report generation). They complement each other well.
 

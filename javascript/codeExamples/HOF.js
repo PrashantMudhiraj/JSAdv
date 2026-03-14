@@ -92,3 +92,58 @@ console.log(radius.calculate(area));
 
 // console.log(radius.map(diameter));
 // console.log(radius.calculate(diameter));
+
+// ─────────────────────────────────────────────
+//6. Function Composition
+// Building complex operations by chaining simpler, pure functions together.
+// Output of one function becomes the input of the next.
+// ─────────────────────────────────────────────
+
+// compose — right to left (f(g(h(x))))
+const compose =
+    (...fns) =>
+    (x) =>
+        fns.reduceRight((acc, fn) => fn(acc), x);
+
+// pipe — left to right (h(g(f(x))))  — more readable, same concept
+const pipe =
+    (...fns) =>
+    (x) =>
+        fns.reduce((acc, fn) => fn(acc), x);
+
+// Simple pure functions
+const double = (x) => x * 2;
+const addTen = (x) => x + 10;
+const square = (x) => x * x;
+
+// compose: square → addTen → double   (runs right to left)
+const transformCompose = compose(double, addTen, square);
+console.log(transformCompose(3)); // square(3)=9 → addTen(9)=19 → double(19)=38
+
+// pipe: double → addTen → square   (runs left to right)
+const transformPipe = pipe(double, addTen, square);
+console.log(transformPipe(3)); // double(3)=6 → addTen(6)=16 → square(16)=256
+
+// ── Practical example: string transformations ──
+const trim = (str) => str.trim();
+const toLowerCase = (str) => str.toLowerCase();
+const removeSpaces = (str) => str.replace(/\s+/g, "_");
+
+const slugify = pipe(trim, toLowerCase, removeSpaces);
+console.log(slugify("  Hello World  ")); // "hello_world"
+
+// ── Practical example: data pipeline with array methods ──
+const users = [
+    { name: "Prashant", age: 26, active: true },
+    { name: "Raju", age: 50, active: false },
+    { name: "Prabhas", age: 22, active: true },
+    { name: "Alice", age: 17, active: true },
+];
+
+const isActive = (users) => users.filter((u) => u.active);
+const isAdult = (users) => users.filter((u) => u.age >= 18);
+const getNames = (users) => users.map((u) => u.name);
+
+// pipe: filter active → filter adults → extract names
+const getActiveAdultNames = pipe(isActive, isAdult, getNames);
+console.log(getActiveAdultNames(users)); // ["Prashant", "Prabhas"]

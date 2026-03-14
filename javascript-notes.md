@@ -56,6 +56,10 @@
 
 ---
 
+# Phase 1 — How JavaScript Works
+
+---
+
 ## 1. JavaScript Execution Model
 
 JavaScript is a **single-threaded, synchronous** language at its core. This means the engine processes one instruction at a time, in the order they appear. There is no native multi-threading — the engine maintains a single call stack that handles one function execution at a time. If a function takes a long time to run, it blocks everything else.
@@ -566,6 +570,10 @@ Each function has its own `var x`, which is function-scoped and independent. The
 4. **What happens if you use `let` before its declaration?** — A `ReferenceError` because of the Temporal Dead Zone.
 
 [↑ Back to Index](#table-of-contents)
+
+---
+
+# Phase 2 — Functions & Core Patterns
 
 ---
 
@@ -1256,6 +1264,86 @@ Yes. ES Modules behave like closures at the file level. Variables declared at th
 5. **Iterators** — A function that maintains a pointer to the current position in a collection.
 6. **Partial Application / Currying** — Pre-filling arguments via closure.
 
+### V8 Memory & How Closures Are Stored
+
+#### Types of Memory in V8
+
+V8 manages memory in two main regions:
+
+**1. Stack (Call Stack)**
+
+- Stores **primitive values**, **function call frames**, and **local variables**
+- Fixed size, LIFO — automatically cleaned up when a function returns
+- Fast access
+
+```js
+function add(a, b) {
+    // a, b → stored on stack
+    let result = a + b; // result → stored on stack
+    return result; // frame popped after return
+}
+```
+
+**2. Heap**
+The heap is where **objects, arrays, functions, and closures** live. V8 divides it into:
+
+| Region                    | Purpose                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| **New Space** (Young Gen) | Newly created short-lived objects. Collected by **Scavenger GC**               |
+| **Old Space** (Old Gen)   | Objects that survived 2+ GC cycles. Collected by **Mark-Sweep / Mark-Compact** |
+| **Large Object Space**    | Objects too big for other spaces (never moved)                                 |
+| **Code Space**            | JIT-compiled machine code                                                      |
+| **Map Space**             | Object shape/structure metadata (hidden classes)                               |
+
+#### Where Variables Are Stored
+
+| What                                                        | Where                 |
+| ----------------------------------------------------------- | --------------------- |
+| Primitive local variables                                   | Stack                 |
+| Reference (pointer to object)                               | Stack                 |
+| Object / Array / Function data                              | Heap                  |
+| Captured closure variables                                  | Heap (Context object) |
+| `let`/`const`/`var` in a regular function (not closed over) | Stack                 |
+
+#### How Closures Are Stored in V8
+
+When a function references variables from its outer scope, V8 **moves those variables from the stack to the heap** — stored in a **Context object**:
+
+```js
+function outer() {
+    let count = 0; // normally on stack...
+    return function () {
+        // ...but inner fn closes over it
+        count++; // so `count` is MOVED to HEAP (Context object)
+        return count;
+    };
+}
+const fn = outer(); // outer() is done, but count survives on heap
+```
+
+**V8 internally creates a `Context` object on the heap:**
+
+```
+Context {
+    count: 0       ← captured variable lives here
+}
+↑
+inner function holds a [[Environment]] pointer to this Context
+```
+
+- Only variables **actually referenced** by the inner function are captured — the rest are garbage collected
+- Each call to `outer()` creates a **new, independent Context** on the heap
+- The Context stays alive as long as the inner function is reachable
+- When the inner function is no longer reachable, the Context is GC'd
+
+```
+stack                heap
+─────────────────    ──────────────────────────
+outer() frame  →     Context { count: 0 }
+  (popped)               ↑
+                     inner fn  ──── [[Environment]] pointer
+```
+
 ### Interview Questions — Closures
 
 1. **What is a closure?** — A function that retains access to variables from its lexical scope even after the outer function has returned. It bundles the function with its surrounding environment.
@@ -1266,6 +1354,7 @@ Yes. ES Modules behave like closures at the file level. Variables declared at th
 6. **How does garbage collection work with closures?** — Unreferenced variables in the outer scope are garbage collected. Only variables actually used by the inner function are retained.
 7. **What is the difference between scope and closure?** — Scope defines where variables are accessible during execution. A closure captures that scope so it persists after the defining function returns.
 8. **Are ES Modules closures?** — Yes. Module-scoped variables persist between imports, and exported functions close over the module's internal state.
+9. **How does V8 store closure variables?** — Captured variables are moved from the stack to a **Context object** on the heap. The inner function holds a `[[Environment]]` pointer to this Context, keeping it alive as long as the function is reachable.
 
 [↑ Back to Index](#table-of-contents)
 
@@ -1319,13 +1408,83 @@ console.log(radius.calculate(diameter));
 
 The `calculate` method is a custom implementation of `map` — it takes a transformation function and applies it to each element. This demonstrates how higher-order functions enable reusable, generic logic. The same `calculate` method works with `area`, `circumference`, or `diameter` — the specific behavior is injected through the callback.
 
+---
+
+### Function Composition
+
+**Function composition** is the process of combining two or more functions so the output of one becomes the input of the next. It is the core idea behind building complex logic from small, reusable, pure functions.
+
+- **`compose`** — runs functions **right to left**: `compose(f, g, h)(x)` = `f(g(h(x)))`
+- **`pipe`** — runs functions **left to right**: `pipe(f, g, h)(x)` = `h(g(f(x)))`
+
+```js
+// compose — right to left
+const compose =
+    (...fns) =>
+    (x) =>
+        fns.reduceRight((acc, fn) => fn(acc), x);
+
+// pipe — left to right (more readable)
+const pipe =
+    (...fns) =>
+    (x) =>
+        fns.reduce((acc, fn) => fn(acc), x);
+
+// Simple pure functions
+const double = (x) => x * 2;
+const addTen = (x) => x + 10;
+const square = (x) => x * x;
+
+// compose: runs square → addTen → double (right to left)
+const transformCompose = compose(double, addTen, square);
+console.log(transformCompose(3)); // square(3)=9 → addTen(9)=19 → double(19)=38
+
+// pipe: runs double → addTen → square (left to right)
+const transformPipe = pipe(double, addTen, square);
+console.log(transformPipe(3)); // double(3)=6 → addTen(6)=16 → square(16)=256
+```
+
+**Practical — string `slugify` pipeline:**
+
+```js
+const trim = (str) => str.trim();
+const toLowerCase = (str) => str.toLowerCase();
+const removeSpaces = (str) => str.replace(/\s+/g, "_");
+
+const slugify = pipe(trim, toLowerCase, removeSpaces);
+console.log(slugify("  Hello World  ")); // "hello_world"
+```
+
+**Practical — data pipeline (filter → filter → map):**
+
+```js
+const users = [
+    { name: "Prashant", age: 26, active: true },
+    { name: "Raju", age: 50, active: false },
+    { name: "Prabhas", age: 22, active: true },
+    { name: "Alice", age: 17, active: true },
+];
+
+const isActive = (users) => users.filter((u) => u.active);
+const isAdult = (users) => users.filter((u) => u.age >= 18);
+const getNames = (users) => users.map((u) => u.name);
+
+const getActiveAdultNames = pipe(isActive, isAdult, getNames);
+console.log(getActiveAdultNames(users)); // ["Prashant", "Prabhas"]
+```
+
+Each step is a **pure function** that does one thing. `pipe` wires them together without nesting callbacks or chaining methods directly.
+
+---
+
 ### Interview Questions — HOF & Functional Programming
 
 1. **What is a higher-order function?** — A function that takes another function as an argument or returns a function.
 2. **What is a pure function?** — A function that always returns the same output for the same input and has no side effects (no mutation of external state).
 3. **Why is immutability important in functional programming?** — It prevents unexpected state changes, makes code predictable, and eliminates entire classes of bugs related to shared mutable state.
 4. **How would you implement your own `map` function?** — Create a function that iterates over an array, applies a callback to each element, and pushes results into a new array (like the `calculate` function in the codebase).
-5. **Give an example of function composition.** — Chaining `.filter().map().reduce()` where the output of one operation feeds into the next.
+5. **What is function composition?** — Combining small pure functions so the output of one becomes the input of the next. Implemented as `compose` (right-to-left) or `pipe` (left-to-right) using `reduceRight`/`reduce`.
+6. **What is the difference between `compose` and `pipe`?** — Both combine functions, but `compose` executes right-to-left (mathematical style) while `pipe` executes left-to-right (more readable for data pipelines).
 
 [↑ Back to Index](#table-of-contents)
 
@@ -1393,6 +1552,10 @@ The `memoize` wrapper uses a `Map` as a cache. The key is the stringified argume
 5. **When should you NOT use memoization?** — When function results change over time (impure functions), when the argument space is too large (memory issues), or when the function is already fast.
 
 [↑ Back to Index](#table-of-contents)
+
+---
+
+# Phase 3 — Objects & Prototypes
 
 ---
 
@@ -1835,6 +1998,10 @@ const fromMap = Object.fromEntries(map); // { x: 1, y: 2 }
 
 ---
 
+# Phase 4 — Built-in Data Types & Methods
+
+---
+
 ## 15. Array Methods — map, filter, reduce & More
 
 Arrays are the most commonly used data structure in JavaScript, and the language provides a rich set of built-in methods on `Array.prototype`. These methods are higher-order functions that accept callbacks and are the backbone of functional data transformation.
@@ -2120,6 +2287,10 @@ All typed array views share the same `ArrayBuffer`. Writing `data.int_16[0] = 64
 
 ---
 
+# Phase 5 — ES6+ & Modules
+
+---
+
 ## 19. ES6+ Features — Spread, Rest, Destructuring & More
 
 ES6 (ECMAScript 2015) and later versions introduced many features that made JavaScript more expressive and concise.
@@ -2375,6 +2546,10 @@ The repository uses `await` at the top level in `_PromiseAPIS.js` (without wrapp
 4. **What is top-level `await`?** — The ability to use `await` directly in a module's top-level code without wrapping it in an `async` function.
 
 [↑ Back to Index](#table-of-contents)
+
+---
+
+# Phase 6 — Asynchronous JavaScript
 
 ---
 

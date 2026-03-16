@@ -10,7 +10,7 @@
 **Phase 1 — How JavaScript Works**
 
 1. [JavaScript Execution Model](#1-javascript-execution-model)
-2. [Execution Context & Call Stack](#2-execution-context-call-stack)
+2. [Execution Context & Call Stack](#2-execution-context--call-stack)
 3. [Hoisting](#3-hoisting)
 4. [Scope — Lexical Scope, Scope Chain & Block Scope](#4-scope--lexical-scope-scope-chain--block-scope)
 5. [Variable Declarations — var, let, const](#5-variable-declarations--var-let-const)
@@ -22,12 +22,12 @@
 8. [The `this` Keyword](#8-the-this-keyword)
 9. [Closures](#9-closures)
 10. [Higher-Order Functions & Functional Programming](#10-higher-order-functions--functional-programming)
-11. [Function Currying & Memoization](#11-function-currying-memoization)
+11. [Function Currying & Memoization](#11-function-currying--memoization)
 
 **Phase 3 — Objects & Prototypes**
 
-12. [Prototypes & Inheritance](#12-prototypes-inheritance)
-13. [Property Descriptors & Object Immutability](#13-property-descriptors-object-immutability)
+12. [Prototypes & Inheritance](#12-prototypes--inheritance)
+13. [Property Descriptors & Object Immutability](#13-property-descriptors--object-immutability)
 14. [Object Methods](#14-object-methods)
 
 **Phase 4 — Built-in Data Types & Methods**
@@ -35,21 +35,21 @@
 15. [Array Methods — map, filter, reduce & More](#15-array-methods--map-filter-reduce--more)
 16. [String Methods](#16-string-methods)
 17. [Iterators & the `for...of` Loop](#17-iterators--the-forof-loop)
-18. [Typed Arrays & Buffers](#18-typed-arrays-buffers)
+18. [Typed Arrays & Buffers](#18-typed-arrays--buffers)
 
 **Phase 5 — ES6+ & Modules**
 
 19. [ES6+ Features — Spread, Rest, Destructuring & More](#19-es6-features--spread-rest-destructuring--more)
-20. [Template Literals & Tagged Templates](#20-template-literals-tagged-templates)
+20. [Template Literals & Tagged Templates](#20-template-literals--tagged-templates)
 21. [ES Modules](#21-es-modules)
 
 **Phase 6 — Asynchronous JavaScript**
 
-22. [Callbacks & Callback Hell](#22-callbacks-callback-hell)
+22. [Callbacks & Callback Hell](#22-callbacks--callback-hell)
 23. [Promises](#23-promises)
 24. [Promise Internals — Deep Dive](#24-promise-internals--deep-dive)
-25. [Promise Combinators — all, allSettled, race, any](#25-promise-combinators-all-allsettled-race-any)
-26. [Async / Await](#26-async-await)
+25. [Promise Combinators — all, allSettled, race, any](#25-promise-combinators--all-allsettled-race-any)
+26. [Async / Await](#26-async--await)
 27. [The Event Loop](#27-the-event-loop)
 28. [Node.js Event Loop — Deep Dive](#28-nodejs-event-loop--deep-dive)
 29. [Async Pitfalls & Production Patterns](#29-async-pitfalls--production-patterns)

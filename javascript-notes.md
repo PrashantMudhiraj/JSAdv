@@ -126,6 +126,56 @@ console.log(square2, square4); // 4 16
 5. **FEC for `square(4)`:** `num = 4`, `ans = 16`, return `16`. FEC is popped.
 6. **GEC continues:** `square4 = 16`. `console.log(4, 16)`. GEC is popped.
 
+**JS object snapshot — what the engine holds in memory at each phase:**
+
+```js
+// ── GEC: Creation Phase (BEFORE any code runs) ────────────────────
+// Engine scans the code, allocates memory — no code has executed yet
+{
+    n:       undefined,  // var → hoisted, value is undefined
+    square:  [Function], // function declaration → FULLY hoisted with body
+    square2: undefined,  // var → hoisted, value is undefined
+    square4: undefined,  // var → hoisted, value is undefined
+}
+
+// ── GEC: Execution Phase — runs line by line ──────────────────────
+// After `var n = 2`:
+{ n: 2, square: [Function], square2: undefined, square4: undefined }
+
+// `square(n)` is called → new FEC pushed onto the call stack:
+{
+    // FEC for square(2) — Creation Phase
+    num: undefined,  // parameter treated like var
+    ans: undefined,  // var → hoisted inside the function
+}
+// FEC Execution: num=2, ans=4, return 4 → FEC popped
+
+// Back in GEC — after square(n) returns:
+{ n: 2, square: [Function], square2: 4, square4: undefined }
+
+// `square(4)` is called → second FEC pushed:
+{
+    // FEC for square(4) — after execution
+    num: 4,
+    ans: 16,  // return 16 → FEC popped
+}
+
+// GEC final state before program ends:
+{ n: 2, square: [Function], square2: 4, square4: 16 }
+```
+
+**The call stack at each stage:**
+
+```
+[Step 1]  STACK: [ GEC ]                     → creation phase
+[Step 2]  STACK: [ GEC ]                     → GEC execution starts
+[Step 3]  STACK: [ GEC, FEC(square(2)) ]     → square called
+[Step 4]  STACK: [ GEC ]                     → square(2) returned 4
+[Step 5]  STACK: [ GEC, FEC(square(4)) ]     → square called again
+[Step 6]  STACK: [ GEC ]                     → square(4) returned 16
+[Step 7]  STACK: []                          → GEC popped, program ends
+```
+
 ```mermaid
 flowchart TB
     subgraph CallStack["Call Stack (LIFO)"]
@@ -185,6 +235,65 @@ var z = 1;
 ```
 
 In this example, calling `getName()` before its declaration works perfectly because function declarations are fully hoisted. Accessing `x` before `var x = 7` would yield `undefined` because `var` is hoisted with that placeholder value. The variable `z` inside `getName` is also `undefined` when `getName` is called before `var z = 1` is executed.
+
+**Memory snapshot — the two phases in action:**
+
+```js
+// ── Creation Phase: engine scans ALL code BEFORE running any of it ─
+{
+    x:       undefined,   // var → name hoisted, value placeholder = undefined
+    z:       undefined,   // var → name hoisted, value placeholder = undefined
+    getName: [Function],  // function declaration → ENTIRE body stored here
+}
+// Note: the ASSIGNMENT `x = 7` and `z = 1` have NOT happened yet.
+// Only the names exist, all var names hold undefined.
+
+// ── Execution Phase: runs line by line ──────────────────────────────
+// Line 5: var x = 7
+{ x: 7, z: undefined, getName: [Function] }
+
+// Line 7-9: function getName() { ... }  → already in memory, SKIPPED
+
+// Line 11: getName()  → called here, z is still undefined!
+//   Inside getName: console.log("Hello World", z) → "Hello World undefined"
+
+// Line 12: console.log(x) → 7  (x was assigned on line 5)
+{ x: 7, z: undefined, getName: [Function] }
+
+// Line 13: var z = 1
+{ x: 7, z: 1, getName: [Function] }
+// Too late — getName() already ran when z was undefined
+```
+
+**Hoisting rules summarized as memory states:**
+
+```js
+// Before any line runs — what `var` vs `let/const` vs function look like:
+
+// var:
+var score = 100;
+// Creation phase: score = undefined   ← immediately accessible
+// Execution phase: score = 100
+
+// let / const:
+let name = "Prashant";
+// Creation phase: name = [TDZ]        ← exists but BLOCKS access
+// Execution phase: name = "Prashant"
+
+// function declaration:
+function greet() {
+    return "hi";
+}
+// Creation phase: greet = [Function]  ← FULL body hoisted
+// Execution phase: nothing to do, already set
+
+// function expression (var):
+var sayHi = function () {
+    return "hi";
+};
+// Creation phase: sayHi = undefined   ← only the var name hoisted
+// Execution phase: sayHi = [Function] ← assigned at this line
+```
 
 ### Interview Questions — Hoisting
 
@@ -323,9 +432,48 @@ When a variable is accessed, JavaScript performs a **scope chain lookup**: it fi
 
 The scope chain is **fixed at definition time** — it follows the lexical nesting of the source code.
 
----
+**Scope chain as a JS object snapshot:**
 
-### Block Scope
+```js
+var globalX  = "G";
+function outer() {
+    var outerX = "O";
+    function inner() {
+        var innerX = "I";
+        console.log(innerX);  // "I"  → own scope
+        console.log(outerX);  // "O"  → outer's scope
+        console.log(globalX); // "G"  → global scope
+    }
+    inner();
+}
+outer();
+
+// The scope chain that `inner` sees at definition time:
+// inner scope object:
+{
+    innerX: "I",
+    // [[Scope]] (outer environment):
+    parent: {
+        outerX: "O",
+        // [[Scope]] (global environment):
+        parent: {
+            globalX: "G",
+            outer: [Function],
+            parent: null  // end of chain
+        }
+    }
+}
+
+// When inner tries to access `outerX`:
+// 1. Check inner's own scope    → outerX NOT found
+// 2. Check parent (outer)       → outerX FOUND = "O"  ✅  stop
+
+// When inner tries to access `z` (doesn't exist anywhere):
+// 1. Check inner's own scope    → NOT found
+// 2. Check outer's scope        → NOT found
+// 3. Check global scope         → NOT found
+// 4. parent = null              → STOP → ReferenceError: z is not defined
+```
 
 **Block scope** applies to variables declared with `let` and `const` inside any block delimited by curly braces `{}` — `if`, `for`, `while`, or standalone blocks. These variables are only accessible within that block. Variables declared with `var` ignore block boundaries and are scoped to the enclosing function or the global scope.
 
@@ -531,6 +679,51 @@ The TDZ is not about hoisting being absent for `let`/`const` — they ARE hoiste
 ```
 
 > Note: `typeof` normally never throws — it returns `"undefined"` for undeclared variables. But inside the TDZ, even `typeof` throws a `ReferenceError`, proving the engine knows the variable exists.
+
+**TDZ as a memory state — visualized:**
+
+```js
+// ── Block enters scope ────────────────────────────────────────────
+// Engine knows about `name` and `PI` from this point.
+// But they are UNINITIALIZED — any access throws immediately.
+{
+    name: [TDZ],  // ← engine allocated the slot but it is EMPTY
+    PI:   [TDZ],  // ← same — exists but is not initialized yet
+}
+
+// Trying to access in TDZ:
+console.log(name);  // ❌ ReferenceError: Cannot access 'name' before initialization
+typeof name;        // ❌ ReferenceError — even typeof throws here!
+                    // (proof: engine KNOWS name exists — not "undeclared",
+                    //  just not yet initialized)
+
+const PI = 3.14;   // ← TDZ for PI ends here
+let name = "Prashant"; // ← TDZ for name ends here
+
+// memory after declarations:
+{
+    name: "Prashant",  // ✅ now initialized
+    PI:   3.14,        // ✅ now initialized and const (cannot be reassigned)
+}
+```
+
+**Side-by-side: `var` vs `let` — same code, different behavior:**
+
+```js
+// With var — no TDZ, immediately accessible as undefined:
+console.log(a); // undefined  ← NO error, var was hoisted + initialized
+var a = 5;
+console.log(a); // 5
+
+// With let — TDZ protects the zone before declaration:
+console.log(b); // ❌ ReferenceError  ← TDZ is active
+let b = 5;
+console.log(b); // 5
+
+// The error message TELLS you the difference:
+// var undeclared: "x is not defined"      ← engine does NOT know x
+// let TDZ:        "Cannot access 'b' before initialization"  ← engine KNOWS b, just blocked
+```
 
 ---
 
@@ -1003,7 +1196,74 @@ greet(); // "Hello, I am undefined" — `this` = global (default binding takes o
 
 This "binding loss" is one of the most common `this`-related bugs. The fix is to use `.bind()` or an arrow function wrapper.
 
-### 8.4 Default Binding (Lowest Priority)
+**The 3 most common ways `this` gets lost — each with a fix:**
+
+```js
+const user = {
+    name: "Prashant",
+    greet() {
+        return `Hi, I am ${this.name}`;
+    },
+};
+
+// ── Bug 1: Assigning a method to a variable ─────────────────────────
+const fn = user.greet; // detached from `user` — just a plain function now
+fn(); // "Hi, I am undefined"  ❌  (default binding)
+// Fix: bind `this` permanently
+const boundFn = user.greet.bind(user);
+boundFn(); // "Hi, I am Prashant"  ✅
+
+// ── Bug 2: Passing a method as a callback ────────────────────────────
+setTimeout(user.greet, 0); // "Hi, I am undefined"  ❌
+// Fix 1: wrap in arrow (preserves call context)
+setTimeout(() => user.greet(), 0); // "Hi, I am Prashant"  ✅
+// Fix 2: bind
+setTimeout(user.greet.bind(user), 0); // ✅
+
+// ── Bug 3: Regular function inside a method ───────────────────────────
+const app = {
+    title: "MyApp",
+    buttons: ["OK", "Cancel"],
+    render() {
+        // ❌ regular function — `this` is NOT the app object
+        this.buttons.forEach(function (btn) {
+            console.log(this.title + " - " + btn); // "undefined - OK"
+        });
+
+        // ✅ arrow function — inherits `this` from render() = app
+        this.buttons.forEach((btn) => {
+            console.log(this.title + " - " + btn); // "MyApp - OK"
+        });
+    },
+};
+app.render();
+```
+
+**`call` vs `apply` vs `bind` — side-by-side decision guide:**
+
+```js
+function introduce(city, country) {
+    return `${this.name} lives in ${city}, ${country}`;
+}
+const dev = { name: "Prashant" };
+
+// call — invoke NOW, args one by one
+console.log(introduce.call(dev, "Hyderabad", "India"));
+
+// apply — invoke NOW, args as array (useful when args already in an array)
+const location = ["Hyderabad", "India"];
+console.log(introduce.apply(dev, location));
+
+// bind — DON'T invoke now, returns a new function with `this` locked
+const myIntro = introduce.bind(dev, "Hyderabad"); // city pre-filled
+console.log(myIntro("India")); // call it later
+console.log(myIntro("India")); // reuse as many times as needed
+
+// Rule of thumb:
+// Need to call now?      → call / apply
+// Need to call later?    → bind
+// Args as array?         → apply (or call with spread: fn.call(ctx, ...arr))
+```
 
 When none of the above patterns apply — the function is called as a plain standalone function — `this` defaults to:
 
@@ -1512,7 +1772,78 @@ console.log(addFive(10)); // 15
 
 `curriedAdd(5)` returns a new function that remembers `a = 5` through a closure. This pre-configured function can then be called multiple times with different `b` values. Currying is useful in event handling (pre-configured handlers) and API calls (pre-filled API keys or configuration).
 
-### Memoization
+**Generic `curry` function — works for any number of arguments:**
+
+```js
+// A universal curry: transform f(a, b, c) into f(a)(b)(c)
+function curry(fn) {
+    return function curried(...args) {
+        if (args.length >= fn.length) {
+            // Received enough args — call the original
+            return fn(...args);
+        }
+        // Not enough yet — return a function waiting for more
+        return function (...moreArgs) {
+            return curried(...args, ...moreArgs);
+        };
+    };
+}
+
+function add(a, b, c) {
+    return a + b + c;
+}
+
+const curriedAdd = curry(add);
+console.log(curriedAdd(1)(2)(3)); // 6  — one arg at a time
+console.log(curriedAdd(1, 2)(3)); // 6  — partial batch
+console.log(curriedAdd(1)(2, 3)); // 6  — other partial batch
+console.log(curriedAdd(1, 2, 3)); // 6  — all at once
+```
+
+**Real-world currying — pre-configured functions:**
+
+```js
+// Validator factory — pre-fill the rule, reuse with different values
+const validate = curry((min, max, value) => value >= min && value <= max);
+
+const isAdult = validate(18, 120); // min=18, max=120
+const isValidPort = validate(1, 65535); // min=1, max=65535
+const isPercent = validate(0, 100); // min=0, max=100
+
+console.log(isAdult(25)); // true
+console.log(isAdult(10)); // false
+console.log(isValidPort(80)); // true
+console.log(isPercent(105)); // false
+
+// Logger factory — pre-fill the prefix
+const log = curry(
+    (prefix, level, message) => `[${prefix}][${level}] ${message}`,
+);
+
+const appLog = log("MyApp"); // prefix locked
+const errLog = appLog("ERROR"); // prefix + level locked
+const infoLog = appLog("INFO");
+
+console.log(errLog("DB connection failed")); // [MyApp][ERROR] DB connection failed
+console.log(infoLog("Server started")); // [MyApp][INFO] Server started
+```
+
+**Currying vs Partial Application:**
+
+```js
+// Currying: ALWAYS one arg per call — f(a)(b)(c)
+// Partial Application: any number of args per call — f(a)(b, c) or f.bind(null, a)
+
+// Partial application with bind (no currying needed):
+function multiply(a, b, c) {
+    return a * b * c;
+}
+const double = multiply.bind(null, 2); // pre-fill a=2
+const triple = multiply.bind(null, 3); // pre-fill a=3
+
+console.log(double(4, 5)); // 2 * 4 * 5 = 40
+console.log(triple(2, 2)); // 3 * 2 * 2 = 12
+```
 
 **Memoization** is an optimization technique that caches the results of expensive function calls and returns the cached result when the same inputs occur again.
 
@@ -1571,7 +1902,142 @@ The root of all prototype chains is `Object.prototype`, whose prototype is `null
 - `prototype` is a property on constructor functions that becomes the `__proto__` of objects created with `new`.
 - `Object.create(proto)` creates a new object with `proto` as its prototype — a clean way to set up delegation.
 
-### From the Repository — `prototypeInheritance.js`
+---
+
+### Step 1 — What the Prototype Chain Looks Like as a JSON Snapshot
+
+The easiest way to understand the prototype chain is to picture each object as a JSON-like node with a hidden `__proto__` pointer. Consider this simple case:
+
+```js
+const parent = {
+    a: 1,
+    greet() {
+        return "hi from parent";
+    },
+};
+const child = Object.create(parent);
+child.b = 2;
+```
+
+Here is how V8 sees the memory — each box is an object, each arrow is a `__proto__` link:
+
+```
+┌─────────────────────────────────┐
+│  child  (own properties only)   │
+│  { b: 2 }                       │
+│  [[Prototype]] ─────────────────┼──────────────────────────────────┐
+└─────────────────────────────────┘                                  │
+                                                                     ▼
+                                              ┌──────────────────────────────────┐
+                                              │  parent                          │
+                                              │  { a: 1, greet: [Function] }     │
+                                              │  [[Prototype]] ──────────────────┼──────┐
+                                              └──────────────────────────────────┘      │
+                                                                                        ▼
+                                                             ┌────────────────────────────────────────┐
+                                                             │  Object.prototype                      │
+                                                             │  { toString, hasOwnProperty, valueOf…} │
+                                                             │  [[Prototype]] ────────────────────────┼──► null
+                                                             └────────────────────────────────────────┘
+```
+
+**JS object mental model** — imagine the chain as a nested object literal:
+
+```js
+// child object — what you create
+{
+    b: 2,
+    __proto__: {
+        // parent object — Object.create(parent) links here
+        a: 1,
+        greet: [Function],
+        __proto__: {
+            // Object.prototype — the root of every plain object
+            toString: [Function],
+            hasOwnProperty: [Function],
+            valueOf: [Function],
+            __proto__: null
+        }
+    }
+}
+```
+
+> **Rule:** `__proto__` is never actually printed by `console.log` — it is a hidden internal slot. The object literal above is just a teaching model to visualize the chain.
+
+**Running proof in code:**
+
+```js
+const parent = { a: 1 };
+const child = Object.create(parent);
+child.b = 2;
+
+// What child "owns" vs what it inherits
+console.log(child); // { b: 2 }          ← own
+console.log(child.__proto__); // { a: 1 }          ← parent
+console.log(child.__proto__.__proto__); // Object.prototype   ← root
+console.log(child.__proto__.__proto__.__proto__); // null          ← chain ends
+
+// Property lookup
+console.log(child.b); // 2     — found on child itself
+console.log(child.a); // 1     — not on child, found on parent
+console.log(child.toString()); // "[object Object]" — found on Object.prototype
+
+// Ownership check
+console.log(child.hasOwnProperty("b")); // true  — own property
+console.log(child.hasOwnProperty("a")); // false — inherited, NOT own
+console.log("a" in child); // true  — `in` walks the full chain
+console.log("a" in parent); // true
+console.log("x" in child); // false — nowhere in the chain
+```
+
+```mermaid
+flowchart TB
+    NULL["null"]
+    OP["Object.prototype<br/>{toString, hasOwnProperty, valueOf…}"]
+    PARENT["parent<br/>{ a: 1, greet() }"]
+    CHILD["child<br/>{ b: 2 }"]
+
+    CHILD -->|"[[Prototype]] / __proto__"| PARENT
+    PARENT -->|"[[Prototype]] / __proto__"| OP
+    OP -->|"[[Prototype]] / __proto__"| NULL
+
+    style NULL fill:#c62828,color:#fff,stroke:#b71c1c
+    style OP fill:#1565c0,color:#fff,stroke:#0d47a1
+    style PARENT fill:#f9a825,color:#000,stroke:#f57f17
+    style CHILD fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+---
+
+### Step 2 — Property Lookup Walk-Through (Step by Step)
+
+When you write `child.a`, JavaScript performs this exact algorithm:
+
+```
+1. Look for "a" on child itself          → NOT FOUND (child only has "b")
+2. Follow child.__proto__ → parent       → FOUND! a = 1  ✅  return 1
+```
+
+When you write `child.toString()`:
+
+```
+1. Look for "toString" on child          → NOT FOUND
+2. Follow child.__proto__ → parent       → NOT FOUND (parent only has "a", "greet")
+3. Follow parent.__proto__ → Object.prototype → FOUND! toString = [Function] ✅
+```
+
+When you write `child.xyz`:
+
+```
+1. Look for "xyz" on child               → NOT FOUND
+2. Follow child.__proto__ → parent       → NOT FOUND
+3. Follow parent.__proto__ → Object.prototype → NOT FOUND
+4. Follow Object.prototype.__proto__ → null → STOP → return undefined
+```
+
+---
+
+### Step 3 — From the Repository — `prototypeInheritance.js`
 
 ```js
 // Extending Array.prototype — adding custom method to all arrays
@@ -1595,66 +2061,243 @@ console.log(child.hasOwnProperty("a")); // false — a is inherited
 console.log("a" in child); // true — checks full chain
 ```
 
+---
+
+### Step 4 — Real-World Example: Multi-Level Prototype Chain
+
+A practical example — a 3-level chain: `Animal → Dog → myDog`:
+
+```js
+// Level 1 — The root ancestor (manually set up with Object.create)
+const Animal = {
+    kingdom: "Animalia",
+    breathe() {
+        return `${this.name} breathes air`;
+    },
+};
+
+// Level 2 — Dog inherits from Animal
+const Dog = Object.create(Animal);
+Dog.legs = 4;
+Dog.bark = function () {
+    return `${this.name} says Woof!`;
+};
+
+// Level 3 — a specific dog instance inherits from Dog
+const myDog = Object.create(Dog);
+myDog.name = "Rex";
+myDog.breed = "Labrador";
+```
+
+**JS object snapshot of the chain:**
+
+```js
+// myDog — own properties only
+{
+    name: "Rex",
+    breed: "Labrador",
+    __proto__: {
+        // Dog.prototype
+        legs: 4,
+        bark: [Function],
+        __proto__: {
+            // Animal (the object used with Object.create)
+            kingdom: "Animalia",
+            breathe: [Function],
+            __proto__: {
+                // Object.prototype
+                hasOwnProperty: [Function],
+                toString: [Function],
+                __proto__: null
+            }
+        }
+    }
+}
+```
+
+```js
+// Property lookups across 3 levels
+console.log(myDog.name); // "Rex"      — own property (level 3)
+console.log(myDog.legs); // 4          — found on Dog (level 2)
+console.log(myDog.kingdom); // "Animalia" — found on Animal (level 1)
+console.log(myDog.toString()); // "[object Object]" — found on Object.prototype
+
+// Method calls — `this` is always myDog because of how the call is made
+console.log(myDog.bark()); // "Rex says Woof!"   — Dog.bark, this = myDog
+console.log(myDog.breathe()); // "Rex breathes air" — Animal.breathe, this = myDog
+
+// Ownership checks
+console.log(myDog.hasOwnProperty("name")); // true  — own
+console.log(myDog.hasOwnProperty("legs")); // false — inherited from Dog
+console.log(myDog.hasOwnProperty("kingdom")); // false — inherited from Animal
+
+// Confirming the chain
+console.log(Object.getPrototypeOf(myDog) === Dog); // true
+console.log(Object.getPrototypeOf(Dog) === Animal); // true
+console.log(Object.getPrototypeOf(Animal) === Object.prototype); // true
+```
+
 ```mermaid
 flowchart TB
     NULL["null"]
-    OP["Object.prototype<br/>(toString, hasOwnProperty, ...)"]
-    PARENT["parent<br/>{ a: 1 }"]
-    CHILD["child<br/>{ b: 2 }"]
+    OP["Object.prototype<br/>{toString, hasOwnProperty…}"]
+    ANIMAL["Animal<br/>{kingdom: 'Animalia', breathe()}"]
+    DOG["Dog<br/>{legs: 4, bark()}"]
+    MYDOG["myDog<br/>{name: 'Rex', breed: 'Labrador'}"]
 
-    CHILD -->|"__proto__"| PARENT
-    PARENT -->|"__proto__"| OP
-    OP -->|"__proto__"| NULL
+    MYDOG -->|"__proto__"| DOG
+    DOG   -->|"__proto__"| ANIMAL
+    ANIMAL-->|"__proto__"| OP
+    OP    -->|"__proto__"| NULL
 
-    style NULL fill:#c62828,color:#fff,stroke:#b71c1c
-    style OP fill:#1565c0,color:#fff,stroke:#0d47a1
-    style PARENT fill:#f9a825,color:#000,stroke:#f57f17
-    style CHILD fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style NULL   fill:#c62828,color:#fff,stroke:#b71c1c
+    style OP     fill:#1565c0,color:#fff,stroke:#0d47a1
+    style ANIMAL fill:#6a1b9a,color:#fff,stroke:#4a148c
+    style DOG    fill:#f9a825,color:#000,stroke:#f57f17
+    style MYDOG  fill:#2e7d32,color:#fff,stroke:#1b5e20
 ```
 
-### Constructor Functions & `new` — from `__this.js`
+---
+
+### Step 5 — Constructor Functions & `new` Keyword
+
+Constructor functions are the classic way to create multiple objects sharing the same prototype. The pattern is: **own data goes on `this`, shared methods go on `Constructor.prototype`**.
 
 ```js
-function User(name) {
+function User(name, role) {
+    // Own properties — each instance gets its own copy
     this.name = name;
+    this.role = role;
 }
 
-User.prototype.sayName = function () {
-    console.log(this.name);
+// Shared method — stored ONCE on the prototype, all instances share it
+User.prototype.greet = function () {
+    return `Hi, I am ${this.name} (${this.role})`;
 };
 
-const u1 = new User("Prashant");
-u1.sayName(); // "Prashant"
+User.prototype.promote = function (newRole) {
+    this.role = newRole;
+    return this;
+};
+
+const u1 = new User("Prashant", "developer");
+const u2 = new User("Raju", "designer");
+
+console.log(u1.greet()); // "Hi, I am Prashant (developer)"
+console.log(u2.greet()); // "Hi, I am Raju (designer)"
+
+// Both instances share the SAME greet function — not copied!
+console.log(u1.greet === u2.greet); // true  ✅ memory efficient
+
+// Own properties are independent per instance
+console.log(u1.name === u2.name); // false — "Prashant" vs "Raju"
 ```
 
-When `new User("Prashant")` executes: (1) a new empty object is created, (2) its `__proto__` is set to `User.prototype`, (3) `this` is bound to the new object, (4) the constructor body runs, (5) the object is returned. The `sayName` method lives on `User.prototype` and is shared by all instances — this is memory-efficient because each instance doesn't get its own copy.
-
-### How `new` Works Internally — Step-by-Step
+**JS object snapshot of `u1`:**
 
 ```js
-// What happens behind the scenes when you call: new User("Prashant")
+// u1 — own properties
+{
+    name: "Prashant",
+    role: "developer",
+    __proto__: {
+        // User.prototype — shared across ALL User instances
+        greet: [Function],
+        promote: [Function],
+        constructor: [Function: User],
+        __proto__: {
+            // Object.prototype
+            toString: [Function],
+            hasOwnProperty: [Function],
+            __proto__: null
+        }
+    }
+}
+```
+
+```mermaid
+flowchart LR
+    subgraph "Constructor + Prototype"
+        CF["User (constructor fn)"]
+        CFP["User.prototype\n{greet(), promote(), constructor}"]
+        CF -->|".prototype property"| CFP
+    end
+
+    subgraph "Instances (own data only)"
+        I1["u1\n{name:'Prashant', role:'developer'}"]
+        I2["u2\n{name:'Raju', role:'designer'}"]
+        I1 -->|"__proto__"| CFP
+        I2 -->|"__proto__"| CFP
+    end
+
+    OP["Object.prototype\n{toString, hasOwnProperty…}"]
+    CFP -->|"__proto__"| OP
+
+    style CF  fill:#1565c0,color:#fff,stroke:#0d47a1
+    style CFP fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style I1  fill:#f9a825,color:#000,stroke:#f57f17
+    style I2  fill:#f9a825,color:#000,stroke:#f57f17
+    style OP  fill:#546e7a,color:#fff,stroke:#37474f
+```
+
+**Why methods go on `prototype`, not inside the constructor:**
+
+```js
+// ❌ BAD — greet is re-created for every new instance (wastes memory)
+function UserBad(name) {
+    this.name = name;
+    this.greet = function () {
+        return `Hi, I am ${this.name}`;
+    };
+    //           ^^^^^^^^^^^ new function object created on every `new UserBad()`
+}
+const a = new UserBad("A");
+const b = new UserBad("B");
+console.log(a.greet === b.greet); // false ❌ — two separate function objects
+
+// ✅ GOOD — greet lives on prototype, shared by all instances
+function UserGood(name) {
+    this.name = name;
+}
+UserGood.prototype.greet = function () {
+    return `Hi, I am ${this.name}`;
+};
+
+const c = new UserGood("C");
+const d = new UserGood("D");
+console.log(c.greet === d.greet); // true ✅ — same function object
+```
+
+---
+
+### Step 6 — How `new` Works Internally
+
+```js
+// What happens behind the scenes when you call: new User("Prashant", "developer")
 
 // Step 1: Create a new empty object
 const obj = {};
 
-// Step 2: Link the object's prototype to the constructor's prototype
-Object.setPrototypeOf(obj, User.prototype); // obj.__proto__ = User.prototype
+// Step 2: Link its prototype to the constructor's prototype object
+Object.setPrototypeOf(obj, User.prototype);
+// Equivalent: obj.__proto__ = User.prototype
 
 // Step 3: Execute the constructor with `this` bound to the new object
-const result = User.call(obj, "Prashant");
+const result = User.call(obj, "Prashant", "developer");
 
-// Step 4: If the constructor returns an object, use that; otherwise, return obj
+// Step 4: Result matters only if it is a non-null object
 return typeof result === "object" && result !== null ? result : obj;
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  usually false → we return obj
 ```
 
 ```mermaid
 flowchart TD
-    A["new User('Prashant')"] --> B["Create empty object {}"]
-    B --> C["Set obj.__proto__ = User.prototype"]
-    C --> D["Call User.call(obj, 'Prashant')"]
-    D --> E{"Constructor returns<br/>an object?"}
-    E -->|"Yes"| F["Return that object"]
-    E -->|"No"| G["Return the new obj"]
+    A["new User('Prashant', 'developer')"] --> B["1. Create empty object: obj = {}"]
+    B --> C["2. obj.__proto__ = User.prototype"]
+    C --> D["3. User.call(obj, 'Prashant', 'developer')"]
+    D --> E{"4. Constructor returns\nan object?"}
+    E -->|"Yes (rare)"| F["Return that object"]
+    E -->|"No (usual)"| G["Return obj  ← this is your instance"]
 
     style A fill:#1565c0,color:#fff,stroke:#0d47a1
     style B fill:#2e7d32,color:#fff,stroke:#1b5e20
@@ -1665,81 +2308,434 @@ flowchart TD
     style G fill:#ef6c00,color:#fff,stroke:#e65100
 ```
 
-### `Object.create()` vs `new` — Comparison
-
-| Feature                   | `Object.create(proto)`                                       | `new Constructor()`                                 |
-| ------------------------- | ------------------------------------------------------------ | --------------------------------------------------- |
-| **How it sets prototype** | Directly: `Object.create(parent)`                            | Indirectly: `obj.__proto__ = Constructor.prototype` |
-| **Constructor called?**   | No — no initialization logic runs                            | Yes — the constructor body executes                 |
-| **Use case**              | Pure prototypal delegation, creating objects without classes | Classical OOP pattern with initialization           |
-| **Control**               | Full control over prototype, no constructor side effects     | Tied to a constructor function                      |
+**Edge case — constructor returning a plain object hijacks the instance:**
 
 ```js
-// Object.create — clean delegation, no constructor
-const animal = {
-    speak() {
-        return "...";
+function Weird() {
+    this.own = "mine";
+    return { hijacked: true }; // returning an object overrides the new object
+}
+const w = new Weird();
+console.log(w); // { hijacked: true }  — NOT the object with `own`
+console.log(w.own); // undefined
+
+function Normal() {
+    this.own = "mine";
+    return 42; // returning a primitive is IGNORED
+}
+const n = new Normal();
+console.log(n.own); // "mine" — primitive return is ignored, usual behavior
+```
+
+---
+
+### Step 7 — Prototype Chain for Built-in Types
+
+Every built-in type in JavaScript also has a prototype chain. This is how arrays, strings, and functions get their methods.
+
+**Array prototype chain:**
+
+```js
+const nums = [1, 2, 3];
+
+// nums.__proto__ → Array.prototype → Object.prototype → null
+console.log(Object.getPrototypeOf(nums) === Array.prototype); // true
+console.log(nums.hasOwnProperty("map")); // false — map is on Array.prototype
+console.log(Array.prototype.hasOwnProperty("map")); // true
+
+// Array.prototype.__proto__ is Object.prototype
+console.log(Object.getPrototypeOf(Array.prototype) === Object.prototype); // true
+```
+
+**JS object snapshot of `[1, 2, 3]`:**
+
+```js
+// nums — own properties (indices + length)
+{
+    0: 1,
+    1: 2,
+    2: 3,
+    length: 3,
+    __proto__: {
+        // Array.prototype
+        map: [Function],
+        filter: [Function],
+        reduce: [Function],
+        push: [Function],
+        pop: [Function],
+        __proto__: {
+            // Object.prototype
+            toString: [Function],
+            hasOwnProperty: [Function],
+            __proto__: null
+        }
+    }
+}
+```
+
+```mermaid
+flowchart TB
+    NULL["null"]
+    OP["Object.prototype\n{toString, hasOwnProperty…}"]
+    AP["Array.prototype\n{map, filter, reduce, push, pop…}"]
+    NUMS["nums [1,2,3]\n{0:1, 1:2, 2:3, length:3}"]
+
+    NUMS -->|"__proto__"| AP
+    AP   -->|"__proto__"| OP
+    OP   -->|"__proto__"| NULL
+
+    style NULL fill:#c62828,color:#fff,stroke:#b71c1c
+    style OP   fill:#1565c0,color:#fff,stroke:#0d47a1
+    style AP   fill:#6a1b9a,color:#fff,stroke:#4a148c
+    style NUMS fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+**Function prototype chain:**
+
+```js
+function greet() {}
+
+// greet.__proto__ → Function.prototype → Object.prototype → null
+console.log(Object.getPrototypeOf(greet) === Function.prototype); // true
+console.log(greet.hasOwnProperty("call")); // false — call is on Function.prototype
+console.log(Function.prototype.hasOwnProperty("call")); // true
+```
+
+**`typeof` vs `instanceof` vs `isPrototypeOf`:**
+
+```js
+const nums = [1, 2, 3];
+
+console.log(typeof nums); // "object"  — typeof is limited
+console.log(nums instanceof Array); // true      — checks the prototype chain
+console.log(nums instanceof Object); // true      — Array.prototype is in the chain
+console.log(Array.prototype.isPrototypeOf(nums)); // true      — same check, different syntax
+console.log(Object.prototype.isPrototypeOf(nums)); // true
+```
+
+---
+
+### Step 8 — `Object.create()` vs `new` — Comparison
+
+| Feature                   | `Object.create(proto)`                                  | `new Constructor()`                                      |
+| ------------------------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| **How it sets prototype** | Directly sets `[[Prototype]]` to whatever you pass      | Sets `[[Prototype]]` to `Constructor.prototype`          |
+| **Constructor called?**   | No — zero initialization logic runs                     | Yes — constructor body executes with `this` = new object |
+| **Initialization**        | You set own properties manually afterwards              | Constructor sets own properties via `this.x = ...`       |
+| **Use case**              | Pure prototypal delegation when you want manual control | Classical OOP-style pattern                              |
+
+```js
+// Object.create — prototype set directly, no constructor called
+const vehicleProto = {
+    describe() {
+        return `${this.make} ${this.model} (${this.year})`;
     },
 };
-const dog = Object.create(animal);
-dog.bark = function () {
-    return "Woof!";
-};
-console.log(dog.speak()); // "..." (delegated to animal)
-console.log(dog.bark()); // "Woof!" (own method)
 
-// new — constructor runs initialization logic
+const car = Object.create(vehicleProto); // car.__proto__ === vehicleProto
+car.make = "Toyota";
+car.model = "Corolla";
+car.year = 2024;
+
+console.log(car.describe()); // "Toyota Corolla (2024)" — delegated to vehicleProto
+
+console.log(Object.getPrototypeOf(car) === vehicleProto); // true
+console.log(car.hasOwnProperty("describe")); // false — it's on the proto
+console.log(car.hasOwnProperty("make")); // true  — own property
+
+// new — constructor does the initialization
+function Vehicle(make, model, year) {
+    this.make = make;
+    this.model = model;
+    this.year = year;
+}
+Vehicle.prototype.describe = function () {
+    return `${this.make} ${this.model} (${this.year})`;
+};
+
+const truck = new Vehicle("Ford", "F-150", 2023);
+console.log(truck.describe()); // "Ford F-150 (2023)"
+console.log(Object.getPrototypeOf(truck) === Vehicle.prototype); // true
+```
+
+**`Object.create(null)` — an object with NO prototype:**
+
+```js
+// Useful for pure hash maps — no inherited properties to conflict with
+const dict = Object.create(null);
+dict.name = "hash map";
+
+console.log(dict.__proto__); // undefined — there is no prototype at all
+console.log(dict.toString); // undefined — no Object.prototype methods
+console.log(Object.getPrototypeOf(dict)); // null
+
+// Use case: safe key-value store (no risk of overwriting "toString", "constructor" etc.)
+const safeMap = Object.create(null);
+safeMap["constructor"] = "safe!"; // no prototype clash
+console.log(safeMap["constructor"]); // "safe!"
+```
+
+---
+
+### Step 9 — Inheritance Pattern: Extending Constructor Functions
+
+Before ES6 `class`, JavaScript inheritance was done by manually wiring prototype chains:
+
+```js
+// Parent constructor
+function Animal(name, sound) {
+    this.name = name;
+    this.sound = sound;
+}
+Animal.prototype.speak = function () {
+    return `${this.name} says ${this.sound}`;
+};
+Animal.prototype.toString = function () {
+    return `[Animal: ${this.name}]`;
+};
+
+// Child constructor — calls parent constructor to initialize own props
 function Dog(name) {
+    Animal.call(this, name, "Woof"); // ← inherit OWN properties
+    this.tricks = [];
+}
+
+// Wire up the prototype chain: Dog.prototype → Animal.prototype
+Dog.prototype = Object.create(Animal.prototype);
+Dog.prototype.constructor = Dog; // ← restore the constructor reference
+
+// Add Dog-specific methods
+Dog.prototype.learn = function (trick) {
+    this.tricks.push(trick);
+    return this;
+};
+Dog.prototype.perform = function () {
+    return `${this.name} performs: ${this.tricks.join(", ")}`;
+};
+
+// Usage
+const rex = new Dog("Rex");
+rex.learn("sit").learn("shake").learn("roll over");
+
+console.log(rex.speak()); // "Rex says Woof"   — inherited from Animal.prototype
+console.log(rex.perform()); // "Rex performs: sit, shake, roll over" — own to Dog
+console.log(rex instanceof Dog); // true
+console.log(rex instanceof Animal); // true — chain includes Animal.prototype
+```
+
+**JS object snapshot of `rex`:**
+
+```js
+// rex — own properties
+{
+    name: "Rex",
+    sound: "Woof",
+    tricks: ["sit", "shake", "roll over"],
+    __proto__: {
+        // Dog.prototype
+        constructor: [Function: Dog],
+        learn: [Function],
+        perform: [Function],
+        __proto__: {
+            // Animal.prototype
+            speak: [Function],
+            toString: [Function],
+            __proto__: {
+                // Object.prototype
+                hasOwnProperty: [Function],
+                __proto__: null
+            }
+        }
+    }
+}
+```
+
+```mermaid
+flowchart TB
+    NULL["null"]
+    OP["Object.prototype"]
+    AP["Animal.prototype\n{speak(), toString()}"]
+    DP["Dog.prototype\n{learn(), perform(), constructor}"]
+    REX["rex\n{name:'Rex', sound:'Woof', tricks:[…]}"]
+
+    REX -->|"__proto__"| DP
+    DP  -->|"__proto__"| AP
+    AP  -->|"__proto__"| OP
+    OP  -->|"__proto__"| NULL
+
+    style NULL fill:#c62828,color:#fff,stroke:#b71c1c
+    style OP   fill:#1565c0,color:#fff,stroke:#0d47a1
+    style AP   fill:#6a1b9a,color:#fff,stroke:#4a148c
+    style DP   fill:#f9a825,color:#000,stroke:#f57f17
+    style REX  fill:#2e7d32,color:#fff,stroke:#1b5e20
+```
+
+---
+
+### Step 10 — ES6 Classes: Syntactic Sugar Over Prototypes
+
+`class` syntax is clean, readable, and used in modern code — but it compiles down to exactly the same prototype chain shown above. Nothing changes under the hood.
+
+```js
+class Animal {
+    constructor(name, sound) {
+        this.name = name; // own property
+        this.sound = sound; // own property
+    }
+
+    speak() {
+        // goes on Animal.prototype
+        return `${this.name} says ${this.sound}`;
+    }
+}
+
+class Dog extends Animal {
+    constructor(name) {
+        super(name, "Woof"); // calls Animal constructor — sets this.name, this.sound
+        this.tricks = []; // own property
+    }
+
+    learn(trick) {
+        // goes on Dog.prototype
+        this.tricks.push(trick);
+        return this;
+    }
+
+    perform() {
+        // goes on Dog.prototype
+        return `${this.name} performs: ${this.tricks.join(", ")}`;
+    }
+}
+
+const rex = new Dog("Rex");
+rex.learn("sit").learn("shake");
+
+console.log(rex.speak()); // "Rex says Woof"
+console.log(rex.perform()); // "Rex performs: sit, shake"
+
+// Proof: under the hood it is still prototypes
+console.log(Object.getPrototypeOf(rex) === Dog.prototype); // true
+console.log(Object.getPrototypeOf(Dog.prototype) === Animal.prototype); // true
+
+// Own vs inherited
+console.log(rex.hasOwnProperty("name")); // true  — set by constructor
+console.log(rex.hasOwnProperty("speak")); // false — on Animal.prototype
+console.log(rex.hasOwnProperty("learn")); // false — on Dog.prototype
+```
+
+**The class syntax produces the IDENTICAL prototype chain as the manual constructor approach:**
+
+```
+rex  →  Dog.prototype  →  Animal.prototype  →  Object.prototype  →  null
+```
+
+| ES6 `class` syntax         | Prototype equivalent                              |
+| -------------------------- | ------------------------------------------------- |
+| `class Dog extends Animal` | `Dog.prototype = Object.create(Animal.prototype)` |
+| `constructor(){ super() }` | `Animal.call(this, ...args)`                      |
+| Method inside class body   | `Dog.prototype.methodName = function(){}`         |
+| `static` method            | `Dog.methodName = function(){}`                   |
+
+---
+
+### Step 11 — `__proto__` vs `prototype` — Side-by-Side
+
+```js
+function Cat(name) {
     this.name = name;
 }
-Dog.prototype.bark = function () {
-    return `${this.name} says Woof!`;
+Cat.prototype.purr = function () {
+    return `${this.name} purrs~`;
 };
-const rex = new Dog("Rex");
-console.log(rex.bark()); // "Rex says Woof!"
+
+const kitty = new Cat("Kitty");
+
+// `prototype`  — only exists on FUNCTIONS, it is the blueprint object
+console.log(typeof Cat.prototype); // "object"
+console.log(Cat.prototype.purr); // [Function]
+console.log(Cat.prototype.constructor === Cat); // true
+
+// `__proto__`  — exists on EVERY object, it is the actual chain link
+console.log(kitty.__proto__ === Cat.prototype); // true  ← instance link points to blueprint
+console.log(Cat.__proto__ === Function.prototype); // true ← Cat is also an object!
+
+// Modern API — prefer Object.getPrototypeOf over __proto__
+console.log(Object.getPrototypeOf(kitty) === Cat.prototype); // true
 ```
+
+```
+Cat (constructor fn)
+ ├── .prototype  ──────────► Cat.prototype { purr(), constructor }
+ │                                │
+ │                                │  __proto__ (every object has this)
+ │                                ▼
+ │                          Object.prototype { toString, valueOf, ... }
+ │                                │
+ │                                ▼
+ │                              null
+ │
+kitty (instance)
+ └── .__proto__  ──────────► Cat.prototype   (same object as above)
+```
+
+**Summary rule:**
+
+- `Constructor.prototype` → what becomes `__proto__` of every instance created with `new Constructor()`
+- `instance.__proto__` → the live link walking up the chain during property lookup
+
+---
 
 ### Prototypal Delegation Model
 
-JavaScript does not copy methods from parent to child (unlike classical inheritance). Instead, it uses **delegation**: when a property is not found on an object, the engine delegates the lookup to the object's prototype. This means changes to a prototype are immediately visible to all objects linked to it. This is fundamentally different from classical languages where inheritance creates copies.
+JavaScript does not copy methods from parent to child (unlike classical inheritance). Instead, it uses **delegation**: when a property is not found on an object, the engine delegates the lookup to the object's prototype. This means changes to a prototype are immediately visible to all objects linked to it.
 
-### `__proto__` vs `prototype` — Detailed
+```js
+function Bird(name) {
+    this.name = name;
+}
+Bird.prototype.fly = function () {
+    return `${this.name} is flying`;
+};
 
-```mermaid
-flowchart LR
-    subgraph "Constructor Function"
-        CF["User (function)"]
-        CFP["User.prototype<br/>(shared methods)"]
-        CF -->|"prototype property"| CFP
-    end
+const b1 = new Bird("Sparrow");
+const b2 = new Bird("Eagle");
 
-    subgraph "Instance"
-        I1["new User('A')"]
-        I2["new User('B')"]
-        I1 -->|"__proto__"| CFP
-        I2 -->|"__proto__"| CFP
-    end
+console.log(b1.fly()); // "Sparrow is flying"
+console.log(b2.fly()); // "Eagle is flying"
 
-    style CF fill:#1565c0,color:#fff,stroke:#0d47a1
-    style CFP fill:#2e7d32,color:#fff,stroke:#1b5e20
-    style I1 fill:#f9a825,color:#000,stroke:#f57f17
-    style I2 fill:#f9a825,color:#000,stroke:#f57f17
+// LIVE delegation — patching the prototype affects ALL existing instances immediately
+Bird.prototype.land = function () {
+    return `${this.name} has landed`;
+};
+
+console.log(b1.land()); // "Sparrow has landed" — b1 was created BEFORE land() was added!
+console.log(b2.land()); // "Eagle has landed"   — same for b2
+// This works because instances delegate to the prototype at lookup time, not at creation time.
 ```
 
-- **`User.prototype`** is the blueprint object. It holds shared methods (like `sayName`).
-- **`instance.__proto__`** is the actual link that points TO `User.prototype`.
-- `prototype` only exists on functions. `__proto__` exists on every object.
+---
 
 ### Interview Questions — Prototypes
 
-1. **What is the prototype chain?** — The linked list of objects that JavaScript traverses when looking up a property. Each object has a `__proto__` pointing to its prototype, ending at `null`.
-2. **What is the difference between `__proto__` and `prototype`?** — `__proto__` is the actual prototype link on every object. `prototype` is a property on constructor functions that becomes the `__proto__` of instances created with `new`.
-3. **How does `Object.create()` work?** — It creates a new object whose internal prototype is set to the passed argument. `Object.create(parent)` makes `parent` the prototype of the new object.
-4. **What is the difference between `hasOwnProperty()` and the `in` operator?** — `hasOwnProperty` checks only the object itself. `in` checks the entire prototype chain.
-5. **Why should you be cautious extending native prototypes like `Array.prototype`?** — It can conflict with future language features, third-party libraries, or other code that iterates over array properties.
-6. **What are the 4 steps `new` performs?** — (1) Creates empty object, (2) sets its `__proto__` to `Constructor.prototype`, (3) runs the constructor with `this` bound to the new object, (4) returns the object (unless the constructor returns a different object).
-7. **What is delegation in JavaScript?** — When a property isn't found on an object, the lookup is delegated to its prototype. Unlike classical inheritance, no copying occurs — the prototype is a live shared object.
-8. **What is the difference between `Object.create()` and `new`?** — `Object.create()` sets the prototype directly without running a constructor. `new` calls a constructor function and sets the prototype to `Constructor.prototype`.
+1. **What is the prototype chain?** — The linked list of objects that JavaScript traverses when looking up a property. Each object's `[[Prototype]]` (`__proto__`) points to the next object in the chain. The chain ends at `null`.
+2. **What is the difference between `__proto__` and `prototype`?** — `__proto__` is the actual prototype link on every object (the live runtime slot). `prototype` is a property that only exists on constructor functions — it becomes the `__proto__` of instances created with `new`.
+3. **How does property lookup work on an object?** — JavaScript checks the object itself first. If not found, it walks `__proto__` links one level at a time until it either finds the property or reaches `null` (returns `undefined`).
+4. **How does `Object.create()` work?** — It creates a new object whose internal prototype is set to the passed argument. No constructor is called. `Object.create(null)` creates an object with no prototype at all.
+5. **What is the difference between `hasOwnProperty()` and the `in` operator?** — `hasOwnProperty` checks only the object's own properties. `in` walks the entire prototype chain.
+6. **Why should you be cautious extending native prototypes like `Array.prototype`?** — It can conflict with future language features, third-party libraries, or polyfills. It also makes properties show up in `for...in` loops unless marked non-enumerable.
+7. **What are the 4 steps `new` performs?** — (1) Creates an empty object, (2) sets its `__proto__` to `Constructor.prototype`, (3) runs the constructor with `this` bound to the new object, (4) returns the new object (unless the constructor explicitly returns a different object).
+8. **What is delegation in JavaScript?** — When a property isn't found on an object, the lookup is delegated to its prototype. Unlike classical inheritance, no copying occurs — the prototype is a live shared object that all linked instances reference.
+9. **What is the difference between `Object.create()` and `new`?** — `Object.create()` sets the prototype directly without running a constructor. `new` calls a constructor function, sets `__proto__` = `Constructor.prototype`, and initializes own properties.
+10. **How does `class extends` relate to the prototype chain?** — `class` is syntactic sugar. `class Dog extends Animal` sets `Dog.prototype.__proto__ = Animal.prototype` and `super()` calls `Animal.call(this, ...)`. The runtime behavior is identical to the manual constructor pattern.
+11. **How can you check all levels of an object's prototype chain?** — Use a `while` loop with `Object.getPrototypeOf()`:
+
+```js
+let proto = Object.getPrototypeOf(myDog);
+while (proto !== null) {
+    console.log(proto);
+    proto = Object.getPrototypeOf(proto);
+}
+```
 
 [↑ Back to Index](#table-of-contents)
 
@@ -1747,70 +2743,288 @@ flowchart LR
 
 ## 13. Property Descriptors & Object Immutability
 
-> This section consolidates the deeper details of property descriptors and immutability levels discussed in Section 12.
+Every property in a JavaScript object has invisible metadata called a **property descriptor** that controls how that property behaves. Understanding descriptors is essential for understanding how `Object.freeze`, getters/setters, and read-only constants actually work.
+
+---
+
+### The Two Types of Descriptors
+
+There are exactly **two flavors** of descriptor. A property can be one or the other — never both.
+
+| Type                    | Keys it uses                                      | What it does                 |
+| ----------------------- | ------------------------------------------------- | ---------------------------- |
+| **Data descriptor**     | `value`, `writable`, `enumerable`, `configurable` | Stores a plain value         |
+| **Accessor descriptor** | `get`, `set`, `enumerable`, `configurable`        | Runs functions on read/write |
+
+Both share `enumerable` and `configurable`. Data descriptors also have `value`/`writable`. Accessor descriptors swap those for `get`/`set`.
+
+---
+
+### Data Descriptors — Reading Flags on Normal Properties
+
+Every property you assign normally (`obj.x = 1`) gets a descriptor with all flags defaulting to `true`:
+
+```js
+const obj = { name: "Prashant", age: 25 };
+
+// Inspect the descriptor of a regular property
+console.log(Object.getOwnPropertyDescriptor(obj, "name"));
+// {
+//   value:        "Prashant",
+//   writable:     true,   ← can be reassigned
+//   enumerable:   true,   ← shows in for..in / Object.keys
+//   configurable: true    ← can be deleted or redefined
+// }
+```
+
+**What each flag controls:**
+
+```js
+const config = {};
+
+Object.defineProperty(config, "VERSION", {
+    value: "1.0.0",
+    writable: false, // ← cannot reassign
+    enumerable: true, // ← visible in Object.keys
+    configurable: false, // ← cannot delete or redefine
+});
+
+config.VERSION = "2.0.0"; // silently fails (throws in strict mode)
+delete config.VERSION; // silently fails
+console.log(config.VERSION); // "1.0.0" — unchanged
+console.log(Object.keys(config)); // ["VERSION"] — visible because enumerable: true
+```
+
+```js
+// non-enumerable — hidden from loops but still accessible directly
+Object.defineProperty(config, "_secret", {
+    value: "abc123",
+    writable: false,
+    enumerable: false, // ← hidden
+    configurable: false,
+});
+
+console.log(config._secret); // "abc123" — still directly accessible
+console.log(Object.keys(config)); // ["VERSION"] — _secret does NOT appear
+console.log(JSON.stringify(config)); // {"VERSION":"1.0.0"} — _secret excluded
+for (const key in config) console.log(key); // only "VERSION"
+```
+
+**Default flag values — the critical gotcha:**
+
+```js
+// Regular assignment → all flags default to TRUE
+const a = {};
+a.x = 10;
+console.log(Object.getOwnPropertyDescriptor(a, "x"));
+// { value: 10, writable: true, enumerable: true, configurable: true }
+
+// Object.defineProperty → all flags default to FALSE if not specified
+const b = {};
+Object.defineProperty(b, "x", { value: 10 });
+console.log(Object.getOwnPropertyDescriptor(b, "x"));
+// { value: 10, writable: false, enumerable: false, configurable: false }
+//                       ^^^^^             ^^^^^               ^^^^^ all false!
+```
+
+---
 
 ### Accessor Descriptors — Getters & Setters
 
-Besides data descriptors (`value`, `writable`), JavaScript supports **accessor descriptors** with `get` and `set`:
+Instead of storing a plain value, accessor descriptors run a **function** when the property is read (`get`) or written (`set`). This lets you add computed properties, validation, and side-effects transparently.
 
 ```js
 const user = {
-    _name: "Prashant",
+    _name: "Prashant", // convention: _ prefix = "private-ish"
 
     get name() {
+        // called when you READ user.name
         return this._name.toUpperCase();
     },
 
     set name(value) {
+        // called when you WRITE user.name = something
         if (typeof value !== "string")
             throw new TypeError("Name must be a string");
-        this._name = value;
+        this._name = value.trim();
     },
 };
 
-console.log(user.name); // "PRASHANT" — getter called
-user.name = "Alice"; // setter called with validation
+console.log(user.name); // "PRASHANT"  — getter runs
+user.name = "  Alice  "; // setter runs, trims whitespace
 console.log(user.name); // "ALICE"
-// user.name = 42;      // TypeError: Name must be a string
+// user.name = 42;           // TypeError: Name must be a string
 ```
 
+**Inspecting an accessor descriptor:**
+
 ```js
-// Descriptor of an accessor property
 console.log(Object.getOwnPropertyDescriptor(user, "name"));
-// { get: [Function: get name], set: [Function: set name], enumerable: true, configurable: true }
-// Note: accessor descriptors have get/set instead of value/writable
+// {
+//   get:          [Function: get name],
+//   set:          [Function: set name],
+//   enumerable:   true,
+//   configurable: true
+//   ← NO "value" or "writable" keys — that's how you tell it's an accessor
+// }
 ```
 
-### `Object.defineProperties` — Multiple Descriptors at Once
+**Real-world use case — computed/lazy property:**
 
 ```js
-const product = {};
-Object.defineProperties(product, {
-    name: { value: "Laptop", writable: false, enumerable: true },
-    price: { value: 999, writable: true, enumerable: true },
-    _id: { value: "abc123", enumerable: false }, // hidden from iterations
+const circle = {
+    radius: 5,
+
+    get area() {
+        // computed on every access — no stored value
+        return +(Math.PI * this.radius ** 2).toFixed(2);
+    },
+
+    get circumference() {
+        return +(2 * Math.PI * this.radius).toFixed(2);
+    },
+};
+
+console.log(circle.area); // 78.54
+console.log(circle.circumference); // 31.42
+circle.radius = 10;
+console.log(circle.area); // 314.16 — recalculated from new radius
+```
+
+---
+
+### `Object.defineProperty` vs `Object.defineProperties`
+
+```js
+// Single property
+Object.defineProperty(obj, "propName", {
+    value: "...",
+    writable: true,
+    enumerable: true,
+    configurable: true,
 });
 
-console.log(Object.keys(product)); // ["name", "price"] — _id is non-enumerable
+// Multiple properties at once
+const product = {};
+Object.defineProperties(product, {
+    name: {
+        value: "Laptop",
+        writable: false,
+        enumerable: true,
+        configurable: false,
+    },
+    price: { value: 999, writable: true, enumerable: true, configurable: true },
+    _id: { value: "abc123", enumerable: false }, // hidden from loops
+});
+
+console.log(Object.keys(product)); // ["name", "price"]  — _id is non-enumerable
+product.name = "Phone"; // silently ignored   — writable: false
+console.log(product.name); // "Laptop"
+product.price = 799; // works              — writable: true
+console.log(product.price); // 799
 ```
 
-### Checking Immutability
+---
+
+### Three Levels of Object Immutability
+
+JavaScript gives you three increasingly strict ways to lock down an object:
+
+```
+preventExtensions  ⊂  seal  ⊂  freeze
+(weakest)                       (strongest)
+```
+
+```js
+// ── Object.preventExtensions ──────────────────────────────────────
+// Can NOT: add new properties
+// CAN:     modify existing values, delete properties
+const obj1 = { a: 1, b: 2 };
+Object.preventExtensions(obj1);
+
+obj1.c = 3; // silently fails (new property blocked)
+obj1.a = 99; // works  ✅ — existing property can change
+delete obj1.b; // works  ✅ — can still delete
+console.log(obj1); // { a: 99 }
+
+// ── Object.seal ───────────────────────────────────────────────────
+// Can NOT: add or delete properties
+// CAN:     modify existing values
+const obj2 = { x: 1 };
+Object.seal(obj2);
+
+obj2.y = 2; // blocked ❌
+delete obj2.x; // blocked ❌
+obj2.x = 99; // works   ✅ — existing value can change
+console.log(obj2); // { x: 99 }
+
+// ── Object.freeze ─────────────────────────────────────────────────
+// Can NOT: add, delete, or modify anything
+const obj3 = { z: 1 };
+Object.freeze(obj3);
+
+obj3.w = 2; // blocked ❌
+delete obj3.z; // blocked ❌
+obj3.z = 99; // blocked ❌
+console.log(obj3); // { z: 1 }   — unchanged
+```
+
+| Operation             | `preventExtensions` | `seal`  | `freeze` |
+| --------------------- | :-----------------: | :-----: | :------: |
+| Add new property      |         ❌          |   ❌    |    ❌    |
+| Delete existing       |         ✅          |   ❌    |    ❌    |
+| Modify existing value |         ✅          |   ✅    |    ❌    |
+| Change descriptor     |         ✅          |   ❌    |    ❌    |
+| **Depth**             |       Shallow       | Shallow | Shallow  |
+
+**Checking status:**
 
 ```js
 const obj = { a: 1 };
-
 Object.freeze(obj);
+
 console.log(Object.isFrozen(obj)); // true
-console.log(Object.isSealed(obj)); // true (frozen implies sealed)
-console.log(Object.isExtensible(obj)); // false (frozen implies non-extensible)
+console.log(Object.isSealed(obj)); // true  — freeze implies seal
+console.log(Object.isExtensible(obj)); // false — freeze implies non-extensible
 ```
+
+**All three are SHALLOW — nested objects are NOT protected:**
+
+```js
+const config = Object.freeze({
+    db: { host: "localhost", port: 5432 }, // ← nested object is NOT frozen!
+});
+
+config.newProp = "x"; // blocked ✅ — top level is frozen
+config.db.port = 9999; // WORKS! ❌ — nested object is mutable
+console.log(config.db.port); // 9999
+
+// Deep freeze — freeze recursively
+function deepFreeze(obj) {
+    Object.getOwnPropertyNames(obj).forEach((key) => {
+        const val = obj[key];
+        if (val && typeof val === "object") deepFreeze(val);
+    });
+    return Object.freeze(obj);
+}
+
+const safe = deepFreeze({ db: { host: "localhost", port: 5432 } });
+safe.db.port = 1234; // silently fails — now truly immutable
+console.log(safe.db.port); // 5432
+```
+
+---
 
 ### Interview Questions — Property Descriptors
 
-1. **What are the two types of property descriptors?** — Data descriptors (`value`, `writable`) and accessor descriptors (`get`, `set`). Both share `enumerable` and `configurable`.
-2. **What happens if you set `enumerable: false` on a property?** — The property won't appear in `for...in` loops, `Object.keys()`, or `JSON.stringify()`.
-3. **What is the difference between `Object.defineProperty` and regular assignment?** — `defineProperty` defaults flags to `false`. Regular assignment defaults all flags to `true`.
-4. **What are getters and setters?** — Functions that run when you read (`get`) or write (`set`) a property, enabling computed properties and validation.
+1. **What are the two types of property descriptors?** — Data descriptors (`value`, `writable`) and accessor descriptors (`get`, `set`). Both share `enumerable` and `configurable`. A property can only be one type.
+2. **What are the default flag values for `Object.defineProperty` vs regular assignment?** — Regular assignment defaults all flags to `true`. `defineProperty` defaults unspecified flags to `false` — this is the critical gotcha.
+3. **What happens if you set `enumerable: false` on a property?** — The property is hidden from `for...in`, `Object.keys()`, and `JSON.stringify()` — but it is still directly accessible by name.
+4. **What is the difference between `Object.freeze` and `Object.seal`?** — `seal` prevents adding/deleting but allows modifying existing values. `freeze` prevents everything including modification.
+5. **Are `Object.freeze` and `Object.seal` deep?** — No. Both are shallow. Nested objects remain fully mutable. Use a recursive `deepFreeze` function for truly immutable deep objects.
+6. **What are getters and setters?** — Functions that run when you read (`get`) or write (`set`) a property. They enable computed properties, validation, and side-effects while keeping a clean property-access syntax.
+7. **Can you have both `value` and `get` in the same descriptor?** — No. That would mix data and accessor types, which throws a `TypeError`.
+8. **How do you inspect a property's descriptor?** — `Object.getOwnPropertyDescriptor(obj, "propName")` returns the descriptor object for that property.
 
 [↑ Back to Index](#table-of-contents)
 
@@ -2016,7 +3230,76 @@ Arrays are the most commonly used data structure in JavaScript, and the language
 
 All three share the callback signature: `(element, index, array)`, iterate left to right, skip empty slots in sparse arrays, and accept an optional `thisArg`.
 
-### From the Repository — `MapReduceFilter.js`
+**Step-by-step trace \u2014 `map`:**
+
+```js
+const nums = [1, 2, 3, 4];
+const doubled = nums.map((n) => n * 2);
+
+// Iteration 1: n=1  \u2192  1 * 2 = 2   \u2192 result so far: [2]
+// Iteration 2: n=2  \u2192  2 * 2 = 4   \u2192 result so far: [2, 4]
+// Iteration 3: n=3  \u2192  3 * 2 = 6   \u2192 result so far: [2, 4, 6]
+// Iteration 4: n=4  \u2192  4 * 2 = 8   \u2192 result so far: [2, 4, 6, 8]
+// Final result: [2, 4, 6, 8]   \u2190 NEW array, original [1,2,3,4] unchanged
+```
+
+**Step-by-step trace \u2014 `filter`:**
+
+```js
+const evens = nums.filter((n) => n % 2 === 0);
+
+// n=1: 1 % 2 = 1  \u2192 falsy  \u2192 SKIPPED
+// n=2: 2 % 2 = 0  \u2192 truthy \u2192 INCLUDED  \u2192 result: [2]
+// n=3: 3 % 2 = 1  \u2192 falsy  \u2192 SKIPPED
+// n=4: 4 % 2 = 0  \u2192 truthy \u2192 INCLUDED  \u2192 result: [2, 4]
+// Final result: [2, 4]
+```
+
+**Step-by-step trace \u2014 `reduce`:**
+
+```js
+const sum = nums.reduce((acc, n) => acc + n, 0);
+
+// Start:      acc = 0  (initial value)
+// n=1:  acc = 0 + 1 = 1
+// n=2:  acc = 1 + 2 = 3
+// n=3:  acc = 3 + 3 = 6
+// n=4:  acc = 6 + 4 = 10
+// Final result: 10
+```
+
+**What if you forget the initial value in `reduce`?**
+
+```js
+const nums = [1, 2, 3];
+
+// WITH initial value 0:
+nums.reduce((acc, n) => acc + n, 0); // 0+1+2+3 = 6  \u2705
+
+// WITHOUT initial value \u2014 first element becomes acc:
+nums.reduce((acc, n) => acc + n); // acc=1, n=2 \u2192 3; n=3 \u2192 6  \u2705 same here
+
+// Dangerous on empty array without initial value:
+[].reduce((acc, n) => acc + n); // \u274c TypeError: Reduce of empty array with no initial value
+[].reduce((acc, n) => acc + n, 0); // \u2705 returns 0
+```
+
+**map vs forEach \u2014 the key rule:**
+
+```js
+const nums = [1, 2, 3];
+
+// map \u2014 transforms, returns a NEW array
+const mapped = nums.map((n) => n * 2);
+console.log(mapped); // [2, 4, 6]
+console.log(nums); // [1, 2, 3]  \u2190 original untouched
+
+// forEach \u2014 side effects only, returns undefined
+const result = nums.forEach((n) => console.log(n)); // 1, 2, 3
+console.log(result); // undefined  \u2190 never assign forEach to a variable
+```
+
+### From the Repository \u2014 `MapReduceFilter.js`
 
 ```js
 const users = [
@@ -2596,6 +3879,28 @@ This code suffers from two major problems:
 1. **Readability** — Deep nesting makes the code extremely hard to read and maintain.
 2. **Inversion of Control** — When you pass a callback to an external function, you lose control over when and how many times it is called. The external function might call your callback twice, never call it, or call it with an error you didn't expect.
 
+**Inversion of Control — why it is dangerous:**
+
+```js
+// You write this:
+thirdPartyPayment.process(cart, function onSuccess() {
+    // You have NO guarantee about:
+    // 1. Will this be called once? (might be called twice → double charge!)
+    // 2. Will this be called at all? (might be silently swallowed)
+    // 3. Will it be called synchronously or async?
+    // 4. Will errors be passed to this callback or thrown?
+    completeSale();
+});
+// Control is INVERTED — thirdPartyPayment now owns your code
+
+// Promise solution — control returned to you:
+thirdPartyPayment
+    .process(cart)
+    .then(onSuccess) // YOU decide what to do on success
+    .catch(onError); // YOU decide what to do on failure
+// The promise is a trust contract: resolve or reject, exactly once
+```
+
 Promises solve both of these problems.
 
 ```mermaid
@@ -2642,6 +3947,41 @@ A **Promise** is an object representing the eventual completion (or failure) of 
 - **Rejected** — The operation failed, with a reason (error).
 
 A promise is settled (fulfilled or rejected) exactly once and cannot change state afterward. You attach handlers using `.then()` for success, `.catch()` for errors, and `.finally()` for cleanup that runs regardless of outcome.
+
+**Promise internal state — as a JS object snapshot:**
+
+```js
+// A Promise is internally like this object (conceptual model):
+
+// ── Pending (just created) ────────────────────────────────────────
+{
+    [[PromiseState]]:  "pending",
+    [[PromiseResult]]: undefined,
+    // Waiting... .then() and .catch() callbacks queue here
+}
+
+// ── After resolve(42) is called ─────────────────────────────────
+{
+    [[PromiseState]]:  "fulfilled",
+    [[PromiseResult]]: 42,
+    // .then(fn) callbacks are scheduled as microtasks with result = 42
+}
+
+// ── After reject(new Error("oops")) is called ────────────────────
+{
+    [[PromiseState]]:  "rejected",
+    [[PromiseResult]]: Error("oops"),
+    // .catch(fn) callbacks are scheduled as microtasks with reason = Error
+}
+
+// Key rule: once settled, state NEVER changes.
+const p = new Promise((resolve, reject) => {
+    resolve(1);   // ✅ state becomes fulfilled
+    resolve(2);   // ❌ ignored — already settled
+    reject("x"); // ❌ ignored — already settled
+});
+p.then(v => console.log(v)); // 1 — only the first resolve/reject counts
+```
 
 **Promise chaining** allows sequential async operations to be expressed as a flat chain instead of nested callbacks. Each `.then()` returns a new promise, so more `.then()` calls can be appended. If a `.then()` returns a value, the next `.then()` receives it. If it returns a promise, the chain waits for that promise to settle.
 
@@ -3094,6 +4434,32 @@ console.log("End"); // 4. Call stack
 ```
 
 **Why?** After the synchronous code runs ("Start", "End"), the event loop checks the microtask queue first (Promise callback → "Promise"), then the macrotask queue (setTimeout callback → "Timeout").
+
+**Full execution order trace — step by step:**
+
+```js
+console.log("A"); // [1] sync
+
+setTimeout(() => console.log("B"), 0); // goes to macrotask queue
+
+Promise.resolve()
+    .then(() => console.log("C")) // goes to microtask queue
+    .then(() => console.log("D")); // chained — queued AFTER C runs
+
+Promise.resolve().then(() => console.log("E")); // goes to microtask queue
+
+console.log("F"); // [2] sync
+
+// Execution order:
+// 1. Sync code:       A, F
+// 2. Microtasks:      C, E  (first batch — both were queued before stack cleared)
+// 3. Microtasks:      D     (second batch — queued when C ran)
+// 4. Macrotask:       B     (timer, runs only after ALL microtasks done)
+
+// Output: A, F, C, E, D, B
+```
+
+**Why D comes after E:** When C runs, it schedules D as a NEW microtask. E was already in the queue before C ran. The loop drains existing microtasks first (C, E), then picks up D (which C created), then finally moves to macrotask B.
 
 ### Node.js Event Loop Phases
 

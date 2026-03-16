@@ -1990,6 +1990,84 @@ console.log("a" in parent); // true
 console.log("x" in child); // false — nowhere in the chain
 ```
 
+**`valueOf()` — inherited from `Object.prototype`, and how to override it:**
+
+`valueOf()` is called automatically by JavaScript whenever an object needs to be converted to a **primitive** (number, string, or boolean) — for example in arithmetic, comparisons, or template literals.
+
+```js
+// Default valueOf — inherited from Object.prototype
+const obj = { x: 1 };
+console.log(obj.valueOf()); // { x: 1 }  — returns the object itself by default
+console.log(obj + 10); // "[object Object]10"  — useless, falls back to toString
+
+// ── Override valueOf so arithmetic makes sense ──────────────────────
+function Money(amount, currency) {
+    this.amount = amount;
+    this.currency = currency;
+}
+
+// valueOf is looked up via the prototype chain: instance → Money.prototype → Object.prototype
+Money.prototype.valueOf = function () {
+    return this.amount; // ← return the NUMBER the engine should use
+};
+
+Money.prototype.toString = function () {
+    return `${this.amount} ${this.currency}`;
+};
+
+const price = new Money(100, "USD");
+const tax = new Money(15, "USD");
+
+// Arithmetic — engine calls valueOf() automatically
+console.log(price + tax); // 115       ← 100 + 15
+console.log(price * 1.1); // 110       ← 100 * 1.1
+console.log(price > tax); // true      ← 100 > 15
+
+// String context — engine calls toString() automatically
+console.log(`Total: ${price}`); // "Total: 100 USD"
+console.log(String(price)); // "100 USD"
+
+// Explicit call
+console.log(price.valueOf()); // 100   — found on Money.prototype
+console.log(price.hasOwnProperty("valueOf")); // false — inherited, NOT own
+console.log(Money.prototype.hasOwnProperty("valueOf")); // true  — defined here
+```
+
+**Where `valueOf` sits in the chain:**
+
+```js
+// Lookup path when you call price.valueOf():
+// 1. Check price (the instance)        → NOT found (own props: amount, currency)
+// 2. Check Money.prototype             → FOUND! our custom valueOf ✅
+
+// If we had NOT defined it on Money.prototype:
+// 1. Check price                       → NOT found
+// 2. Check Money.prototype             → NOT found
+// 3. Check Object.prototype            → FOUND! the default valueOf (returns `this`)
+
+// This is prototype-based delegation in action:
+// custom valueOf on Money.prototype SHADOWS Object.prototype.valueOf
+```
+
+**Common built-in `valueOf` overrides in JavaScript:**
+
+```js
+// Number — valueOf returns the primitive number
+const n = new Number(42);
+console.log(n.valueOf()); // 42
+console.log(n + 8); // 50  — valueOf called automatically
+
+// Date — valueOf returns milliseconds since epoch
+const d = new Date("2024-01-01");
+console.log(d.valueOf()); // 1704067200000
+console.log(d > new Date("2023-01-01")); // true — dates compared via valueOf
+
+// Boolean — valueOf returns the primitive boolean
+const b = new Boolean(false);
+console.log(b.valueOf()); // false
+console.log(!b.valueOf()); // true
+```
+
 ```mermaid
 flowchart TB
     NULL["null"]
@@ -2219,18 +2297,18 @@ console.log(u1.name === u2.name); // false — "Prashant" vs "Raju"
 flowchart LR
     subgraph "Constructor + Prototype"
         CF["User (constructor fn)"]
-        CFP["User.prototype\n{greet(), promote(), constructor}"]
+        CFP["User.prototype<br/>{greet(), promote(), constructor}"]
         CF -->|".prototype property"| CFP
     end
 
     subgraph "Instances (own data only)"
-        I1["u1\n{name:'Prashant', role:'developer'}"]
-        I2["u2\n{name:'Raju', role:'designer'}"]
+        I1["u1<br/>{name:'Prashant', role:'developer'}"]
+        I2["u2<br/>{name:'Raju', role:'designer'}"]
         I1 -->|"__proto__"| CFP
         I2 -->|"__proto__"| CFP
     end
 
-    OP["Object.prototype\n{toString, hasOwnProperty…}"]
+    OP["Object.prototype<br/>{toString, hasOwnProperty…}"]
     CFP -->|"__proto__"| OP
 
     style CF  fill:#1565c0,color:#fff,stroke:#0d47a1
@@ -2295,7 +2373,7 @@ flowchart TD
     A["new User('Prashant', 'developer')"] --> B["1. Create empty object: obj = {}"]
     B --> C["2. obj.__proto__ = User.prototype"]
     C --> D["3. User.call(obj, 'Prashant', 'developer')"]
-    D --> E{"4. Constructor returns\nan object?"}
+    D --> E{"4. Constructor returns<br/>an object?"}
     E -->|"Yes (rare)"| F["Return that object"]
     E -->|"No (usual)"| G["Return obj  ← this is your instance"]
 
@@ -2376,9 +2454,9 @@ console.log(Object.getPrototypeOf(Array.prototype) === Object.prototype); // tru
 ```mermaid
 flowchart TB
     NULL["null"]
-    OP["Object.prototype\n{toString, hasOwnProperty…}"]
-    AP["Array.prototype\n{map, filter, reduce, push, pop…}"]
-    NUMS["nums [1,2,3]\n{0:1, 1:2, 2:3, length:3}"]
+    OP["Object.prototype<br/>{toString, hasOwnProperty…}"]
+    AP["Array.prototype<br/>{map, filter, reduce, push, pop…}"]
+    NUMS["nums [1,2,3]<br/>{0:1, 1:2, 2:3, length:3}"]
 
     NUMS -->|"__proto__"| AP
     AP   -->|"__proto__"| OP
@@ -2554,9 +2632,9 @@ console.log(rex instanceof Animal); // true — chain includes Animal.prototype
 flowchart TB
     NULL["null"]
     OP["Object.prototype"]
-    AP["Animal.prototype\n{speak(), toString()}"]
-    DP["Dog.prototype\n{learn(), perform(), constructor}"]
-    REX["rex\n{name:'Rex', sound:'Woof', tricks:[…]}"]
+    AP["Animal.prototype<br/>{speak(), toString()}"]
+    DP["Dog.prototype<br/>{learn(), perform(), constructor}"]
+    REX["rex<br/>{name:'Rex', sound:'Woof', tricks:[…]}"]
 
     REX -->|"__proto__"| DP
     DP  -->|"__proto__"| AP
@@ -3065,88 +3143,6 @@ Object.is(a, b); // false — different references
 **`Object.seal()`** prevents adding new properties or deleting existing ones, but allows modification of existing property values. It is less restrictive than `freeze`.
 
 **`Object.is()`** performs a strict equality check similar to `===` but handles edge cases: `Object.is(NaN, NaN)` is `true` and `Object.is(+0, -0)` is `false`.
-
-### Property Descriptors
-
-Every property in JavaScript has a **property descriptor** — metadata that controls how the property behaves:
-
-```js
-const obj = { name: "Prashant" };
-
-// Get a property's descriptor
-console.log(Object.getOwnPropertyDescriptor(obj, "name"));
-// { value: "Prashant", writable: true, enumerable: true, configurable: true }
-
-// Define a property with custom descriptor
-Object.defineProperty(obj, "role", {
-    value: "developer",
-    writable: false, // cannot reassign
-    enumerable: false, // won't show in for...in or Object.keys
-    configurable: false, // cannot delete or redefine
-});
-
-console.log(obj.role); // "developer"
-obj.role = "admin"; // silently fails (or throws in strict mode)
-console.log(Object.keys(obj)); // ["name"] — "role" is not enumerable
-```
-
-| Flag           | Default (defineProperty) | Default (regular assignment) | Effect                                                        |
-| -------------- | ------------------------ | ---------------------------- | ------------------------------------------------------------- |
-| `writable`     | `false`                  | `true`                       | Whether the value can be changed                              |
-| `enumerable`   | `false`                  | `true`                       | Whether it shows in `for...in` / `Object.keys()`              |
-| `configurable` | `false`                  | `true`                       | Whether the property can be deleted or its descriptor changed |
-
-### `Object.preventExtensions`, `Object.seal`, `Object.freeze` — Comparison
-
-JavaScript provides three levels of object immutability:
-
-```js
-// Object.preventExtensions — cannot ADD new properties
-const obj1 = { a: 1 };
-Object.preventExtensions(obj1);
-obj1.b = 2; // silently fails
-obj1.a = 10; // works — can still modify
-delete obj1.a; // works — can still delete
-
-// Object.seal — cannot ADD or DELETE properties
-const obj2 = { a: 1 };
-Object.seal(obj2);
-obj2.b = 2; // fails
-delete obj2.a; // fails
-obj2.a = 10; // works — can still modify values
-
-// Object.freeze — cannot ADD, DELETE, or MODIFY properties
-const obj3 = { a: 1 };
-Object.freeze(obj3);
-obj3.a = 10; // fails
-obj3.b = 2; // fails
-```
-
-| Feature                 | `preventExtensions` | `seal`  | `freeze` |
-| ----------------------- | :-----------------: | :-----: | :------: |
-| Add new properties      |         ❌          |   ❌    |    ❌    |
-| Delete properties       |         ✅          |   ❌    |    ❌    |
-| Modify existing values  |         ✅          |   ✅    |    ❌    |
-| Reconfigure descriptors |         ✅          |   ❌    |    ❌    |
-| Depth                   |       Shallow       | Shallow | Shallow  |
-
-**All three are shallow.** Nested objects remain mutable. To deep-freeze:
-
-```js
-function deepFreeze(obj) {
-    Object.freeze(obj);
-    Object.getOwnPropertyNames(obj).forEach((prop) => {
-        if (
-            typeof obj[prop] === "object" &&
-            obj[prop] !== null &&
-            !Object.isFrozen(obj[prop])
-        ) {
-            deepFreeze(obj[prop]);
-        }
-    });
-    return obj;
-}
-```
 
 ### `Object.assign()` vs Spread
 
@@ -3673,7 +3669,7 @@ console.log(`Hello, ${name}! You are ${age} years old.`);
 console.log(`Next year you'll be ${age + 1}`);
 console.log(`Is adult: ${age >= 18 ? "Yes" : "No"}`);
 
-// Multi-line strings (no \n needed)
+// Multi-line strings (no <br/> needed)
 const html = `
   <div>
     <h1>${name}</h1>
@@ -3770,11 +3766,11 @@ This pattern is used by real libraries for SQL parameterization, CSS-in-JS, Grap
 
 ```js
 // Normal template literal processes escape sequences
-console.log(`Line1\nLine2`); // Line1
+console.log(`Line1<br/>Line2`); // Line1
 // Line2
 
 // String.raw preserves raw escape sequences
-console.log(String.raw`Line1\nLine2`); // "Line1\nLine2" (literal backslash-n)
+console.log(String.raw`Line1<br/>Line2`); // "Line1<br/>Line2" (literal backslash-n)
 
 // Useful for regex and file paths
 const path = String.raw`C:\Users\Prashant\Documents`;

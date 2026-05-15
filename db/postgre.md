@@ -5,54 +5,54 @@
 ## Table of Contents
 
 - [PostgreSQL / PL/pgSQL Notes](#postgresql--plpgsql-notes)
-  - [Table of Contents](#table-of-contents)
-  - [1. Database Foundations](#1-database-foundations)
-  - [2. Introduction to PostgreSQL / PL/pgSQL](#2-introduction-to-postgresql--plpgsql)
-    - [Dollar-Quoting (`$$`)](#dollar-quoting-)
-    - [SERIAL and GENERATED AS IDENTITY](#serial-and-generated-as-identity)
-  - [3. Data Types](#3-data-types)
-  - [4. Variables & Constants](#4-variables--constants)
-  - [5. Languages in PostgreSQL](#5-languages-in-postgresql)
-    - [DDL — CREATE, ALTER, TRUNCATE, DROP](#ddl---data-definition-language)
-    - [DML — INSERT, UPDATE, DELETE, MERGE](#dml---data-manipulation-language)
-    - [DQL — SELECT](#dql---data-query-language)
-    - [DCL — GRANT, REVOKE](#dcl---data-control-language)
-    - [TCL — BEGIN, COMMIT, ROLLBACK, SAVEPOINT](#tcl---transaction-control-language)
-  - [6. Types of Operators](#6-types-of-operators)
-  - [7. Types of Constraints](#7-types-of-constraints)
-  - [8. Database Design & Normalization](#8-database-design--normalization)
-  - [9. JOINs](#9-joins)
-  - [10. Aggregations & Grouping](#10-aggregations--grouping)
-  - [11. Subqueries](#11-subqueries)
-  - [12. Built-in Functions](#12-built-in-functions)
-  - [13. Indexes & Performance](#13-indexes--performance)
-  - [14. Transactions & Concurrency (Extended)](#14-transactions--concurrency-extended)
-  - [15. Views](#15-views)
-  - [16. Window Functions](#16-window-functions)
-  - [17. CTEs & Advanced Querying](#17-ctes--advanced-querying)
-  - [18. Control Structures](#18-control-structures)
-  - [19. Loops](#19-loops)
-  - [20. Cursors](#20-cursors)
-  - [21. Exceptions & Exception Handling](#21-exceptions--exception-handling)
-    - [Re-Raising Exceptions](#re-raising-exceptions)
-    - [GET STACKED DIAGNOSTICS](#get-stacked-diagnostics)
-  - [22. Stored Procedures](#22-stored-procedures)
-    - [Procedure with INOUT Parameter](#procedure-with-inout-parameter)
-    - [Transaction Control Inside a Procedure](#transaction-control-inside-a-procedure)
-  - [23. Functions](#23-functions)
-    - [RETURNS SETOF](#returns-setof--return-multiple-rows-of-an-existing-type)
-    - [SQL-Language Function](#sql-language-function)
-    - [SECURITY DEFINER vs SECURITY INVOKER](#security-definer-vs-security-invoker)
-  - [24. Packages & Schemas](#24-packages--schemas)
-  - [25. Triggers](#25-triggers)
-    - [Trigger with WHEN Condition](#trigger-with-when-condition)
-    - [Statement-Level Trigger](#statement-level-trigger)
-    - [INSTEAD OF Trigger (on Views)](#instead-of-trigger-on-views)
-  - [26. Collections](#26-collections)
-    - [JSONB — Semi-Structured Data](#jsonb--semi-structured-data-in-postgresql)
-  - [27. Backend Integration — Node.js Perspective](#27-backend-integration--nodejs-perspective)
-  - [28. Interview Preparation](#28-interview-preparation)
-  - [29. Jobs & Scheduled Tasks in PostgreSQL](#29-jobs--scheduled-tasks-in-postgresql)
+    - [Table of Contents](#table-of-contents)
+    - [1. Database Foundations](#1-database-foundations)
+    - [2. Introduction to PostgreSQL / PL/pgSQL](#2-introduction-to-postgresql--plpgsql)
+        - [Dollar-Quoting (`$$`)](#dollar-quoting-)
+        - [SERIAL and GENERATED AS IDENTITY](#serial-and-generated-as-identity)
+    - [3. Data Types](#3-data-types)
+    - [4. Variables & Constants](#4-variables--constants)
+    - [5. Languages in PostgreSQL](#5-languages-in-postgresql)
+        - [DDL — CREATE, ALTER, TRUNCATE, DROP](#ddl---data-definition-language)
+        - [DML — INSERT, UPDATE, DELETE, MERGE](#dml---data-manipulation-language)
+        - [DQL — SELECT](#dql---data-query-language)
+        - [DCL — GRANT, REVOKE](#dcl---data-control-language)
+        - [TCL — BEGIN, COMMIT, ROLLBACK, SAVEPOINT](#tcl---transaction-control-language)
+    - [6. Types of Operators](#6-types-of-operators)
+    - [7. Types of Constraints](#7-types-of-constraints)
+    - [8. Database Design & Normalization](#8-database-design--normalization)
+    - [9. JOINs](#9-joins)
+    - [10. Aggregations & Grouping](#10-aggregations--grouping)
+    - [11. Subqueries](#11-subqueries)
+    - [12. Built-in Functions](#12-built-in-functions)
+    - [13. Indexes & Performance](#13-indexes--performance)
+    - [14. Transactions & Concurrency (Extended)](#14-transactions--concurrency-extended)
+    - [15. Views](#15-views)
+    - [16. Window Functions](#16-window-functions)
+    - [17. CTEs & Advanced Querying](#17-ctes--advanced-querying)
+    - [18. Control Structures](#18-control-structures)
+    - [19. Loops](#19-loops)
+    - [20. Cursors](#20-cursors)
+    - [21. Exceptions & Exception Handling](#21-exceptions--exception-handling)
+        - [Re-Raising Exceptions](#re-raising-exceptions)
+        - [GET STACKED DIAGNOSTICS](#get-stacked-diagnostics)
+    - [22. Stored Procedures](#22-stored-procedures)
+        - [Procedure with INOUT Parameter](#procedure-with-inout-parameter)
+        - [Transaction Control Inside a Procedure](#transaction-control-inside-a-procedure)
+    - [23. Functions](#23-functions)
+        - [RETURNS SETOF](#returns-setof--return-multiple-rows-of-an-existing-type)
+        - [SQL-Language Function](#sql-language-function)
+        - [SECURITY DEFINER vs SECURITY INVOKER](#security-definer-vs-security-invoker)
+    - [24. Packages & Schemas](#24-packages--schemas)
+    - [25. Triggers](#25-triggers)
+        - [Trigger with WHEN Condition](#trigger-with-when-condition)
+        - [Statement-Level Trigger](#statement-level-trigger)
+        - [INSTEAD OF Trigger (on Views)](#instead-of-trigger-on-views)
+    - [26. Collections](#26-collections)
+        - [JSONB — Semi-Structured Data](#jsonb--semi-structured-data-in-postgresql)
+    - [27. Backend Integration — Node.js Perspective](#27-backend-integration--nodejs-perspective)
+    - [28. Interview Preparation](#28-interview-preparation)
+    - [29. Jobs & Scheduled Tasks in PostgreSQL](#29-jobs--scheduled-tasks-in-postgresql)
 
 ---
 
@@ -449,82 +449,81 @@ graph TD
 
 - **INTEGER** — stores pure whole numbers (e.g., `EmpId INT` → 100, 101)
 - **NUMERIC(P, S)** — stores exact decimal numbers
+    - `P` = Precision → total number of digits (both sides of decimal)
+    - `S` = Scale → number of digits **after** the decimal point
+    - Example: `NUMERIC(10, 2)` allows up to 10 total digits with 2 decimal places
 
-  - `P` = Precision → total number of digits (both sides of decimal)
-  - `S` = Scale → number of digits **after** the decimal point
-  - Example: `NUMERIC(10, 2)` allows up to 10 total digits with 2 decimal places
+    | Value      | Precision (P) | Scale (S) |
+    | ---------- | :-----------: | :-------: |
+    | 100.23     |       5       |     2     |
+    | 2345.98765 |       9       |     5     |
 
-  | Value      | Precision (P) | Scale (S) |
-  | ---------- | :-----------: | :-------: |
-  | 100.23     |       5       |     2     |
-  | 2345.98765 |       9       |     5     |
-
-  ```sql
-  DO $$
-  DECLARE
-    v_emp_id  INTEGER := 101;
-    v_salary  NUMERIC(10, 2) := 2345.98;
-  BEGIN
-    RAISE NOTICE 'Emp ID : %', v_emp_id;
-    RAISE NOTICE 'Salary : %', v_salary;
-  END;
-  $$;
-  ```
+    ```sql
+    DO $$
+    DECLARE
+      v_emp_id  INTEGER := 101;
+      v_salary  NUMERIC(10, 2) := 2345.98;
+    BEGIN
+      RAISE NOTICE 'Emp ID : %', v_emp_id;
+      RAISE NOTICE 'Salary : %', v_salary;
+    END;
+    $$;
+    ```
 
 #### 2. Monetary
 
 - Used for currency values
 - PostgreSQL has a native `MONEY` type, or use `NUMERIC(15, 2)` for full precision control
 
-  ```sql
-  DO $$
-  DECLARE
-    v_price   NUMERIC(15, 2) := 19999.99;
-    v_tax     NUMERIC(15, 2) := v_price * 0.18;  -- 18% GST
-  BEGIN
-    RAISE NOTICE 'Price : %', v_price;
-    RAISE NOTICE 'Tax   : %', v_tax;
-    RAISE NOTICE 'Total : %', (v_price + v_tax);
-  END;
-  $$;
-  ```
+    ```sql
+    DO $$
+    DECLARE
+      v_price   NUMERIC(15, 2) := 19999.99;
+      v_tax     NUMERIC(15, 2) := v_price * 0.18;  -- 18% GST
+    BEGIN
+      RAISE NOTICE 'Price : %', v_price;
+      RAISE NOTICE 'Tax   : %', v_tax;
+      RAISE NOTICE 'Total : %', (v_price + v_tax);
+    END;
+    $$;
+    ```
 
 #### 3. Character
 
 - **CHAR(n)** — Fixed-length string; always uses `n` characters of storage
-  - e.g., `Emp_Name CHAR(100)` storing `'Prashant'` (8 chars) → **92 spaces padded**
+    - e.g., `Emp_Name CHAR(100)` storing `'Prashant'` (8 chars) → **92 spaces padded**
 - **VARCHAR(n)** — Variable-length string; stores only what's needed
-  - e.g., `Emp_Name VARCHAR(100)` storing `'Prashant'` → only **8 chars used**
+    - e.g., `Emp_Name VARCHAR(100)` storing `'Prashant'` → only **8 chars used**
 - Always enclose `CHAR` / `VARCHAR` values in **single quotes**: `'Prashant'`
 
-  ```sql
-  DO $$
-  DECLARE
-    v_fixed   CHAR(10)      := 'Hi';        -- always 10 chars (space-padded)
-    v_dynamic VARCHAR(100)  := 'Prashant';  -- only 8 chars used
-  BEGIN
-    RAISE NOTICE 'CHAR   : %', v_fixed;
-    RAISE NOTICE 'VARCHAR: %', v_dynamic;
-  END;
-  $$;
-  ```
+    ```sql
+    DO $$
+    DECLARE
+      v_fixed   CHAR(10)      := 'Hi';        -- always 10 chars (space-padded)
+      v_dynamic VARCHAR(100)  := 'Prashant';  -- only 8 chars used
+    BEGIN
+      RAISE NOTICE 'CHAR   : %', v_fixed;
+      RAISE NOTICE 'VARCHAR: %', v_dynamic;
+    END;
+    $$;
+    ```
 
 #### 4. Binary
 
 - Stores data in byte format (images, files, etc.)
 - Primary type: `BYTEA` (byte array) — PostgreSQL's native binary storage type
 
-  ```sql
-  -- Declaring a BYTEA variable to hold binary data (e.g., an image)
-  DO $$
-  DECLARE
-    v_image  BYTEA;
-  BEGIN
-    -- In real use, BYTEA is loaded from a file or table column
-    RAISE NOTICE 'BYTEA variable declared successfully.';
-  END;
-  $$;
-  ```
+    ```sql
+    -- Declaring a BYTEA variable to hold binary data (e.g., an image)
+    DO $$
+    DECLARE
+      v_image  BYTEA;
+    BEGIN
+      -- In real use, BYTEA is loaded from a file or table column
+      RAISE NOTICE 'BYTEA variable declared successfully.';
+    END;
+    $$;
+    ```
 
 #### 5. Enumerated
 
@@ -532,21 +531,21 @@ graph TD
 - Example: `CREATE TYPE sport_type AS ENUM ('Tennis', 'Cricket', 'Volleyball', 'Basketball')`
 - PostgreSQL natively supports ENUM types via `CREATE TYPE ... AS ENUM`
 
-  ```sql
-  -- Creating a native ENUM type in PostgreSQL
-  CREATE TYPE sport_type AS ENUM ('Tennis', 'Cricket', 'Volleyball', 'Basketball');
+    ```sql
+    -- Creating a native ENUM type in PostgreSQL
+    CREATE TYPE sport_type AS ENUM ('Tennis', 'Cricket', 'Volleyball', 'Basketball');
 
-  CREATE TABLE Player (
-    player_id  INTEGER,
-    sport      sport_type
-  );
+    CREATE TABLE Player (
+      player_id  INTEGER,
+      sport      sport_type
+    );
 
-  -- Valid insert
-  INSERT INTO Player VALUES (1, 'Cricket');
+    -- Valid insert
+    INSERT INTO Player VALUES (1, 'Cricket');
 
-  -- This will throw an error (value not in allowed list)
-  INSERT INTO Player VALUES (2, 'Football');
-  ```
+    -- This will throw an error (value not in allowed list)
+    INSERT INTO Player VALUES (2, 'Football');
+    ```
 
 #### 6. Boolean
 
@@ -554,19 +553,19 @@ graph TD
 - Equivalent to `1 / 0` in some contexts
 - **Note:** `BOOLEAN` is a **full column type** in PostgreSQL — usable in both PL/pgSQL code and table definitions
 
-  ```sql
-  DO $$
-  DECLARE
-    v_is_active  BOOLEAN := TRUE;
-  BEGIN
-    IF v_is_active THEN
-      RAISE NOTICE 'Employee is active.';
-    ELSE
-      RAISE NOTICE 'Employee is inactive.';
-    END IF;
-  END;
-  $$;
-  ```
+    ```sql
+    DO $$
+    DECLARE
+      v_is_active  BOOLEAN := TRUE;
+    BEGIN
+      IF v_is_active THEN
+        RAISE NOTICE 'Employee is active.';
+      ELSE
+        RAISE NOTICE 'Employee is inactive.';
+      END IF;
+    END;
+    $$;
+    ```
 
 #### 7. Geometric
 
@@ -574,17 +573,17 @@ graph TD
 - PostgreSQL has **built-in geometric types**: `POINT`, `LINE`, `LSEG`, `BOX`, `PATH`, `POLYGON`, `CIRCLE`
 - No extension required — geometric types are part of PostgreSQL core
 
-  ```sql
-  -- Creating a table with a native PostgreSQL POINT column
-  CREATE TABLE locations (
-    loc_id  INTEGER,
-    shape   POINT         -- native PostgreSQL geometric type
-  );
+    ```sql
+    -- Creating a table with a native PostgreSQL POINT column
+    CREATE TABLE locations (
+      loc_id  INTEGER,
+      shape   POINT         -- native PostgreSQL geometric type
+    );
 
-  -- Storing a point (longitude, latitude) — Bangalore coordinates
-  INSERT INTO locations (loc_id, shape)
-  VALUES (1, POINT(77.5946, 12.9716));
-  ```
+    -- Storing a point (longitude, latitude) — Bangalore coordinates
+    INSERT INTO locations (loc_id, shape)
+    VALUES (1, POINT(77.5946, 12.9716));
+    ```
 
 #### 8. Date / Time
 
@@ -6996,14 +6995,52 @@ graph LR
 
 A **stored procedure** is a named, precompiled block of PL/pgSQL code stored on the database server that can be called by name at any time. Procedures encapsulate repetitive business logic (salary updates, order processing, data cleansing) so client applications don't need to reimplement it.
 
-**Procedures vs. Functions — key differences:**
+**Procedures vs. Functions — complete comparison:**
 
-| Feature             | Stored Procedure                   | Function                     |
-| ------------------- | ---------------------------------- | ---------------------------- |
-| Returns value?      | No (use `OUT` params for output)   | Yes — always returns a value |
-| Used in SQL?        | No — called with `CALL`            | Yes — usable in `SELECT`     |
-| Transaction control | Can use `COMMIT`/`ROLLBACK` inside | Cannot control transactions  |
-| Purpose             | Execute actions / side effects     | Compute and return a result  |
+| Feature                               | Stored Procedure                                       | Function                                              |
+| ------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------- |
+| **Returns a value?**                  | No — no `RETURNS` clause (use `OUT` params for output) | Yes — **must** declare `RETURNS` and return a value   |
+| **Return type**                       | N/A (void)                                             | Scalar, TABLE, SETOF, TRIGGER                         |
+| **Used in SELECT / WHERE?**           | ❌ No                                                  | ✅ Yes — `SELECT get_salary(101)`                     |
+| **Called with**                       | `CALL procedure_name(args)`                            | `SELECT function_name(args)` or inline in expressions |
+| **Transaction control**               | ✅ Can `COMMIT` / `ROLLBACK` inside body               | ❌ Cannot control transactions                        |
+| **LANGUAGE support**                  | PL/pgSQL                                               | PL/pgSQL, SQL, Python, C, etc.                        |
+| **Volatility (`STABLE`/`IMMUTABLE`)** | Not applicable                                         | ✅ Can be declared for query optimisation             |
+| **Used as trigger?**                  | ❌ No                                                  | ✅ Yes (`RETURNS TRIGGER`)                            |
+| **SECURITY DEFINER?**                 | ✅ Yes                                                 | ✅ Yes                                                |
+| **Introduced in PostgreSQL**          | PostgreSQL 11                                          | Always supported                                      |
+| **Primary purpose**                   | Execute actions / side effects                         | Compute and return a result                           |
+
+**When to use which:**
+
+- Use a **Function** when you need to compute a value and use it inside a query (`SELECT`, `WHERE`, `JOIN` condition)
+- Use a **Procedure** when you need to perform an action (update, insert, delete) and especially when you need to control transactions (`COMMIT`/`ROLLBACK` mid-operation)
+
+```sql
+-- Function: returns a value, usable directly in a query
+CREATE OR REPLACE FUNCTION get_annual_salary(p_emp_id INTEGER)
+RETURNS NUMERIC LANGUAGE sql AS $$
+  SELECT salary * 12 FROM employees WHERE employee_id = p_emp_id;
+$$;
+
+-- Used inline in SELECT
+SELECT first_name, get_annual_salary(employee_id) AS annual_sal FROM employees;
+
+-- Procedure: performs an action, called with CALL, can COMMIT inside
+CREATE OR REPLACE PROCEDURE give_raise(p_emp_id INTEGER, p_pct NUMERIC)
+LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE employees SET salary = salary * (1 + p_pct/100)
+  WHERE employee_id = p_emp_id;
+  COMMIT;  -- only possible in a procedure
+END;
+$$;
+
+-- Cannot use in SELECT — must use CALL
+CALL give_raise(101, 10);
+```
+
+> **Interview answer:** "A function always returns a value and can be used inside SQL expressions like `SELECT` or `WHERE`. A procedure does not return a value directly, is called with `CALL`, and is the only way to use `COMMIT`/`ROLLBACK` inside your own code. Use a function when you need a computed result; use a procedure when you need to perform an action that might involve multi-step transaction management."
 
 **Parameter modes:**
 
@@ -7965,8 +8002,8 @@ const query = `SELECT * FROM users WHERE email = '${email}'`;
 
 // ALWAYS DO THIS — parameterized query ($1, $2, ...)
 const result = await pool.query(
-  "SELECT * FROM users WHERE email = $1",
-  [email] // email is treated as pure data, never as SQL code
+    "SELECT * FROM users WHERE email = $1",
+    [email], // email is treated as pure data, never as SQL code
 );
 ```
 
@@ -7984,14 +8021,14 @@ Opening a new database connection is expensive — it involves network round tri
 const { Pool } = require("pg");
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: 20, // maximum connections in pool
-  min: 2, // keep 2 connections warm at all times
-  idleTimeoutMillis: 30000, // close idle connections after 30s
-  connectionTimeoutMillis: 5000, // throw error if cannot connect in 5s
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    max: 20, // maximum connections in pool
+    min: 2, // keep 2 connections warm at all times
+    idleTimeoutMillis: 30000, // close idle connections after 30s
+    connectionTimeoutMillis: 5000, // throw error if cannot connect in 5s
 });
 
 // pool.query() automatically borrows a connection, uses it, returns it
@@ -8008,24 +8045,24 @@ const result = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
 // Correct pattern: use a dedicated client from the pool for transactions
 const client = await pool.connect();
 try {
-  await client.query("BEGIN");
+    await client.query("BEGIN");
 
-  await client.query(
-    "UPDATE accounts SET balance = balance - $1 WHERE account_id = $2",
-    [amount, fromAccountId]
-  );
+    await client.query(
+        "UPDATE accounts SET balance = balance - $1 WHERE account_id = $2",
+        [amount, fromAccountId],
+    );
 
-  await client.query(
-    "UPDATE accounts SET balance = balance + $1 WHERE account_id = $2",
-    [amount, toAccountId]
-  );
+    await client.query(
+        "UPDATE accounts SET balance = balance + $1 WHERE account_id = $2",
+        [amount, toAccountId],
+    );
 
-  await client.query("COMMIT");
+    await client.query("COMMIT");
 } catch (error) {
-  await client.query("ROLLBACK");
-  throw error; // re-throw so the caller knows the transaction failed
+    await client.query("ROLLBACK");
+    throw error; // re-throw so the caller knows the transaction failed
 } finally {
-  client.release(); // ALWAYS release the connection back to the pool
+    client.release(); // ALWAYS release the connection back to the pool
 }
 ```
 
@@ -8343,6 +8380,433 @@ ORDER BY avg_salary DESC;
 **Step 6 — Offer alternatives:** "You could also solve this with a window function — that might be more readable and equally performant."
 
 This approach demonstrates not just SQL knowledge but engineering judgment — exactly what 3 YOE interviews assess.
+
+---
+
+### Deep-Dive Interview Q&A — Frequently Asked Concepts
+
+These are the questions that come up in almost every SQL/PostgreSQL interview. Each answer is written to be spoken aloud — concise, precise, and showing depth.
+
+---
+
+#### What is a CTE (Common Table Expression)?
+
+A **CTE** (Common Table Expression) is a temporary, named result set defined using the `WITH` keyword at the top of a query. It exists only for the duration of that single query and is discarded afterwards.
+
+Think of it as giving a name to a subquery so you can refer to it like a table — making complex queries far easier to read and maintain.
+
+```sql
+-- Without CTE: nested, hard to read
+SELECT department_id, avg_sal
+FROM (
+  SELECT department_id, AVG(salary) AS avg_sal
+  FROM employees
+  GROUP BY department_id
+) dept_avgs
+WHERE avg_sal > 70000;
+
+-- With CTE: clear, readable
+WITH dept_avgs AS (
+  SELECT department_id, AVG(salary) AS avg_sal
+  FROM employees
+  GROUP BY department_id
+)
+SELECT department_id, avg_sal
+FROM dept_avgs
+WHERE avg_sal > 70000;
+```
+
+**Key properties:**
+
+- Defined with `WITH cte_name AS (SELECT ...)` before the main query
+- Can be referenced multiple times in the same query (unlike a subquery, which must be repeated)
+- Can be **chained** — one CTE can reference a previous CTE in the same `WITH` block
+- Supports **recursion** with `WITH RECURSIVE` for hierarchical/tree data
+
+**CTE vs Subquery — when to choose which:**
+
+| Aspect                    | CTE                                       | Subquery                      |
+| ------------------------- | ----------------------------------------- | ----------------------------- |
+| Readability               | Better — named, appears at the top        | Inline — can be deeply nested |
+| Reusability in same query | ✅ Yes — reference by name multiple times | ❌ No — must duplicate        |
+| Recursion                 | ✅ `WITH RECURSIVE`                       | ❌ Not supported              |
+| Performance               | Same in PostgreSQL (inlined by default)   | Same                          |
+
+> **Interview answer:** "A CTE is a `WITH` clause that names a subquery so you can reference it cleanly. It improves readability, supports recursion, and can be referenced multiple times without duplicating SQL. In PostgreSQL, CTEs are inlined into the query plan by default — so they have the same performance as an equivalent subquery."
+
+---
+
+#### What is a Recursive CTE?
+
+A **recursive CTE** (`WITH RECURSIVE`) is a CTE that references itself, enabling queries over hierarchical or graph-structured data — employee-manager trees, category hierarchies, bill-of-materials, graph traversals.
+
+It has two parts joined by `UNION ALL`:
+
+1. **Anchor member** — the starting rows (base case)
+2. **Recursive member** — joins the CTE to itself, fetching the next level
+
+```sql
+-- Find all subordinates (direct + indirect) of employee 1
+WITH RECURSIVE org_tree AS (
+  -- Anchor: direct reports of employee 1
+  SELECT employee_id, first_name, manager_id, 1 AS depth
+  FROM employees
+  WHERE manager_id = 1
+
+  UNION ALL
+
+  -- Recursive: each subordinate's subordinates
+  SELECT e.employee_id, e.first_name, e.manager_id, ot.depth + 1
+  FROM employees e
+  JOIN org_tree ot ON e.manager_id = ot.employee_id
+  WHERE ot.depth < 10  -- safety limit: prevent infinite loops
+)
+SELECT * FROM org_tree ORDER BY depth, first_name;
+```
+
+> Always include a termination condition (`depth < N` or `WHERE` that eventually returns no rows) to prevent infinite loops.
+
+---
+
+#### HAVING vs WHERE — In Depth
+
+This is asked in virtually every SQL interview. Here is the complete answer:
+
+| Aspect                       | WHERE                                               | HAVING                                     |
+| ---------------------------- | --------------------------------------------------- | ------------------------------------------ |
+| What it filters              | Individual **rows** from base tables                | **Groups** after `GROUP BY`                |
+| When it runs                 | Step 2 in logical execution order (before grouping) | Step 4 (after grouping)                    |
+| Can reference aggregates?    | ❌ No — aggregates don't exist yet                  | ✅ Yes — `HAVING COUNT(*) > 5`             |
+| Can reference table columns? | ✅ Yes                                              | ✅ Yes (must be in GROUP BY or aggregated) |
+| Performance                  | Faster — reduces rows before grouping               | Runs on fewer rows (only groups)           |
+
+```sql
+-- WHERE: filters rows BEFORE grouping
+-- Only counts employees in the IT department
+SELECT department_id, COUNT(*) AS headcount
+FROM employees
+WHERE department = 'IT'          -- row-level filter
+GROUP BY department_id;
+
+-- HAVING: filters groups AFTER aggregation
+-- Only shows departments with more than 5 employees
+SELECT department_id, COUNT(*) AS headcount
+FROM employees
+GROUP BY department_id
+HAVING COUNT(*) > 5;             -- group-level filter
+
+-- Both together: filter rows first, then filter groups
+SELECT department_id, COUNT(*) AS headcount, AVG(salary) AS avg_sal
+FROM employees
+WHERE status = 'ACTIVE'          -- step 1: only active employees
+GROUP BY department_id
+HAVING AVG(salary) > 60000;      -- step 2: only high-paying departments
+```
+
+**The rule:** Use `WHERE` to filter the rows you are working with. Use `HAVING` to filter the groups you computed. If your condition does NOT involve an aggregate function, it belongs in `WHERE` — it is more efficient there because it reduces the data before grouping.
+
+---
+
+#### What is a Window Function?
+
+A **window function** performs a calculation across a set of rows that are related to the current row — without collapsing rows into a single output row (unlike aggregate functions with GROUP BY).
+
+The key clause is `OVER(...)` which defines the "window" (the set of rows to calculate over).
+
+```sql
+-- Aggregate (GROUP BY): collapses rows — you lose individual row data
+SELECT department_id, AVG(salary) FROM employees GROUP BY department_id;
+-- Returns one row per department
+
+-- Window function: keeps all rows AND adds aggregate as a column
+SELECT
+  first_name,
+  salary,
+  department_id,
+  AVG(salary) OVER (PARTITION BY department_id) AS dept_avg,
+  salary - AVG(salary) OVER (PARTITION BY department_id) AS diff_from_avg
+FROM employees;
+-- Returns ALL employee rows, with dept_avg alongside each one
+```
+
+**Core syntax:** `function_name() OVER (PARTITION BY col ORDER BY col ROWS/RANGE ...)`
+
+- `PARTITION BY` — divides rows into groups (like GROUP BY, but does not collapse)
+- `ORDER BY` inside OVER — determines the order within each partition (required for ranking/lag/lead)
+
+**Common window functions:**
+
+| Function                         | Purpose                                     |
+| -------------------------------- | ------------------------------------------- |
+| `ROW_NUMBER()`                   | Unique sequential number per partition      |
+| `RANK()`                         | Same rank for ties, skips numbers after tie |
+| `DENSE_RANK()`                   | Same rank for ties, no gaps                 |
+| `LAG(col, n)`                    | Value of `col` from `n` rows behind         |
+| `LEAD(col, n)`                   | Value of `col` from `n` rows ahead          |
+| `SUM() OVER()`                   | Running total                               |
+| `FIRST_VALUE()` / `LAST_VALUE()` | First/last value in the window              |
+| `NTILE(n)`                       | Divide rows into n equal buckets            |
+
+```sql
+-- RANK vs DENSE_RANK vs ROW_NUMBER with ties
+SELECT first_name, salary,
+  ROW_NUMBER()  OVER (ORDER BY salary DESC) AS row_num,   -- 1,2,3,4,5 (no ties)
+  RANK()        OVER (ORDER BY salary DESC) AS rnk,       -- 1,2,2,4,5 (skips 3)
+  DENSE_RANK()  OVER (ORDER BY salary DESC) AS dense_rnk  -- 1,2,2,3,4 (no gap)
+FROM employees;
+
+-- Running total of salary
+SELECT first_name, salary,
+  SUM(salary) OVER (ORDER BY employee_id) AS running_total
+FROM employees;
+
+-- Month-over-month comparison with LAG
+SELECT month, revenue,
+  LAG(revenue) OVER (ORDER BY month) AS prev_month_revenue,
+  revenue - LAG(revenue) OVER (ORDER BY month) AS change
+FROM monthly_sales;
+```
+
+> **Interview answer:** "Window functions add aggregate-like calculations to each row without collapsing the result set. The `OVER()` clause defines the window — `PARTITION BY` is like GROUP BY but keeps rows, `ORDER BY` inside OVER controls ranking/lag direction. They're essential for running totals, rankings per group, and period-over-period comparisons."
+
+---
+
+#### PARTITION BY vs GROUP BY
+
+| Aspect                            | GROUP BY                        | PARTITION BY (in window functions) |
+| --------------------------------- | ------------------------------- | ---------------------------------- |
+| Output rows                       | One row per group               | All original rows preserved        |
+| Purpose                           | Aggregation — collapse rows     | Window calculation — add a column  |
+| Use with                          | Aggregate functions (SUM, AVG…) | Window functions (OVER clause)     |
+| Can mix with individual row data? | ❌ No                           | ✅ Yes                             |
+
+```sql
+-- GROUP BY: 4 rows (one per department)
+SELECT department_id, AVG(salary) FROM employees GROUP BY department_id;
+
+-- PARTITION BY: all employee rows, each with their dept average
+SELECT first_name, salary, AVG(salary) OVER (PARTITION BY department_id)
+FROM employees;
+```
+
+---
+
+#### What is the Difference Between UNION and UNION ALL?
+
+Both combine the result sets of two SELECT queries (which must have the same number of columns and compatible data types).
+
+|             | UNION                               | UNION ALL                               |
+| ----------- | ----------------------------------- | --------------------------------------- |
+| Duplicates  | Removed (like DISTINCT)             | Kept — all rows included                |
+| Performance | Slower (sort + dedup pass)          | Faster (no dedup)                       |
+| Use when    | You want unique rows from both sets | You want every row including duplicates |
+
+```sql
+-- UNION: unique employees from both offices
+SELECT employee_id, first_name FROM employee_uk
+UNION
+SELECT employee_id, first_name FROM employee_usa;
+
+-- UNION ALL: all employees, duplicates included
+SELECT employee_id, first_name FROM employee_uk
+UNION ALL
+SELECT employee_id, first_name FROM employee_usa;
+```
+
+> If you know the sets are already disjoint (no overlapping rows), always use `UNION ALL` — it is faster because it skips the deduplication step.
+
+---
+
+#### How Do You Find Duplicate Rows?
+
+```sql
+-- Find duplicate emails and how many times they appear
+SELECT email, COUNT(*) AS cnt
+FROM employees
+GROUP BY email
+HAVING COUNT(*) > 1;
+
+-- Show the full duplicate rows
+SELECT * FROM employees
+WHERE email IN (
+  SELECT email FROM employees
+  GROUP BY email
+  HAVING COUNT(*) > 1
+)
+ORDER BY email;
+```
+
+---
+
+#### How Do You Delete Duplicate Rows and Keep One?
+
+```sql
+-- Keep the row with the lowest employee_id; delete all other duplicates
+DELETE FROM employees
+WHERE employee_id NOT IN (
+  SELECT MIN(employee_id)
+  FROM employees
+  GROUP BY email   -- the column that defines "duplicate"
+);
+
+-- Alternative using ctid (PostgreSQL row identifier — faster for large tables)
+DELETE FROM employees
+WHERE ctid NOT IN (
+  SELECT MIN(ctid)
+  FROM employees
+  GROUP BY email
+);
+```
+
+---
+
+#### What is the Difference Between CHAR, VARCHAR, and TEXT?
+
+| Type         | Storage                                     | Trailing spaces | Use when                                         |
+| ------------ | ------------------------------------------- | --------------- | ------------------------------------------------ |
+| `CHAR(n)`    | Fixed — always n bytes (padded with spaces) | Preserved       | Fixed-length codes (country codes, status flags) |
+| `VARCHAR(n)` | Variable — up to n characters               | Stripped        | Variable text with a known maximum               |
+| `TEXT`       | Variable — unlimited length                 | Stripped        | Long text, no length constraint needed           |
+
+In PostgreSQL, `VARCHAR` without a length limit and `TEXT` are functionally identical in storage and performance. `CHAR(n)` is almost never the right choice in modern PostgreSQL.
+
+---
+
+#### What is the Difference Between a Stored Procedure and a Function?
+
+| Aspect              | Function                         | Stored Procedure              |
+| ------------------- | -------------------------------- | ----------------------------- |
+| Returns a value     | ✅ Yes (must return)             | Optional (can use OUT params) |
+| Can use in SELECT   | ✅ Yes (`SELECT get_salary(1)`)  | ❌ No                         |
+| Transaction control | ❌ Cannot COMMIT/ROLLBACK inside | ✅ Can COMMIT/ROLLBACK inside |
+| Called with         | `SELECT` or within expressions   | `CALL procedure_name()`       |
+| Added in PostgreSQL | Always supported                 | PostgreSQL 11+                |
+
+```sql
+-- Function: returns a value, usable in SELECT
+CREATE FUNCTION get_employee_count(dept_id INT) RETURNS INT AS $$
+  SELECT COUNT(*) FROM employees WHERE department_id = dept_id;
+$$ LANGUAGE SQL;
+
+SELECT get_employee_count(10);  -- used in a query
+
+-- Procedure: for operations with transaction control
+CREATE PROCEDURE transfer_funds(from_id INT, to_id INT, amount NUMERIC) AS $$
+BEGIN
+  UPDATE accounts SET balance = balance - amount WHERE id = from_id;
+  UPDATE accounts SET balance = balance + amount WHERE id = to_id;
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+CALL transfer_funds(1, 2, 500.00);
+```
+
+---
+
+#### What is the Difference Between TRUNCATE, DELETE, and DROP?
+
+| Operation    | Removes                         | Transactional?         | Resets SERIAL?                | Fires triggers? | Speed             |
+| ------------ | ------------------------------- | ---------------------- | ----------------------------- | --------------- | ----------------- |
+| `DELETE`     | Rows (with optional WHERE)      | ✅ Yes                 | ❌ No                         | ✅ Yes          | Slow (row-by-row) |
+| `TRUNCATE`   | All rows                        | ✅ Yes (in PostgreSQL) | Optional (`RESTART IDENTITY`) | ❌ No           | Very fast         |
+| `DROP TABLE` | Entire table (structure + data) | ✅ Yes                 | N/A                           | ❌ No           | Instant           |
+
+```sql
+DELETE FROM logs WHERE created_at < NOW() - INTERVAL '1 year';  -- selective
+TRUNCATE TABLE session_cache RESTART IDENTITY;                  -- wipe all, reset IDs
+DROP TABLE temp_import_staging;                                  -- remove table entirely
+```
+
+---
+
+#### What is EXPLAIN ANALYZE?
+
+`EXPLAIN` shows the query execution plan the planner would use — the strategy PostgreSQL has decided on (sequential scan, index scan, hash join, etc.) and its estimated costs.
+
+`EXPLAIN ANALYZE` actually **runs** the query and shows both the estimated and actual costs/times, revealing where a query is spending its time.
+
+```sql
+EXPLAIN ANALYZE
+SELECT e.first_name, d.department_name
+FROM employees e
+JOIN departments d ON e.department_id = d.department_id
+WHERE e.salary > 80000;
+```
+
+Key things to look for:
+
+- **Seq Scan** on a large table — usually means a missing index
+- **estimated rows** vs **actual rows** — a large mismatch means stale statistics (run `ANALYZE`)
+- **Hash Join** vs **Index Nested Loop** — hash join is good for large sets; nested loop is good for small sets with indexes
+- **Total actual time** — see where the most time is spent
+
+---
+
+#### What is a Trigger?
+
+A **trigger** is a function that PostgreSQL automatically executes in response to a data-changing event (`INSERT`, `UPDATE`, `DELETE`) on a table, either before or after the event.
+
+```sql
+-- Trigger function: update updated_at whenever a row is modified
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Attach the trigger to the employees table
+CREATE TRIGGER trg_employees_updated_at
+BEFORE UPDATE ON employees
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+```
+
+**Common use cases:** auto-updating audit timestamps, maintaining a history/changelog table, enforcing complex business rules that CHECK constraints cannot express, cascading denormalized data.
+
+---
+
+#### Quick-Fire Concept Questions
+
+**Q: Can you use a window function in a WHERE clause?**
+No. Window functions are computed in the SELECT step; WHERE runs before SELECT. Wrap the query in a CTE or subquery:
+
+```sql
+SELECT * FROM (
+  SELECT *, RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rnk FROM employees
+) t WHERE rnk = 1;
+```
+
+**Q: What happens if you GROUP BY without an aggregate?**
+It works — it behaves like `SELECT DISTINCT` on those columns.
+
+**Q: Can a table have no primary key?**
+Yes, PostgreSQL allows it, but it is bad practice — no guaranteed unique row identifier, harder to reference from FK columns, and replication tools may not work correctly.
+
+**Q: What is the difference between `=` and `IS` for NULL checks?**
+`NULL = NULL` evaluates to `UNKNOWN` (not TRUE). You must use `IS NULL` or `IS NOT NULL`. The `=` operator never matches NULL.
+
+**Q: What is `COALESCE` and when do you use it?**
+`COALESCE(a, b, c)` returns the first non-NULL value in its argument list. Use it to substitute a default when a column might be NULL — e.g., `COALESCE(bonus, 0)` treats missing bonus as zero.
+
+**Q: What is `NULLIF`?**
+`NULLIF(a, b)` returns NULL if `a = b`, otherwise returns `a`. Primary use: prevent division-by-zero — `total / NULLIF(count, 0)` returns NULL instead of error when count is 0.
+
+**Q: What is the difference between `NOW()` and `CURRENT_TIMESTAMP`?**
+They return the same value — the transaction start timestamp. `NOW()` is the PostgreSQL alias. Use `CLOCK_TIMESTAMP()` if you need the real wall-clock time that advances within a transaction.
+
+**Q: What does `RETURNING` do?**
+`RETURNING` lets an `INSERT`, `UPDATE`, or `DELETE` return the affected rows, avoiding a separate SELECT:
+
+```sql
+INSERT INTO employees (first_name, salary) VALUES ('Ali', 70000) RETURNING employee_id;
+UPDATE employees SET salary = salary * 1.1 WHERE department_id = 10 RETURNING first_name, salary;
+```
+
+**Q: What is the difference between `SERIAL` and `GENERATED ALWAYS AS IDENTITY`?**
+`SERIAL` is a PostgreSQL shorthand that creates an integer column backed by a sequence. `GENERATED ALWAYS AS IDENTITY` is the SQL standard equivalent (PostgreSQL 10+). Prefer `IDENTITY` in new code — it is standards-compliant and the planner can enforce it more strictly (`ALWAYS` prevents manual inserts into the column).
 
 ---
 
